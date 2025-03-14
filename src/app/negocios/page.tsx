@@ -1,4 +1,7 @@
+'use client';
+
 import { FiAlertCircle, FiTrash2, FiSearch } from 'react-icons/fi';
+import Link from 'next/link';
 
 export default function NegociosPage() {
   // Datos de ejemplo para la tabla
@@ -28,6 +31,13 @@ export default function NegociosPage() {
       estado: "alerta"
     }
   ];
+
+  // Manejador para eliminar un negocio
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evita la navegación al hacer clic en el botón de eliminar
+    console.log(`Eliminar negocio ${id}`);
+    // Aquí iría la lógica para eliminar el negocio
+  };
 
   return (
     <div className="h-full">
@@ -61,24 +71,32 @@ export default function NegociosPage() {
         <div className="text-center">Actions</div>
       </div>
       
-      {/* Cada deal en un contenedor separado con bordes redondeados */}
+      {/* Cada deal en un contenedor separado con bordes redondeados y clickable */}
       <div className="space-y-3">
         {negocios.map((negocio) => (
-          <div key={negocio.id} className="grid grid-cols-7 gap-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all">
-            <div className="text-gray-900 font-medium">{negocio.id}</div>
-            <div className="text-gray-600">{negocio.fecha}</div>
-            <div className="text-gray-600">{negocio.cliente}</div>
-            <div className="text-gray-600">{negocio.proveedor}</div>
-            <div className="text-gray-600">{negocio.material}</div>
-            <div className="flex justify-center">
-              <FiAlertCircle className="text-red-500 w-5 h-5" />
+          <Link 
+            href={`/negocios/${negocio.id}`} 
+            key={negocio.id}
+          >
+            <div className="grid grid-cols-7 gap-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all items-center cursor-pointer hover:bg-blue-50">
+              <div className="text-gray-900 font-medium">{negocio.id}</div>
+              <div className="text-gray-600">{negocio.fecha}</div>
+              <div className="text-gray-600">{negocio.cliente}</div>
+              <div className="text-gray-600">{negocio.proveedor}</div>
+              <div className="text-gray-600">{negocio.material}</div>
+              <div className="flex justify-center">
+                <FiAlertCircle className="text-red-500 w-5 h-5" />
+              </div>
+              <div className="flex justify-center">
+                <button 
+                  className="text-red-500 hover:text-red-700"
+                  onClick={(e) => handleDelete(e, negocio.id)}
+                >
+                  <FiTrash2 className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <div className="flex justify-center">
-              <button className="text-red-500 hover:text-red-700">
-                <FiTrash2 className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          </Link>
         ))}
       </div>
       
