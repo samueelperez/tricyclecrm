@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   FiClock, 
   FiUser, 
@@ -19,8 +20,18 @@ import {
 
 // Página de detalles de un negocio específico
 export default function DetalleNegocio({ params }: { params: { id: string } }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
   const negocioId = params.id;
+  
+  // Actualizar la pestaña activa si cambia el parámetro de URL
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
   
   // Datos específicos para este negocio
   const detalleNegocio = {
