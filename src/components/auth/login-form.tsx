@@ -43,8 +43,8 @@ export default function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="text-center mb-6">
-        <div className="flex justify-center mb-6">
+      <div className="text-center mb-8">
+        <div className="flex justify-center mb-8">
           {/* Intentaremos cargar el logo desde varias ubicaciones posibles */}
           <Image 
             src="/images/logo.png" 
@@ -61,13 +61,9 @@ export default function LoginForm() {
             }}
           />
         </div>
-        <h1 className="text-3xl font-bold text-blue-500">¡Bienvenido de nuevo!</h1>
-        <p className="mt-2 text-gray-500">
-          Por favor inicia sesión en tu cuenta
-        </p>
       </div>
 
-      <form onSubmit={handleSignIn} className="mt-8 space-y-6">
+      <form onSubmit={handleSignIn} className="space-y-6">
         {error && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
             <p className="text-sm text-red-700">{error}</p>
@@ -144,16 +140,6 @@ export default function LoginForm() {
           >
             {loading ? "Iniciando sesión..." : "Login"}
           </button>
-        </div>
-
-        <div className="text-center text-sm mt-4">
-          <span className="text-gray-600">¿No tienes una cuenta?</span>{" "}
-          <Link
-            href="/registro"
-            className="text-blue-500 hover:text-blue-600 font-medium"
-          >
-            Regístrate
-          </Link>
         </div>
       </form>
     </div>

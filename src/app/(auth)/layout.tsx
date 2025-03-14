@@ -17,17 +17,12 @@ export default async function AuthLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900 mb-4">
-            Tricycle CRM
-          </h2>
-          <p className="text-lg text-gray-500">
-            Sistema de gestión para negocios, clientes y logística
-          </p>
-        </div>
-        <div className="mt-10 flex justify-center">{children}</div>
+    <div className="min-h-screen bg-[#f9fafb] flex flex-col justify-center items-center">
+      <div className="w-full max-w-md bg-[#f9fafb] p-8">
+        {children}
+      </div>
+      <div className="mt-4 text-sm text-gray-500">
+        <p>Tricycle Products SL © {new Date().getFullYear()}</p>
       </div>
     </div>
   );
