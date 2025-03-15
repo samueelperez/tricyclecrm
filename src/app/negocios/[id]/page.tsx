@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   FiClock, 
   FiUser, 
@@ -19,8 +20,25 @@ import {
 
 // Página de detalles de un negocio específico
 export default function DetalleNegocio({ params }: { params: { id: string } }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  // Obtenemos el parámetro tab de la URL
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  
+  // Si hay un tabParam válido, lo usamos; si no, mostramos 'overview'
+  const [activeTab, setActiveTab] = useState(
+    tabParam && ['overview', 'bills', 'proformas', 'invoices', 'shipping'].includes(tabParam) 
+      ? tabParam 
+      : 'overview'
+  );
+  
   const negocioId = params.id;
+  
+  // Actualizar la pestaña activa cuando cambie el parámetro de búsqueda
+  useEffect(() => {
+    if (tabParam && ['overview', 'bills', 'proformas', 'invoices', 'shipping'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   
   // Datos específicos para este negocio
   const detalleNegocio = {
@@ -509,25 +527,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
             </div>
             
             {/* Controles inferiores */}
-            <div className="flex justify-between items-center mt-6">
-              <div className="flex space-x-3">
-                <Link 
-                  href={`/negocios/${negocioId}/facturas/new/cliente`}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
-                >
-                  <FiPlus className="mr-2" />
-                  Añadir Factura Cliente
-                </Link>
-                
-                <Link 
-                  href={`/negocios/${negocioId}/facturas/new/proveedor`}
-                  className="px-4 py-2 border border-blue-600 text-blue-600 bg-white rounded-lg flex items-center"
-                >
-                  <FiPlus className="mr-2" />
-                  Añadir Factura Proveedor
-                </Link>
-              </div>
-              
+            <div className="flex justify-end items-center mt-6">
               <div className="flex items-center text-gray-500">
                 <span className="mr-4">Página 1 de 1</span>
                 <div className="flex">
@@ -618,6 +618,14 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
 
   return (
     <div className="h-full bg-white">
+      {/* Botón de retorno */}
+      <div className="pt-6 px-6 mb-2">
+        <Link href="/negocios" className="inline-flex items-center text-gray-600 hover:text-gray-800">
+          <FiArrowLeft className="w-5 h-5 mr-2" />
+          <span>Volver a negocios</span>
+        </Link>
+      </div>
+      
       {/* Tabs de navegación */}
       <div className="border-b">
         <nav className="flex">

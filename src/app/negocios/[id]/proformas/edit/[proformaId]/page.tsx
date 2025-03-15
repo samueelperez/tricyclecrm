@@ -15,7 +15,7 @@ export default function EditarProforma({ params }: { params: { id: string; profo
   const { id: negocioId, proformaId } = params;
 
   const handleCancel = () => {
-    router.back();
+    router.push(`/negocios/${negocioId}?tab=proformas`);
   };
 
   const handleSave = () => {
