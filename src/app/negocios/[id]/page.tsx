@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { 
   FiClock, 
   FiUser, 
@@ -20,18 +19,8 @@ import {
 
 // Página de detalles de un negocio específico
 export default function DetalleNegocio({ params }: { params: { id: string } }) {
-  const searchParams = useSearchParams();
-  const tabFromUrl = searchParams.get('tab');
-  
-  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
+  const [activeTab, setActiveTab] = useState('overview');
   const negocioId = params.id;
-  
-  // Actualizar la pestaña activa si cambia el parámetro de URL
-  useEffect(() => {
-    if (tabFromUrl) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
   
   // Datos específicos para este negocio
   const detalleNegocio = {
@@ -304,12 +293,15 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
             
             {/* Controles inferiores */}
             <div className="mt-8 flex justify-between items-center">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center">
+              <Link 
+                href={`/negocios/${negocioId}/bills/new`}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
                 </svg>
-                Añadir Nueva Factura
-              </button>
+                Añadir Nuevo Recibo
+              </Link>
               
               <div className="flex items-center text-gray-500">
                 <span className="mr-4">Página 1 de 0</span>
@@ -363,16 +355,8 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               </div>
             </div>
             
-            {/* Controles inferiores */}
-            <div className="flex justify-between items-center">
-              <Link 
-                href={`/negocios/${negocioId}/proformas/new`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
-              >
-                <FiPlus className="mr-2" />
-                Añadir Nueva Proforma
-              </Link>
-              
+            {/* Controles de paginación */}
+            <div className="flex justify-end items-center">
               <div className="flex items-center text-gray-500">
                 <span className="mr-4">Página 1 de 1</span>
                 <div className="flex">

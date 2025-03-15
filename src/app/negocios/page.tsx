@@ -61,7 +61,7 @@ export default function NegociosPage() {
       </div>
       
       {/* Encabezados de columnas */}
-      <div className="grid grid-cols-7 gap-4 px-4 py-3 mb-3 text-xs font-medium text-gray-500 uppercase">
+      <div className="grid grid-cols-7 gap-4 px-6 py-3 mb-4 text-xs font-medium text-gray-500 uppercase bg-gray-50 rounded-lg">
         <div>Deal Number</div>
         <div>Date</div>
         <div>Customer</div>
@@ -72,24 +72,25 @@ export default function NegociosPage() {
       </div>
       
       {/* Cada deal en un contenedor separado con bordes redondeados y clickable */}
-      <div className="space-y-3">
+      <div className="space-y-5">
         {negocios.map((negocio) => (
           <Link 
             href={`/negocios/${negocio.id}`} 
             key={negocio.id}
+            className="block"
           >
-            <div className="grid grid-cols-7 gap-4 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all items-center cursor-pointer hover:bg-blue-50">
-              <div className="text-gray-900 font-medium">{negocio.id}</div>
-              <div className="text-gray-600">{negocio.fecha}</div>
-              <div className="text-gray-600">{negocio.cliente}</div>
-              <div className="text-gray-600">{negocio.proveedor}</div>
-              <div className="text-gray-600">{negocio.material}</div>
+            <div className="grid grid-cols-7 gap-4 px-6 py-5 bg-gray-50 border border-gray-200 rounded-lg shadow-md hover:shadow-lg transition-all items-center cursor-pointer hover:bg-blue-100 h-20">
+              <div className="text-gray-700 font-medium">{negocio.id}</div>
+              <div className="text-gray-500">{negocio.fecha}</div>
+              <div className="text-gray-500 truncate">{negocio.cliente}</div>
+              <div className="text-gray-500 truncate">{negocio.proveedor}</div>
+              <div className="text-gray-500 truncate">{negocio.material}</div>
               <div className="flex justify-center">
                 <FiAlertCircle className="text-red-500 w-5 h-5" />
               </div>
               <div className="flex justify-center">
                 <button 
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50"
                   onClick={(e) => handleDelete(e, negocio.id)}
                 >
                   <FiTrash2 className="w-5 h-5" />
