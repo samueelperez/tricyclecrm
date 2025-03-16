@@ -27,55 +27,62 @@ const ProformaCard = memo(({
   formatDate: (date: string) => string;
   onDelete: (id: string) => void;
   activeTab: ProformaTab;
-}) => (
-  <div 
-    className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100"
-  >
-    <div className="flex flex-col md:flex-row md:justify-between md:items-center">
-      <div className="mb-4 md:mb-0">
-        <h3 className="text-lg font-semibold text-gray-800">
-          {proforma.id_externo || `PRF-${proforma.id.substring(0, 8)}`}
-        </h3>
-        <p className="text-sm text-gray-500 mt-1">
-          {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {proforma.cliente_nombre}
-        </p>
-      </div>
-      
-      <div className="flex flex-col md:items-end">
-        <p className="text-lg font-bold text-gray-800">
-          {formatCurrency(proforma.monto)}
-        </p>
-        <p className="text-sm text-gray-500 mt-1">
-          Fecha: {formatDate(proforma.fecha)}
-        </p>
-      </div>
-    </div>
-    
-    <div className="mt-4 flex flex-col md:flex-row md:justify-between md:items-center">
-      <p className="text-sm text-gray-600">
-        <span className="font-medium">Material:</span> {proforma.material}
-      </p>
-      
-      <div className="mt-4 md:mt-0 flex space-x-4">
-        <Link 
-          href={`/proformas/edit/${proforma.id}`} 
-          className="flex items-center text-indigo-600 hover:text-indigo-800"
-        >
-          <FiEdit2 className="mr-1 h-4 w-4" />
-          <span>Editar</span>
-        </Link>
+}) => {
+  // Determinar la ruta de edición según el tipo de proforma
+  const editLink = activeTab === 'supplier' 
+    ? `/proformas/edit-supplier/${proforma.id}?tab=${activeTab}` 
+    : `/proformas/edit-customer/${proforma.id}?tab=${activeTab}`;
+
+  return (
+    <div 
+      className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100"
+    >
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+        <div className="mb-4 md:mb-0">
+          <h3 className="text-lg font-semibold text-gray-800">
+            {proforma.id_externo || `PRF-${proforma.id.substring(0, 8)}`}
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {proforma.cliente_nombre}
+          </p>
+        </div>
         
-        <button
-          onClick={() => onDelete(proforma.id)}
-          className="flex items-center text-red-600 hover:text-red-800"
-        >
-          <FiTrash2 className="mr-1 h-4 w-4" />
-          <span>Eliminar</span>
-        </button>
+        <div className="flex flex-col md:items-end">
+          <p className="text-lg font-bold text-gray-800">
+            {formatCurrency(proforma.monto)}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Fecha: {formatDate(proforma.fecha)}
+          </p>
+        </div>
+      </div>
+      
+      <div className="mt-4 flex flex-col md:flex-row md:justify-between md:items-center">
+        <p className="text-sm text-gray-600">
+          <span className="font-medium">Material:</span> {proforma.material}
+        </p>
+        
+        <div className="mt-4 md:mt-0 flex space-x-4">
+          <Link 
+            href={editLink}
+            className="flex items-center text-indigo-600 hover:text-indigo-800"
+          >
+            <FiEdit2 className="mr-1 h-4 w-4" />
+            <span>Editar</span>
+          </Link>
+          
+          <button
+            onClick={() => onDelete(proforma.id)}
+            className="flex items-center text-red-600 hover:text-red-800"
+          >
+            <FiTrash2 className="mr-1 h-4 w-4" />
+            <span>Eliminar</span>
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-));
+  );
+});
 
 ProformaCard.displayName = 'ProformaCard';
 

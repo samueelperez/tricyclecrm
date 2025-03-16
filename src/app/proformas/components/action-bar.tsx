@@ -14,10 +14,19 @@ interface ActionBarProps {
 export default function ActionBar({ currentPage, totalPages, onPageChange, activeTab }: ActionBarProps) {
   const router = useRouter();
   
+  const handleAddNew = () => {
+    // Redirigir a la página correspondiente según el tipo de proforma
+    if (activeTab === 'supplier') {
+      router.push(`/proformas/new-supplier?tab=${activeTab}`);
+    } else {
+      router.push(`/proformas/new-customer?tab=${activeTab}`);
+    }
+  };
+  
   return (
     <div className="mt-6 flex justify-between items-center">
       <button
-        onClick={() => router.push('/proformas/new')}
+        onClick={handleAddNew}
         className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
       >
         <FiPlus className="mr-2" /> Add New {activeTab === 'customer' ? 'Customer' : 'Supplier'} Proforma
