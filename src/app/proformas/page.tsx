@@ -1,19 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-
-// Importar componentes
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import SearchBar from './components/search-bar';
 import ProformaTabs from './components/proforma-tabs';
 import ProformaTable from './components/proforma-table';
 import ActionBar from './components/action-bar';
-
-// Importar tipos
 import { Proforma, ProformaTab } from './components/types';
+import { generateMockProformas } from './utils/mock-data';
 
 export default function ProformasPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ProformaTab>('customer');
   const [proformas, setProformas] = useState<Proforma[]>([]);
@@ -21,135 +17,169 @@ export default function ProformasPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  
+  // Caché para almacenar datos por pestaña
+  const [cachedData, setCachedData] = useState<{
+    customer: Proforma[];
+    supplier: Proforma[];
+  }>({
+    customer: [],
+    supplier: []
+  });
 
+  // Cargamos los datos una sola vez al inicio para cada pestaña
   useEffect(() => {
-    // Determinar la pestaña activa desde la URL
-    const tab = searchParams.get('tab');
-    if (tab === 'supplier') {
-      setActiveTab('supplier');
-    } else {
-      setActiveTab('customer');
-    }
-
-    fetchProformas();
-  }, [searchParams, activeTab, currentPage]);
-
-  const fetchProformas = async () => {
-    setLoading(true);
-    try {
-      // En un entorno real, esto sería una llamada a la API
-      // Por ahora, simulamos los datos
-      const mockData: Proforma[] = [
-        {
-          id: 1,
-          id_externo: 'INV003',
-          fecha: '2025-01-13',
-          cliente_nombre: 'DDH TRADE CO.,LIMITED',
-          monto: 48000.00,
-          material: 'PP JUMBO BAGS'
-        },
-        {
-          id: 2,
-          id_externo: 'INV002',
-          fecha: '2025-01-08',
-          cliente_nombre: 'DDH TRADE CO.,LIMITED',
-          monto: 64000.00,
-          material: 'PP JUMBO BAGS'
-        },
-        {
-          id: 3,
-          id_externo: 'INV001',
-          fecha: '2024-11-28',
-          cliente_nombre: 'LAO QIXIN CO.,LTD.',
-          monto: 20000.00,
-          material: 'PP JUMBO BAGS'
-        }
-      ];
-
-      // Filtrar por búsqueda si existe un término
-      const filtered = searchTerm
-        ? mockData.filter(p => 
-            p.id_externo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.cliente_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.material.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        : mockData;
-
-      setProformas(filtered);
-      setTotalPages(Math.ceil(filtered.length / 10) || 1);
+    const loadInitialData = async () => {
+      setLoading(true);
+      
+      // Generamos datos para ambas pestañas al mismo tiempo
+      const customerData = generateMockProformas('customer', 20);
+      const supplierData = generateMockProformas('supplier', 20);
+      
+      setCachedData({
+        customer: customerData,
+        supplier: supplierData
+      });
+      
+      // Determinamos la pestaña activa desde la URL
+      const tabParam = searchParams.get('tab');
+      const currentTab = (tabParam === 'supplier' || tabParam === 'customer') 
+        ? tabParam 
+        : 'customer';
+      
+      setActiveTab(currentTab);
+      
+      // Aplicamos paginación a los datos de la pestaña actual
+      const dataToUse = currentTab === 'customer' ? customerData : supplierData;
+      const pageSize = 5;
+      const totalP = Math.ceil(dataToUse.length / pageSize);
+      const paginatedData = dataToUse.slice(0, pageSize);
+      
+      setProformas(paginatedData);
+      setTotalPages(totalP || 1);
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching proformas:", error);
-      setLoading(false);
-    }
-  };
+    };
+    
+    loadInitialData();
+  }, [searchParams]);
+
+  // Memoizamos la función para filtrar y paginar los datos
+  const filterAndPaginateData = useCallback((
+    tab: ProformaTab, 
+    search: string, 
+    page: number,
+    data: Proforma[]
+  ) => {
+    // Filtramos según el término de búsqueda
+    const filteredData = search 
+      ? data.filter(p => 
+          p.cliente_nombre.toLowerCase().includes(search.toLowerCase()) ||
+          (p.id_externo && p.id_externo.toLowerCase().includes(search.toLowerCase())) ||
+          p.material.toLowerCase().includes(search.toLowerCase())
+        )
+      : data;
+    
+    // Aplicamos paginación
+    const pageSize = 5;
+    const totalP = Math.ceil(filteredData.length / pageSize);
+    const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+    
+    return { paginatedData, totalPages: totalP || 1 };
+  }, []);
+
+  // Este efecto maneja cambios en la página o en el término de búsqueda
+  useEffect(() => {
+    if (cachedData[activeTab].length === 0) return;
+    
+    const processData = () => {
+      setLoading(true);
+      
+      // Usamos los datos en caché para la pestaña actual
+      const { paginatedData, totalPages: totalP } = filterAndPaginateData(
+        activeTab,
+        searchTerm,
+        currentPage,
+        cachedData[activeTab]
+      );
+      
+      // Actualizamos el estado con un pequeño retraso para mostrar el indicador de carga
+      setTimeout(() => {
+        setProformas(paginatedData);
+        setTotalPages(totalP);
+        setLoading(false);
+      }, 200); // Reducido de 800ms a 200ms para una respuesta más rápida
+    };
+    
+    processData();
+  }, [activeTab, searchTerm, currentPage, cachedData, filterAndPaginateData]);
 
   const handleTabChange = (tab: ProformaTab) => {
     setActiveTab(tab);
-    router.push(`/proformas?tab=${tab}`);
+    setCurrentPage(1);
+    // No llamamos a fetchProformas porque el useEffect se encargará de procesar los datos
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1); // Resetear a la primera página al buscar
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    setCurrentPage(1);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar esta proforma?')) {
-      try {
-        // En un entorno real, aquí haríamos la llamada a la API para eliminar
-        setProformas(proformas.filter(p => p.id !== id));
-      } catch (error) {
-        console.error("Error deleting proforma:", error);
-      }
-    }
+  const handleDelete = (id: string) => {
+    // Actualizamos tanto la vista actual como la caché
+    setProformas(proformas.filter(p => p.id !== id));
+    
+    setCachedData(prev => ({
+      ...prev,
+      [activeTab]: prev[activeTab].filter(p => p.id !== id)
+    }));
+    
+    alert(`Proforma ${id} eliminada`);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-ES', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return `€${amount.toFixed(2)}`;
-  };
-
   return (
-    <div className="p-6">
-      {/* Barra de búsqueda */}
-      <SearchBar 
-        searchTerm={searchTerm} 
-        onSearch={handleSearch} 
-      />
-
-      {/* Pestañas */}
-      <ProformaTabs 
-        activeTab={activeTab} 
-        onTabChange={handleTabChange} 
-      />
-
-      {/* Tabla de proformas */}
-      <ProformaTable 
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Proformas</h1>
+      
+      <div className="flex flex-col md:flex-row justify-between md:items-center mb-6">
+        <SearchBar onSearch={handleSearch} />
+      </div>
+      
+      <ProformaTabs activeTab={activeTab} onTabChange={handleTabChange} />
+      
+      <ProformaTable
         proformas={proformas}
-        loading={loading}
+        isLoading={loading}
         onDelete={handleDelete}
-        formatDate={formatDate}
         formatCurrency={formatCurrency}
+        formatDate={formatDate}
+        activeTab={activeTab}
       />
-
-      {/* Botón de añadir y paginación */}
-      <ActionBar 
+      
+      <ActionBar
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={handlePageChange}
+        activeTab={activeTab}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 export interface Proforma {
-  id: number;
-  id_externo: string;
+  id: string;
+  id_externo?: string;
   fecha: string;
   cliente_nombre: string;
   monto: number;

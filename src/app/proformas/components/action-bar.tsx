@@ -2,14 +2,16 @@
 
 import { useRouter } from 'next/navigation';
 import { FiPlus } from 'react-icons/fi';
+import { ProformaTab } from './types';
 
 interface ActionBarProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  activeTab: ProformaTab;
 }
 
-export default function ActionBar({ currentPage, totalPages, onPageChange }: ActionBarProps) {
+export default function ActionBar({ currentPage, totalPages, onPageChange, activeTab }: ActionBarProps) {
   const router = useRouter();
   
   return (
@@ -18,7 +20,7 @@ export default function ActionBar({ currentPage, totalPages, onPageChange }: Act
         onClick={() => router.push('/proformas/new')}
         className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
       >
-        <FiPlus className="mr-2" /> Add New Customer Proforma
+        <FiPlus className="mr-2" /> Add New {activeTab === 'customer' ? 'Customer' : 'Supplier'} Proforma
       </button>
 
       <div className="flex items-center justify-end space-x-2">
