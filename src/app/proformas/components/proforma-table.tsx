@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react';
 import Link from 'next/link';
-import { FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiEdit2, FiTrash2, FiFileText } from 'react-icons/fi';
 import { Proforma, ProformaTab } from './types';
 
 interface ProformaTableProps {
@@ -93,6 +93,14 @@ const ProformaCard = memo(({
         </p>
         
         <div className="mt-4 md:mt-0 flex space-x-4">
+          <Link 
+            href={`/proformas/${proforma.id}/pdf`}
+            className="flex items-center text-green-600 hover:text-green-800"
+          >
+            <FiFileText className="mr-1 h-4 w-4" />
+            <span>PDF</span>
+          </Link>
+          
           <Link 
             href={editLink}
             className="flex items-center text-indigo-600 hover:text-indigo-800"
