@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiPlus, FiSearch, FiEdit, FiEye, FiTrash2, FiDownload, FiFileText, FiX, FiAlertCircle, FiRefreshCw, FiClock, FiCheckCircle, FiTag } from "react-icons/fi";
@@ -9,7 +9,21 @@ import ProformaTabs from "./components/proforma-tabs";
 import { Proforma, ProformaTab } from "./components/types";
 import ProformaTable from "./components/proforma-table";
 
-export default function ProformasPage() {
+// Componente de carga mientras se resuelve el suspense
+function LoadingFallback() {
+  return (
+    <div className="py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="h-10 w-64 bg-gray-200 rounded animate-pulse mb-8"></div>
+        <div className="h-10 bg-gray-200 rounded animate-pulse mb-6"></div>
+        <div className="h-80 bg-gray-100 rounded animate-pulse"></div>
+      </div>
+    </div>
+  );
+}
+
+// Componente interno que utiliza useSearchParams
+function ProformasContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -228,5 +242,14 @@ export default function ProformasPage() {
         />
       </div>
     </div>
+  );
+}
+
+// Componente principal que usa Suspense
+export default function ProformasPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ProformasContent />
+    </Suspense>
   );
 } 
