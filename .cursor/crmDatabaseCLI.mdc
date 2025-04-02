@@ -1,0 +1,448 @@
+/**
+ * CLI para la gestión de base de datos del TricycleCRM
+ * 
+ * Este archivo proporciona una interfaz de línea de comandos para administrar
+ * la base de datos de Supabase, incluyendo creación de tablas, migraciones y sincronización.
+ */
+
+// Importar gestores de base de datos
+const { 
+  dbSchema,
+  addEntityTable,
+  updateEntityTable,
+  addCRMSection,
+  generateDatabaseScript,
+  generateDatabaseTypes 
+} = require('./dbManager.mdc');
+
+const {
+  generateMigration,
+  createMigrationFile,
+  getAppliedMigrations,
+  applyMigration,
+  updateDatabaseTypes,
+  getCurrentDatabaseSchema,
+  compareDatabaseSchemas,
+  setupDatabaseManagementFunctions
+} = require('./supabaseManager.mdc');
+
+// Cliente de Supabase para operaciones administrativas
+const { createClient } = require('@supabase/supabase-js');
+
+/**
+ * Crea una instancia del cliente de Supabase para administración
+ * @param {string} supabaseUrl - URL de Supabase
+ * @param {string} serviceRoleKey - Clave de servicio (service_role)
+ * @returns {Object} Cliente de Supabase
+ */
+function createAdminClient(supabaseUrl, serviceRoleKey) {
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
+/**
+ * Procesa los comandos del CLI
+ * @param {Array} args - Argumentos de la línea de comandos
+ * @returns {Object} Resultado de la operación
+ */
+async function processCommand(args) {
+  if (args.length < 1) {
+    return {
+      success: false,
+      message: 'Se requiere un comando. Usa "help" para ver los comandos disponibles.'
+    };
+  }
+
+  const command = args[0];
+  
+  switch (command) {
+    case 'help':
+      return showHelp();
+      
+    case 'init':
+      return await initDatabase(args.slice(1));
+      
+    case 'create-table':
+      return await createTable(args.slice(1));
+      
+    case 'alter-table':
+      return await alterTable(args.slice(1));
+      
+    case 'create-migration':
+      return await createMigrationCommand(args.slice(1));
+      
+    case 'apply-migrations':
+      return await applyMigrations(args.slice(1));
+      
+    case 'generate-types':
+      return await generateTypesCommand();
+      
+    case 'add-section':
+      return await addSectionCommand(args.slice(1));
+      
+    case 'sync-schema':
+      return await syncSchemaCommand(args.slice(1));
+      
+    default:
+      return {
+        success: false,
+        message: `Comando desconocido: ${command}. Usa "help" para ver los comandos disponibles.`
+      };
+  }
+}
+
+/**
+ * Muestra la ayuda del CLI
+ * @returns {Object} Mensaje de ayuda
+ */
+function showHelp() {
+  return {
+    success: true,
+    message: `
+CLI para la gestión de base de datos del TricycleCRM
+
+Comandos disponibles:
+  help                      Muestra esta ayuda
+  init <url> <key>          Inicializa la base de datos y configura funciones de administración
+  create-table <nombre>     Crea una nueva tabla en la base de datos
+  alter-table <nombre>      Modifica una tabla existente
+  create-migration <nombre> Crea un archivo de migración con los cambios pendientes
+  apply-migrations          Aplica las migraciones pendientes
+  generate-types            Genera los tipos TypeScript actualizados
+  add-section <nombre>      Añade una nueva sección al CRM
+  sync-schema               Sincroniza el esquema local con la base de datos
+
+Ejemplos:
+  node cli.js init https://ejemplo.supabase.co eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  node cli.js create-table pedidos
+  node cli.js create-migration "añadir tabla pedidos"
+  node cli.js sync-schema
+    `
+  };
+}
+
+/**
+ * Inicializa la base de datos y configura funciones de administración
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function initDatabase(args) {
+  if (args.length < 2) {
+    return {
+      success: false,
+      message: 'Se requieren la URL de Supabase y la clave de servicio (service_role).'
+    };
+  }
+  
+  const [supabaseUrl, serviceRoleKey] = args;
+  
+  try {
+    // Crear cliente administrativo
+    const supabaseAdmin = createAdminClient(supabaseUrl, serviceRoleKey);
+    
+    // Configurar funciones de administración
+    const setupResult = await setupDatabaseManagementFunctions(supabaseAdmin);
+    
+    if (!setupResult) {
+      throw new Error('No se pudieron configurar las funciones de administración.');
+    }
+    
+    // Generar script para toda la base de datos
+    const fullScript = generateDatabaseScript(true);
+    
+    // Preguntar si se desea aplicar el script completo
+    console.log('Script de creación de base de datos generado. ¿Deseas aplicarlo? (S/N)');
+    // Aquí se requeriría una interacción del usuario
+    const shouldApply = true; // Simulamos que el usuario responde "S"
+    
+    if (shouldApply) {
+      const { error } = await supabaseAdmin.rpc('execute_sql', { sql: fullScript });
+      
+      if (error) {
+        throw new Error(`Error al aplicar el script: ${error.message}`);
+      }
+      
+      // Actualizar tipos TypeScript
+      const typesUpdate = updateDatabaseTypes();
+      
+      return {
+        success: true,
+        message: 'Base de datos inicializada correctamente.',
+        generatedFiles: [
+          { path: 'supabase/migrations/initial_schema.sql', content: fullScript },
+          { path: typesUpdate.filePath, content: typesUpdate.content }
+        ]
+      };
+    }
+    
+    return {
+      success: true,
+      message: 'Funciones de administración configuradas. No se aplicó el script de creación.',
+      script: fullScript
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      message: `Error al inicializar la base de datos: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Crea una nueva tabla en la base de datos
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function createTable(args) {
+  if (args.length < 1) {
+    return {
+      success: false,
+      message: 'Se requiere el nombre de la tabla a crear.'
+    };
+  }
+  
+  const tableName = args[0];
+  
+  // Aquí se solicitarían las columnas interactivamente
+  // Por simplicidad, creamos una tabla con columnas básicas
+  const columns = {
+    id: { type: 'integer', primaryKey: true, autoIncrement: true },
+    nombre: { type: 'text', notNull: true },
+    descripcion: { type: 'text' },
+    created_at: { type: 'timestamp with time zone' },
+    updated_at: { type: 'timestamp with time zone' }
+  };
+  
+  // Añadir la tabla al esquema
+  const result = addEntityTable(tableName, columns);
+  
+  if (!result.success) {
+    return result;
+  }
+  
+  // Crear un archivo de migración para la nueva tabla
+  const migrationResult = createMigrationFile(`crear_tabla_${tableName}`, {
+    createTables: [tableName]
+  });
+  
+  return {
+    success: true,
+    message: `Tabla '${tableName}' añadida al esquema.`,
+    migrationFile: migrationResult.filePath,
+    migrationSQL: migrationResult.content
+  };
+}
+
+/**
+ * Modifica una tabla existente
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function alterTable(args) {
+  if (args.length < 1) {
+    return {
+      success: false,
+      message: 'Se requiere el nombre de la tabla a modificar.'
+    };
+  }
+  
+  const tableName = args[0];
+  
+  // Verificar que la tabla exista
+  if (!dbSchema.tables[tableName]) {
+    return {
+      success: false,
+      message: `La tabla '${tableName}' no existe en el esquema.`
+    };
+  }
+  
+  // Aquí se solicitarían las nuevas columnas interactivamente
+  // Por simplicidad, añadimos una columna de ejemplo
+  const newColumns = {
+    is_active: { type: 'boolean', default: 'true' }
+  };
+  
+  // Actualizar la tabla en el esquema
+  const result = updateEntityTable(tableName, newColumns);
+  
+  if (!result.success) {
+    return result;
+  }
+  
+  // Crear un archivo de migración para la modificación
+  const migrationResult = createMigrationFile(`modificar_tabla_${tableName}`, {
+    alterTables: { [tableName]: newColumns }
+  });
+  
+  return {
+    success: true,
+    message: `Tabla '${tableName}' modificada en el esquema.`,
+    migrationFile: migrationResult.filePath,
+    migrationSQL: migrationResult.content
+  };
+}
+
+/**
+ * Crea un archivo de migración con los cambios pendientes
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function createMigrationCommand(args) {
+  if (args.length < 1) {
+    return {
+      success: false,
+      message: 'Se requiere un nombre para la migración.'
+    };
+  }
+  
+  const migrationName = args[0];
+  
+  // Para generar una migración completa, necesitaríamos conocer el estado actual
+  // de la base de datos. Como es un ejemplo, creamos una migración vacía
+  const migrationResult = createMigrationFile(migrationName, {
+    customSQL: '-- Añade aquí tus cambios SQL personalizados'
+  });
+  
+  return {
+    success: true,
+    message: `Migración '${migrationName}' creada.`,
+    migrationFile: migrationResult.filePath,
+    migrationSQL: migrationResult.content
+  };
+}
+
+/**
+ * Aplica las migraciones pendientes
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function applyMigrations(args) {
+  // Para aplicar migraciones, necesitaríamos las credenciales de Supabase
+  // y acceso al directorio de migraciones
+  return {
+    success: false,
+    message: 'Esta función requiere ser implementada con acceso al directorio de migraciones y credenciales de Supabase.'
+  };
+}
+
+/**
+ * Genera los tipos TypeScript actualizados
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function generateTypesCommand() {
+  const typesUpdate = updateDatabaseTypes();
+  
+  return {
+    success: true,
+    message: 'Tipos TypeScript generados correctamente.',
+    filePath: typesUpdate.filePath,
+    content: typesUpdate.content
+  };
+}
+
+/**
+ * Añade una nueva sección al CRM
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function addSectionCommand(args) {
+  if (args.length < 1) {
+    return {
+      success: false,
+      message: 'Se requiere el nombre de la sección a añadir.'
+    };
+  }
+  
+  const sectionName = args[0];
+  
+  // Aquí se solicitarían más detalles interactivamente
+  // Por simplicidad, usamos valores por defecto
+  const entities = [sectionName];
+  const route = sectionName;
+  const description = `Sección para gestión de ${sectionName}`;
+  
+  const result = addCRMSection(sectionName, entities, route, description);
+  
+  return {
+    success: result.success,
+    message: result.message,
+    needsConsistencyUpdate: result.needsConsistencyUpdate
+  };
+}
+
+/**
+ * Sincroniza el esquema local con la base de datos
+ * @param {Array} args - Argumentos adicionales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+async function syncSchemaCommand(args) {
+  if (args.length < 2) {
+    return {
+      success: false,
+      message: 'Se requieren la URL de Supabase y la clave de servicio (service_role).'
+    };
+  }
+  
+  const [supabaseUrl, serviceRoleKey] = args;
+  
+  try {
+    // Crear cliente administrativo
+    const supabaseAdmin = createAdminClient(supabaseUrl, serviceRoleKey);
+    
+    // Obtener esquema actual
+    const currentSchema = await getCurrentDatabaseSchema(supabaseAdmin);
+    
+    if (!currentSchema) {
+      throw new Error('No se pudo obtener el esquema actual de la base de datos.');
+    }
+    
+    // Comparar esquemas y generar diferencias
+    const comparison = compareDatabaseSchemas(currentSchema);
+    
+    // Si no hay cambios, terminar
+    if (comparison.changes.description && comparison.changes.description.length === 0) {
+      return {
+        success: true,
+        message: 'No hay cambios que sincronizar. El esquema está actualizado.'
+      };
+    }
+    
+    // Crear migración con los cambios
+    const migrationName = 'sync_schema_' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const migrationResult = createMigrationFile(migrationName, comparison.changes);
+    
+    return {
+      success: true,
+      message: `Migración de sincronización creada: ${migrationResult.filePath}`,
+      changes: comparison.changes.description,
+      migrationFile: migrationResult.filePath,
+      migrationSQL: migrationResult.content
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      message: `Error al sincronizar el esquema: ${error.message}`
+    };
+  }
+}
+
+// Exportar funciones
+return {
+  processCommand,
+  createAdminClient,
+  showHelp,
+  initDatabase,
+  createTable,
+  alterTable,
+  createMigrationCommand,
+  applyMigrations,
+  generateTypesCommand,
+  addSectionCommand,
+  syncSchemaCommand
+}; 

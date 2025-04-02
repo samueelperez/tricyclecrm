@@ -11,6 +11,8 @@ import {
   FiSave
 } from 'react-icons/fi';
 
+import { getSupabaseClient } from '@/lib/supabase';
+
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -42,16 +44,69 @@ export default function NewCustomerInvoicePage() {
     router.push(`/facturas?tab=customer`);
   };
 
-  const handleSave = () => {
-    // Aquí iría la lógica para guardar los cambios
+  const handleSave = async () => {
     setLoading(true);
     
-    // Simulamos un tiempo de procesamiento
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Validar campos obligatorios
+      if (!invoice.customerName) {
+        alert('Por favor, seleccione un cliente');
+        setLoading(false);
+        return;
+      }
+      
+      if (invoice.items.some(item => !item.description)) {
+        alert('Por favor, complete la descripción de todos los productos');
+        setLoading(false);
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      
+      // Preparar datos para guardar en Supabase
+      const facturaData = {
+        id_externo: invoice.number,
+        fecha: invoice.date,
+        negocio_id: null, // Se podría relacionar con un negocio específico en el futuro
+        monto: invoice.totalAmount,
+        material: JSON.stringify({
+          cliente_nombre: invoice.customerName,
+          taxId: invoice.taxId,
+          paymentTerms: invoice.paymentTerms,
+          notas: invoice.invoiceNotes,
+          items: invoice.items,
+          descripcion: invoice.items[0]?.description || ''
+        }),
+        estado: 'pendiente'
+      };
+      
+      console.log('Guardando factura:', facturaData);
+      
+      // Insertar factura en Supabase
+      const { data: facturaInsertada, error: facturaError } = await supabase
+        .from('facturas_cliente')
+        .insert(facturaData)
+        .select('id')
+        .single();
+      
+      if (facturaError) {
+        throw new Error(`Error al guardar la factura: ${facturaError.message}`);
+      }
+      
+      console.log('Factura guardada con ID:', facturaInsertada.id);
+      
+      // En el futuro, aquí se podrían guardar también las líneas de factura en una tabla relacionada
+      
+      alert('Factura guardada correctamente');
+      
       // Redirigir de vuelta a la página de facturas
       router.push(`/facturas?tab=customer`);
-    }, 500);
+    } catch (error) {
+      console.error('Error al guardar la factura:', error);
+      alert(`Error al guardar la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {

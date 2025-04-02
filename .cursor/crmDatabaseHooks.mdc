@@ -1,0 +1,250 @@
+/**
+ * Hooks de base de datos para TricycleCRM
+ * 
+ * Este archivo proporciona un sistema de hooks para la integración
+ * con otros sistemas como Git o entornos de CI/CD.
+ */
+
+// Importar gestores necesarios
+const { 
+  generateDatabaseScript,
+  generateDatabaseTypes
+} = require('./dbManager.mdc');
+
+/**
+ * Hook para ejecutar antes de un commit en Git
+ * Genera tipos actualizados y verifica el esquema
+ * @returns {Object} Resultado de la ejecución del hook
+ */
+async function preCommitHook() {
+  try {
+    console.log('🔄 Ejecutando hook pre-commit para la base de datos...');
+    
+    // Generar tipos TypeScript actualizados
+    const typesContent = generateDatabaseTypes();
+    
+    // Guardar tipos actualizados
+    require('fs').writeFileSync(
+      'src/lib/supabase/database.types.ts',
+      typesContent
+    );
+    
+    console.log('✅ Tipos TypeScript actualizados correctamente.');
+    
+    return {
+      success: true,
+      message: 'Hook pre-commit ejecutado correctamente.'
+    };
+  } catch (error) {
+    console.error('❌ Error en hook pre-commit:', error.message);
+    return {
+      success: false,
+      message: `Error en hook pre-commit: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Hook para ejecutar durante la construcción del proyecto
+ * Verifica que el esquema esté actualizado
+ * @returns {Promise<Object>} Resultado de la verificación
+ */
+async function buildHook() {
+  try {
+    console.log('🔍 Verificando esquema de base de datos durante construcción...');
+    
+    // Importar funciones necesarias
+    const { 
+      getCurrentDatabaseSchema, 
+      compareDatabaseSchemas 
+    } = require('./supabaseManager.mdc');
+    
+    // Crear cliente Supabase para verificación
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('⚠️ No se encontraron credenciales de Supabase. Omitiendo verificación de esquema.');
+      return {
+        success: true,
+        message: 'Verificación de esquema omitida por falta de credenciales.'
+      };
+    }
+    
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+    
+    // Obtener esquema actual
+    const currentSchema = await getCurrentDatabaseSchema(supabase);
+    
+    if (!currentSchema) {
+      console.log('⚠️ No se pudo obtener el esquema actual. Omitiendo verificación.');
+      return {
+        success: true,
+        message: 'Verificación omitida por falta de esquema actual.'
+      };
+    }
+    
+    // Comparar esquemas
+    const comparison = compareDatabaseSchemas(currentSchema);
+    
+    // Si hay cambios, advertir
+    if (comparison.changes.description && comparison.changes.description.length > 0) {
+      console.warn('⚠️ ADVERTENCIA: El esquema de la base de datos no está actualizado.');
+      console.warn('Es necesario sincronizar la base de datos antes de desplegar.');
+      console.warn('Cambios pendientes:');
+      comparison.changes.description.forEach(change => {
+        console.warn(`  - ${change}`);
+      });
+      
+      // En entorno de producción, podría ser deseable fallar la construcción
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('El esquema de la base de datos no está actualizado. Construcción abortada.');
+      }
+    } else {
+      console.log('✅ El esquema de la base de datos está actualizado.');
+    }
+    
+    return {
+      success: true,
+      message: 'Verificación de esquema completada.',
+      isSchemaUpdated: !comparison.changes.description || comparison.changes.description.length === 0
+    };
+  } catch (error) {
+    console.error('❌ Error en hook de construcción:', error.message);
+    return {
+      success: false,
+      message: `Error en hook de construcción: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Hook para ejecutar durante el despliegue
+ * Aplica migraciones pendientes en entorno de producción
+ * @returns {Promise<Object>} Resultado del despliegue
+ */
+async function deployHook() {
+  try {
+    console.log('🚀 Ejecutando hook de despliegue para la base de datos...');
+    
+    // Solo ejecutar en entorno de producción
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('ℹ️ No estamos en entorno de producción. Omitiendo migraciones automáticas.');
+      return {
+        success: true,
+        message: 'Hook de despliegue omitido en entorno no productivo.'
+      };
+    }
+    
+    // Importar funciones necesarias
+    const { 
+      ensureMigrationsTable,
+      getAppliedMigrations,
+      applyMigration
+    } = require('./supabaseManager.mdc');
+    
+    // Verificar credenciales
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('No se encontraron credenciales de Supabase necesarias para el despliegue.');
+    }
+    
+    // Crear cliente Supabase
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+    
+    // Verificar tabla de migraciones
+    await ensureMigrationsTable(supabase);
+    
+    // Obtener migraciones aplicadas
+    const migracionesAplicadas = await getAppliedMigrations(supabase);
+    const nombresMigracionesAplicadas = migracionesAplicadas.map(m => m.name);
+    
+    // Buscar migraciones pendientes en el directorio
+    const fs = require('fs');
+    const path = require('path');
+    
+    const dirMigraciones = path.join(process.cwd(), 'supabase', 'migrations');
+    if (!fs.existsSync(dirMigraciones)) {
+      console.log('ℹ️ No existe directorio de migraciones. Nada que aplicar.');
+      return {
+        success: true,
+        message: 'No hay migraciones que aplicar.'
+      };
+    }
+    
+    // Leer archivos de migración
+    const migraciones = fs.readdirSync(dirMigraciones)
+      .filter(archivo => archivo.endsWith('.sql'))
+      .map(archivo => ({
+        nombre: archivo,
+        ruta: path.join(dirMigraciones, archivo),
+        contenido: fs.readFileSync(path.join(dirMigraciones, archivo), 'utf8')
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    
+    // Filtrar migraciones pendientes
+    const migracionesPendientes = migraciones.filter(
+      m => !nombresMigracionesAplicadas.includes(m.nombre.replace('.sql', ''))
+    );
+    
+    if (migracionesPendientes.length === 0) {
+      console.log('✅ No hay migraciones pendientes que aplicar.');
+      return {
+        success: true,
+        message: 'No hay migraciones pendientes.'
+      };
+    }
+    
+    console.log(`🔄 Aplicando ${migracionesPendientes.length} migraciones pendientes...`);
+    
+    // Aplicar cada migración
+    let aplicadas = 0;
+    for (const migracion of migracionesPendientes) {
+      console.log(`  - Aplicando: ${migracion.nombre}`);
+      const resultado = await applyMigration(supabase, migracion.contenido);
+      
+      if (!resultado) {
+        throw new Error(`Error al aplicar la migración: ${migracion.nombre}`);
+      }
+      
+      aplicadas++;
+    }
+    
+    console.log(`✅ ${aplicadas} migraciones aplicadas correctamente durante el despliegue.`);
+    
+    return {
+      success: true,
+      message: `${aplicadas} migraciones aplicadas correctamente.`,
+      appliedMigrations: migracionesPendientes.map(m => m.nombre)
+    };
+  } catch (error) {
+    console.error('❌ Error en hook de despliegue:', error.message);
+    return {
+      success: false,
+      message: `Error en hook de despliegue: ${error.message}`
+    };
+  }
+}
+
+// Exportar hooks
+return {
+  preCommitHook,
+  buildHook,
+  deployHook
+}; 

@@ -1,0 +1,231 @@
+/**
+ * Verificador de coherencia del CRM para nuevos archivos
+ * 
+ * Este archivo utiliza el validador de consistencia del CRM para verificar
+ * que los nuevos archivos sean coherentes con la estructura del CRM.
+ */
+
+// Importar el validador de consistencia
+const { 
+  validateCRMConsistency, 
+  generateConsistencyRecommendations,
+  crmSections 
+} = require('./crmConsistencyValidator.mdc');
+
+// Verificar un nuevo archivo
+function verifyCRMFile(filePath, fileContent) {
+  // Validar la coherencia del archivo con el CRM
+  const validationResult = validateCRMConsistency(filePath, fileContent);
+  
+  // Generar recomendaciones
+  const recommendations = generateConsistencyRecommendations(validationResult);
+  
+  return {
+    validationResult,
+    recommendations,
+    // Añadir información adicional para ayudar al usuario
+    sectionInfo: validationResult.section ? crmSections[validationResult.section] : null
+  };
+}
+
+/**
+ * Generar un servicio nuevo coherente con el CRM para una entidad específica
+ * @param {string} entityName - Nombre de la entidad (tabla en Supabase)
+ * @returns {Object} Contenido del servicio y su ruta sugerida
+ */
+function generateCRMService(entityName) {
+  // Identificar la sección del CRM a la que pertenece la entidad
+  let section = null;
+  
+  for (const [sectionName, info] of Object.entries(crmSections)) {
+    if (info.entities.includes(entityName)) {
+      section = sectionName;
+      break;
+    }
+  }
+  
+  if (!section) {
+    return {
+      error: `La entidad '${entityName}' no está asociada a ninguna sección conocida del CRM.`
+    };
+  }
+  
+  // Obtener el contenido del servicio desde el validador de Supabase
+  const { generateSupabaseService } = require('./supabaseValidator.mdc');
+  const serviceContent = generateSupabaseService(entityName);
+  
+  // Verificar que el servicio sea coherente con el CRM
+  const validationResult = validateCRMConsistency(`src/lib/supabase/services/${entityName}-service.ts`, serviceContent);
+  
+  return {
+    section,
+    servicePath: `src/lib/supabase/services/${entityName}-service.ts`,
+    serviceContent,
+    validationResult
+  };
+}
+
+/**
+ * Generar una página nueva coherente con el CRM para una sección específica
+ * @param {string} section - Nombre de la sección del CRM
+ * @param {string} pageName - Nombre de la página (por defecto 'index')
+ * @returns {Object} Contenido de la página y su ruta sugerida
+ */
+function generateCRMPage(section, pageName = 'index') {
+  if (!crmSections[section]) {
+    return {
+      error: `La sección '${section}' no es una sección conocida del CRM.`
+    };
+  }
+  
+  const sectionInfo = crmSections[section];
+  const route = sectionInfo.routes[0];
+  const mainEntity = sectionInfo.entities[0];
+  const entities = sectionInfo.entities;
+  
+  // Generar el contenido de la página en función de la sección
+  let pageContent = `import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: '${section.charAt(0).toUpperCase() + section.slice(1)} | TricycleCRM',
+  description: '${sectionInfo.description}',
+};
+
+export default async function ${section.charAt(0).toUpperCase() + section.slice(1)}Page() {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
+  
+  // Verificar autenticación
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    redirect('/login');
+  }
+  
+  // Obtener datos necesarios para la página
+  try {
+    // Obtener datos de las entidades principales de esta sección
+    ${entities.map(entity => `
+    // Datos de ${entity}
+    const { data: ${entity}Data, error: ${entity}Error } = await supabase
+      .from('${entity}')
+      .select('*')
+      .limit(10)
+      .order('created_at', { ascending: false });
+    
+    if (${entity}Error) throw ${entity}Error;
+    `).join('\n')}
+    
+    return (
+      <main className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">${section.charAt(0).toUpperCase() + section.slice(1)}</h1>
+        
+        <section className="bg-white rounded-lg shadow-sm p-6">
+          {/* Contenido principal de la sección ${section} */}
+          <div className="grid gap-4">
+            {/* Componentes específicos para ${section} */}
+          </div>
+        </section>
+      </main>
+    );
+  } catch (error) {
+    console.error('Error al cargar la página:', error);
+    return (
+      <div className="p-4 border border-red-300 bg-red-50 rounded-md text-red-800">
+        <h2 className="text-xl font-semibold mb-2">Error</h2>
+        <p>No se pudieron cargar los datos. Por favor, intente nuevamente más tarde.</p>
+      </div>
+    );
+  }
+}`;
+  
+  const pagePath = `src/app/${route}/${pageName === 'index' ? 'page.tsx' : `${pageName}/page.tsx`}`;
+  
+  // Verificar que la página sea coherente con el CRM
+  const validationResult = validateCRMConsistency(pagePath, pageContent);
+  
+  return {
+    section,
+    pagePath,
+    pageContent,
+    validationResult
+  };
+}
+
+/**
+ * Generar un componente nuevo coherente con el CRM para una sección específica
+ * @param {string} section - Nombre de la sección del CRM
+ * @param {string} componentName - Nombre del componente
+ * @param {boolean} isClientComponent - Si es un componente cliente (true) o servidor (false)
+ * @returns {Object} Contenido del componente y su ruta sugerida
+ */
+function generateCRMComponent(section, componentName, isClientComponent = false) {
+  if (!crmSections[section]) {
+    return {
+      error: `La sección '${section}' no es una sección conocida del CRM.`
+    };
+  }
+  
+  const sectionInfo = crmSections[section];
+  const entities = sectionInfo.entities;
+  const componentNameKebab = componentName.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+  
+  // Generar el contenido del componente
+  let componentContent = `${isClientComponent ? `'use client';\n\n` : ''}import { ${isClientComponent ? 'useState, ' : ''}type FC } from 'react';
+${entities.length > 0 ? `
+// Tipo para la entidad principal de esta sección
+type ${entities[0].endsWith('s') ? entities[0].slice(0, -1).charAt(0).toUpperCase() + entities[0].slice(0, -1).slice(1) : entities[0].charAt(0).toUpperCase() + entities[0].slice(1)} = {
+  id: number;
+  // Añadir más propiedades según la definición de la tabla
+};` : ''}
+
+interface ${componentName}Props {
+  // Props del componente
+}
+
+/**
+ * ${componentName} - Componente para la sección ${section}
+ */
+const ${componentName}: FC<${componentName}Props> = (${isClientComponent ? 'props' : 'async props'}) => {
+  ${isClientComponent ? `
+  // Estados para componente cliente
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Lógica del componente cliente
+  ` : `
+  // Lógica del componente servidor
+  `}
+  
+  return (
+    <div className="p-4 rounded-md bg-white shadow-sm">
+      <h2 className="text-xl font-semibold text-gray-800">${componentName}</h2>
+      {/* Contenido del componente */}
+    </div>
+  );
+};
+
+export default ${componentName};`;
+  
+  const componentPath = `src/app/${sectionInfo.routes[0]}/components/${componentNameKebab}.tsx`;
+  
+  // Verificar que el componente sea coherente con el CRM
+  const validationResult = validateCRMConsistency(componentPath, componentContent);
+  
+  return {
+    section,
+    componentPath,
+    componentContent,
+    validationResult
+  };
+}
+
+// Exportar funciones
+return {
+  verifyCRMFile,
+  generateCRMService,
+  generateCRMPage,
+  generateCRMComponent
+}; 

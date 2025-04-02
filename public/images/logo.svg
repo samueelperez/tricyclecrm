@@ -1,0 +1,8 @@
+<svg width="320" height="100" viewBox="0 0 320 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo TRICYCLE en azul -->
+  <path d="M10 10 H60 M35 10 V50 M70 10 H80 V50 M90 10 H120 M105 10 V50 M130 10 H160 V22 H130 V36 H155 V50 H130 M170 10 H190 L205 30 L220 10 H240 V50 H220 V30 L205 50 L190 30 V50 H170 V10 M250 10 H300 V22 H270 V26 H300 V50 H250 V38 H280 V34 H250 V10" 
+    fill="#0077a2" stroke="#0077a2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- PRODUCTS SI en gris oscuro -->
+  <text x="50" y="85" font-family="Arial" font-weight="bold" font-size="20" fill="#333333">PRODUCTS SI</text>
+</svg> 

@@ -15,11 +15,44 @@ import {
   FiArrowLeft,
   FiPlus,
   FiChevronDown,
-  FiX
+  FiX,
+  FiAlertCircle,
+  FiRefreshCw
 } from 'react-icons/fi';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
+
+// Tipos
+interface Negocio {
+  id: number;
+  id_externo: string;
+  cliente_id: number | null;
+  cliente_nombre: string;
+  fecha_creacion: string;
+  fecha_entrega: string | null;
+  fecha_envio: string | null;
+  fecha_estimada_finalizacion: string | null;
+  fecha_estimada_llegada: string | null;
+  estado: string | null;
+  notas: string | null;
+  progreso: number | null;
+  total_ingresos: number | null;
+  total_gastos: number | null;
+}
+
+interface Proveedor {
+  proveedor_nombre: string;
+}
+
+interface Material {
+  material_nombre: string;
+}
 
 // Página de detalles de un negocio específico
 export default function DetalleNegocio({ params }: { params: { id: string } }) {
+  // Router para navegación programática
+  const router = useRouter();
+  
   // Obtenemos el parámetro tab de la URL
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -31,7 +64,59 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
       : 'overview'
   );
   
-  const negocioId = params.id;
+  // Estados para los datos
+  const [negocio, setNegocio] = useState<Negocio | null>(null);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [materiales, setMateriales] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Cliente de Supabase
+  const supabase = createClientComponentClient();
+  
+  // Función para cargar datos del negocio
+  const loadNegocioData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Cargar el negocio
+      const { data: negocioData, error: negocioError } = await supabase
+        .from('negocios')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+      
+      if (negocioError) throw negocioError;
+      if (!negocioData) throw new Error('Negocio no encontrado');
+      
+      setNegocio(negocioData);
+      
+      // Cargar proveedores relacionados
+      const { data: proveedoresData, error: proveedoresError } = await supabase
+        .from('negocios_proveedores')
+        .select('proveedor_nombre')
+        .eq('negocio_id', params.id);
+      
+      if (proveedoresError) throw proveedoresError;
+      setProveedores(proveedoresData || []);
+      
+      // Cargar materiales relacionados
+      const { data: materialesData, error: materialesError } = await supabase
+        .from('negocios_materiales')
+        .select('material_nombre')
+        .eq('negocio_id', params.id);
+      
+      if (materialesError) throw materialesError;
+      setMateriales(materialesData || []);
+      
+    } catch (err) {
+      console.error('Error cargando datos del negocio:', err);
+      setError('Error al cargar los datos del negocio. Por favor, intente nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Actualizar la pestaña activa cuando cambie el parámetro de búsqueda
   useEffect(() => {
@@ -40,23 +125,77 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
     }
   }, [tabParam]);
   
-  // Datos específicos para este negocio
-  const detalleNegocio = {
-    id: negocioId,
-    totalRevenue: "€51062.40",
-    totalExpense: "€16938.00",
-    netProfit: "€34124.40",
-    progress: 0,
-    estimatedCompletion: "No establecido",
-    cliente: "DDH TRADE CO.,LIMITED",
-    proveedor: negocioId === "INV003" 
-      ? "CTR MEDITERRANEO RECICLADOS Y DERRIBOS LLORENS RECICLADOS COLLADO" 
-      : "Recisur",
-    material: "PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS, PP JUMBO BAGS",
-    estado: "Incompleto",
-    fechaCreacion: "10 Mar, 2025",
-    notas: "Lorem ipsum dolor sit amet consectetur"
+  // Cargar datos cuando se monte el componente
+  useEffect(() => {
+    loadNegocioData();
+  }, [params.id]);
+
+  // Función para formatear fechas
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'No establecido';
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('es-ES', options);
   };
+  
+  // Función para formatear moneda
+  const formatCurrency = (amount: number | null) => {
+    if (amount === null) return 'No disponible';
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+  
+  // Renderizado de estado de carga
+  if (loading && !negocio) {
+    return (
+      <div className="h-full bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-500">Cargando datos del negocio...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Renderizado de estado de error
+  if (error && !loading) {
+    return (
+      <div className="h-full bg-white p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-4xl mx-auto">
+          <div className="flex items-center text-red-600 mb-4">
+            <FiAlertCircle className="text-2xl mr-2" />
+            <h2 className="text-lg font-semibold">Error</h2>
+          </div>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button 
+            onClick={loadNegocioData}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors inline-flex items-center"
+          >
+            <FiRefreshCw className="mr-2" /> Intentar nuevamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Si el negocio no existe y no estamos cargando, mostramos un mensaje
+  if (!negocio && !loading) {
+    return (
+      <div className="h-full bg-white p-8">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-4xl mx-auto">
+          <div className="flex items-center text-yellow-600 mb-4">
+            <FiAlertCircle className="text-2xl mr-2" />
+            <h2 className="text-lg font-semibold">Negocio no encontrado</h2>
+          </div>
+          <p className="text-yellow-700 mb-4">El negocio que está buscando no existe o ha sido eliminado.</p>
+          <Link 
+            href="/negocios"
+            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors inline-flex items-center"
+          >
+            <FiArrowLeft className="mr-2" /> Volver a la lista de negocios
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -73,7 +212,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-0.5">Ingresos Totales</p>
-                    <p className="text-xl font-medium">{detalleNegocio.totalRevenue}</p>
+                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_ingresos)}</p>
                   </div>
                 </div>
               </div>
@@ -89,7 +228,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-0.5">Gastos Totales</p>
-                    <p className="text-xl font-medium">{detalleNegocio.totalExpense}</p>
+                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_gastos)}</p>
                   </div>
                 </div>
               </div>
@@ -105,7 +244,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-0.5">Beneficio Neto</p>
-                    <p className="text-xl font-medium">{detalleNegocio.netProfit}</p>
+                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_ingresos - negocio?.total_gastos)}</p>
                   </div>
                 </div>
               </div>
@@ -113,16 +252,16 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
             
             {/* ID del negocio */}
             <div className="border-t border-b py-6 mb-6 text-center">
-              <h2 className="text-xl font-medium text-gray-800">{detalleNegocio.id}</h2>
+              <h2 className="text-xl font-medium text-gray-800">{negocio?.id_externo}</h2>
             </div>
             
             {/* Barra de progreso */}
             <div className="mb-8">
-              <div className="text-sm text-gray-400 mb-2">progreso: {detalleNegocio.progress}%</div>
+              <div className="text-sm text-gray-400 mb-2">progreso: {negocio?.progreso}%</div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div
                   className="bg-blue-500 h-2.5 rounded-full"
-                  style={{ width: `${detalleNegocio.progress}%` }}
+                  style={{ width: `${negocio?.progreso}%` }}
                 ></div>
               </div>
             </div>
@@ -135,7 +274,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <span className="text-sm text-gray-400">Fecha Estimada de Finalización</span>
               </div>
-              <p className="text-gray-700 ml-6">{detalleNegocio.estimatedCompletion}</p>
+              <p className="text-gray-700 ml-6">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
             </div>
             
             {/* Información detallada - Segunda fila */}
@@ -148,7 +287,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <span className="text-sm text-gray-400">Cliente</span>
                 </div>
-                <p className="text-gray-700 ml-6 font-medium leading-relaxed">{detalleNegocio.cliente}</p>
+                <p className="text-gray-700 ml-6 font-medium leading-relaxed">{negocio?.cliente_nombre}</p>
               </div>
               
               {/* Suppliers */}
@@ -159,7 +298,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <span className="text-sm text-gray-400">Proveedores</span>
                 </div>
-                <p className="text-gray-700 ml-6 leading-relaxed">{detalleNegocio.proveedor}</p>
+                <p className="text-gray-700 ml-6 leading-relaxed">{proveedores.map(p => p.proveedor_nombre).join(', ')}</p>
               </div>
               
               {/* Materials */}
@@ -170,7 +309,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <span className="text-sm text-gray-400">Materiales</span>
                 </div>
-                <p className="text-gray-700 ml-6 leading-relaxed">{detalleNegocio.material}</p>
+                <p className="text-gray-700 ml-6 leading-relaxed">{materiales.map(m => m.material_nombre).join(', ')}</p>
               </div>
             </div>
             
@@ -184,7 +323,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <span className="text-sm text-gray-400">Estado</span>
                 </div>
-                <p className="text-yellow-500 ml-6 font-medium">{detalleNegocio.estado}</p>
+                <p className="text-yellow-500 ml-6 font-medium">{negocio?.estado}</p>
               </div>
               
               {/* Creation Date */}
@@ -195,7 +334,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <span className="text-sm text-gray-400">Fecha de Creación</span>
                 </div>
-                <p className="text-gray-700 ml-6 font-medium">{detalleNegocio.fechaCreacion}</p>
+                <p className="text-gray-700 ml-6 font-medium">{formatDate(negocio?.fecha_creacion)}</p>
               </div>
               
               {/* Columna vacía para mantener alineación */}
@@ -211,7 +350,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 <span className="text-sm text-gray-400">Notas sobre el Negocio</span>
               </div>
               <div className="border rounded-lg p-4 text-gray-600 ml-6">
-                {detalleNegocio.notas}
+                {negocio?.notas}
               </div>
             </div>
             
@@ -312,7 +451,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
             {/* Controles inferiores */}
             <div className="mt-8 flex justify-between items-center">
               <Link 
-                href={`/negocios/${negocioId}/bills/new`}
+                href={`/negocios/${negocio?.id_externo}/bills/new`}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -336,56 +475,16 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
           </div>
         );
       case 'proformas':
+        useEffect(() => {
+          // Redirigir a la página específica de proformas manteniendo el historial de navegación
+          router.push(`/negocios/${params.id}/proformas`);
+        }, [params.id]);
+        
         return (
-          <div className="py-4">
-            {/* Título de la sección */}
-            <h2 className="text-xl font-medium text-gray-800 mb-6">Proforma Cliente</h2>
-            
-            {/* Lista de Proformas */}
-            <div className="bg-white rounded-lg shadow-sm border mb-6">
-              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
-                <div className="w-1/5">ID</div>
-                <div className="w-1/5">Fecha</div>
-                <div className="w-1/5">Monto</div>
-                <div className="w-1/5">Material</div>
-                <div className="w-1/5 text-right">Acciones</div>
-              </div>
-              
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/5 text-gray-800 font-medium">{detalleNegocio.id}</div>
-                <div className="w-1/5 text-gray-600">13 Ene, 2025</div>
-                <div className="w-1/5 text-gray-800 font-medium">€48000.00</div>
-                <div className="w-1/5 text-gray-600">PP JUMBO BAGS</div>
-                <div className="w-1/5 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocioId}/proformas/edit/${detalleNegocio.id}`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Controles de paginación */}
-            <div className="flex justify-end items-center">
-              <div className="flex items-center text-gray-500">
-                <span className="mr-4">Página 1 de 1</span>
-                <div className="flex">
-                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
-                    anterior
-                  </button>
-                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
-                    siguiente
-                  </button>
-                </div>
-              </div>
+          <div className="py-4 flex justify-center items-center h-64">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+              <p className="text-gray-500">Cargando proformas...</p>
             </div>
           </div>
         );
@@ -406,7 +505,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               </div>
               
               <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/6 text-gray-800 font-medium">{detalleNegocio.id}</div>
+                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
                 <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
                 <div className="w-1/6 text-gray-800 font-medium">€51062.40</div>
                 <div className="w-1/6 text-gray-600">PP JUMBO BAGS</div>
@@ -417,7 +516,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <div className="w-1/6 flex justify-end space-x-2">
                   <Link 
-                    href={`/negocios/${negocioId}/facturas/edit/${detalleNegocio.id}`}
+                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}`}
                     className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
                   >
                     <FiEdit className="w-5 h-5" />
@@ -446,7 +545,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               
               {/* Primera factura proveedor */}
               <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
-                <div className="w-1/6 text-gray-800 font-medium">{detalleNegocio.id}</div>
+                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
                 <div className="w-1/6 text-gray-600">CTR MEDITERRANEO</div>
                 <div className="w-1/6 text-gray-800 font-medium">€3036.00</div>
                 <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
@@ -458,7 +557,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <div className="w-1/6 flex justify-end space-x-2">
                   <Link 
-                    href={`/negocios/${negocioId}/facturas/edit/${detalleNegocio.id}-1`}
+                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-1`}
                     className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
                   >
                     <FiEdit className="w-5 h-5" />
@@ -473,7 +572,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               
               {/* Segunda factura proveedor */}
               <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
-                <div className="w-1/6 text-gray-800 font-medium">{detalleNegocio.id}</div>
+                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
                 <div className="w-1/6 text-gray-600">RECICLADOS Y DERRIBOS LLORENS</div>
                 <div className="w-1/6 text-gray-800 font-medium">€2418.00</div>
                 <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
@@ -485,7 +584,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <div className="w-1/6 flex justify-end space-x-2">
                   <Link 
-                    href={`/negocios/${negocioId}/facturas/edit/${detalleNegocio.id}-2`}
+                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-2`}
                     className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
                   >
                     <FiEdit className="w-5 h-5" />
@@ -500,7 +599,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               
               {/* Tercera factura proveedor */}
               <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/6 text-gray-800 font-medium">{detalleNegocio.id}</div>
+                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
                 <div className="w-1/6 text-gray-600">RECICLADOS COLLADO</div>
                 <div className="w-1/6 text-gray-800 font-medium">€11484.00</div>
                 <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
@@ -512,7 +611,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <div className="w-1/6 flex justify-end space-x-2">
                   <Link 
-                    href={`/negocios/${negocioId}/facturas/edit/${detalleNegocio.id}-3`}
+                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-3`}
                     className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
                   >
                     <FiEdit className="w-5 h-5" />
@@ -573,7 +672,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                 </div>
                 <div className="w-1/6 flex justify-end space-x-2">
                   <Link 
-                    href={`/negocios/${negocioId}/albaranes/edit/INV002`}
+                    href={`/negocios/${negocio?.id_externo}/albaranes/edit/INV002`}
                     className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
                   >
                     <FiEdit className="w-5 h-5" />
@@ -590,7 +689,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
             {/* Controles inferiores */}
             <div className="flex justify-between items-center mt-6">
               <Link 
-                href={`/negocios/${negocioId}/albaranes/new`}
+                href={`/negocios/${negocio?.id_externo}/albaranes/new`}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
               >
                 <FiPlus className="mr-2" />

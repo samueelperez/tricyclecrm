@@ -1,21 +1,13 @@
-import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import MainLayout from "@/components/layout/main-layout";
+import { ReactNode } from 'react';
+import SideBar from '@/components/layout/side-bar';
 
-export default async function NegociosLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Verificar si el usuario está autenticado
-  const supabase = createServerComponentClient({ cookies });
-  const { data } = await supabase.auth.getSession();
-  
-  // Si el usuario no tiene sesión, redirigir al login
-  if (!data?.session) {
-    redirect("/login");
-  }
-
-  return <MainLayout>{children}</MainLayout>;
+export default function NegociosLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <SideBar />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
+    </div>
+  );
 } 

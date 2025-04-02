@@ -10,6 +10,7 @@ import {
   FiTrash2,
   FiSave
 } from 'react-icons/fi';
+import { supabase } from '@/lib/supabase';
 
 export default function NewCustomerProformaPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function NewCustomerProformaPage() {
   
   // Datos iniciales para la proforma
   const [proforma, setProforma] = useState({
-    number: `PRF-${Date.now().toString().substring(0, 8)}`,
+    number: `PRO-CUST-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     date: new Date().toISOString().split('T')[0],
     customerName: '',
     taxId: '',
@@ -47,16 +48,88 @@ export default function NewCustomerProformaPage() {
     router.push(`/proformas?tab=customer`);
   };
 
-  const handleSave = () => {
-    // Aquí iría la lógica para guardar los cambios
+  const handleSave = async () => {
     setLoading(true);
     
-    // Simulamos un tiempo de procesamiento
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Validar datos básicos
+      if (!proforma.customerName) {
+        alert('Por favor, seleccione un cliente');
+        setLoading(false);
+        return;
+      }
+      
+      if (proforma.items.some(item => !item.description)) {
+        alert('Por favor, complete la descripción de todos los productos');
+        setLoading(false);
+        return;
+      }
+      
+      // Preparar datos para guardar en Supabase
+      const proformaData = {
+        id_externo: proforma.number,
+        fecha: proforma.date,
+        cliente_id: null, // Se podría buscar el ID del cliente según el nombre
+        id_fiscal: proforma.taxId,
+        monto: proforma.totalAmount,
+        puerto: proforma.ports,
+        origen: proforma.origin,
+        terminos_entrega: proforma.deliveryTerms,
+        terminos_pago: proforma.paymentTerms,
+        cuenta_bancaria: proforma.bankAccount,
+        notas: proforma.shippingNotes 
+          ? proforma.shippingNotes + '\nCliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '') 
+          : 'Cliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || ''),
+        peso_total: proforma.totalWeight,
+        cantidad_contenedores: proforma.containers
+      };
+      
+      console.log('Guardando proforma:', proformaData);
+      
+      // Insertar proforma en Supabase
+      const { data: proformaInsertada, error: proformaError } = await supabase
+        .from('proformas')
+        .insert(proformaData)
+        .select('id')
+        .single();
+      
+      if (proformaError) {
+        throw new Error(`Error al guardar la proforma: ${proformaError.message}`);
+      }
+      
+      console.log('Proforma guardada con ID:', proformaInsertada.id);
+      
+      // Preparar productos para guardar
+      const productosData = proforma.items.map(item => ({
+        proforma_id: proformaInsertada.id,
+        descripcion: item.description,
+        cantidad: item.quantity,
+        precio_unitario: item.unitPrice,
+        peso: item.weight,
+        tipo_empaque: item.packaging
+      }));
+      
+      // Insertar productos de la proforma
+      const { error: productosError } = await supabase
+        .from('proformas_productos')
+        .insert(productosData);
+      
+      if (productosError) {
+        throw new Error(`Error al guardar los productos: ${productosError.message}`);
+      }
+      
+      console.log('Productos guardados correctamente');
+      
+      alert('Proforma guardada correctamente');
+      
       // Redirigir de vuelta a la pestaña de proformas
       router.push(`/proformas?tab=customer`);
-    }, 500);
+    } catch (error) {
+      console.error('Error al guardar la proforma:', error);
+      alert(`Error al guardar la proforma: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {

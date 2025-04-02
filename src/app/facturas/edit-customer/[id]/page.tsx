@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -9,69 +9,357 @@ import {
   FiChevronDown, 
   FiPlus, 
   FiTrash2,
-  FiSave
+  FiSave,
+  FiAlertTriangle,
+  FiFileText
 } from 'react-icons/fi';
+import { getSupabaseClient } from '@/lib/supabase';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
-export default function EditCustomerProformaPage({ params }: { params: { id: string } }) {
+interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  totalValue: number;
+}
+
+interface Invoice {
+  id: string;
+  number: string;
+  date: string;
+  customerName: string;
+  taxId: string;
+  paymentTerms: string;
+  invoiceNotes: string;
+  estado: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+}
+
+// Componente para la vista de impresión de factura
+const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
+  ({ invoice }, ref) => {
+    // Extraer fecha formateada
+    const formattedDate = new Date(invoice.date).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    
+    // Calcular totales
+    const subtotal = invoice.items.reduce((sum, item) => sum + item.totalValue, 0);
+    const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+    const totalAmount = subtotal + taxAmount;
+
+    return (
+      <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none' }}>
+        {/* Cabecera con logo */}
+        <div className="mb-8 flex justify-between items-start border-b pb-6">
+          <div className="flex items-center">
+            <img 
+              src="/images/logo.png" 
+              alt="Logo TriCycle CRM" 
+              className="h-20 mr-4" 
+              style={{ objectFit: 'contain' }}
+            />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">TRICYCLE CRM</h1>
+              <p className="text-gray-600">C/ Principal 123</p>
+              <p className="text-gray-600">28001 Madrid, España</p>
+              <p className="text-gray-600">CIF: B12345678</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xl font-bold text-gray-800 mb-2">FACTURA</div>
+            <table className="ml-auto text-right">
+              <tbody>
+                <tr>
+                  <td className="pr-2 text-gray-600 font-medium">Número:</td>
+                  <td className="font-bold">{invoice.number}</td>
+                </tr>
+                <tr>
+                  <td className="pr-2 text-gray-600 font-medium">Fecha:</td>
+                  <td>{formattedDate}</td>
+                </tr>
+                <tr>
+                  <td className="pr-2 text-gray-600 font-medium">Estado:</td>
+                  <td>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      invoice.estado === 'pagada' ? 'bg-green-100 text-green-800' :
+                      invoice.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {invoice.estado.charAt(0).toUpperCase() + invoice.estado.slice(1)}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Información del cliente */}
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Cliente</h2>
+            <p className="font-medium text-lg">{invoice.customerName}</p>
+            {invoice.taxId && <p className="text-gray-600">CIF/NIF: {invoice.taxId}</p>}
+          </div>
+          
+          {/* Términos de pago */}
+          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Términos de pago</h2>
+            <p>{invoice.paymentTerms || "No especificado"}</p>
+          </div>
+        </div>
+
+        {/* Líneas de factura */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-3 text-gray-700 border-b pb-1">Detalle de factura</h2>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
+                <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
+                <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
+                <th className="py-2 px-4 text-right border border-gray-300">IVA %</th>
+                <th className="py-2 px-4 text-right border border-gray-300">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.items.map((item, index) => (
+                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="py-2 px-4 border border-gray-300">{item.description}</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{item.unitPrice.toFixed(2)} €</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{item.totalValue.toFixed(2)} €</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Resumen */}
+        <div className="mb-6 flex justify-end">
+          <div className="w-64 border border-gray-300 rounded-md overflow-hidden">
+            <div className="flex justify-between py-2 px-4 bg-gray-50 border-b">
+              <span className="font-medium">Subtotal:</span>
+              <span>{subtotal.toFixed(2)} €</span>
+            </div>
+            <div className="flex justify-between py-2 px-4 bg-white border-b">
+              <span className="font-medium">IVA:</span>
+              <span>{taxAmount.toFixed(2)} €</span>
+            </div>
+            <div className="flex justify-between py-3 px-4 bg-gray-100 font-bold">
+              <span>Total:</span>
+              <span>{totalAmount.toFixed(2)} €</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Notas */}
+        {invoice.invoiceNotes && (
+          <div className="mb-8 border border-gray-200 rounded-md p-4 bg-gray-50">
+            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Notas</h2>
+            <p className="text-gray-700 whitespace-pre-line">{invoice.invoiceNotes}</p>
+          </div>
+        )}
+        
+        {/* Pie de página */}
+        <div className="mt-10 pt-4 border-t text-center text-gray-500 text-xs">
+          <p>Esta factura ha sido generada por TriCycle CRM</p>
+          <p>www.tricyclecrm.com | soporte@tricyclecrm.com | +34 912 345 678</p>
+        </div>
+      </div>
+    );
+  }
+);
+
+InvoicePrintView.displayName = 'InvoicePrintView';
+
+export default function EditCustomerInvoicePage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const printComponentRef = useRef<HTMLDivElement>(null);
   
-  // Datos de ejemplo para la proforma
-  const [proforma, setProforma] = useState({
+  // Estado para la factura
+  const [invoice, setInvoice] = useState<Invoice>({
     id: params.id,
-    number: `PRF-${params.id.substring(0, 8)}`,
-    date: '2025-01-13',
-    customerName: 'DDH TRADE CO.,LIMITED',
-    taxId: 'XXXX30283-9-00',
-    ports: 'TEMA PORT - GHANA',
-    deliveryTerms: 'CIF (Cost, Insurance, and Freight), DTHC Not Included, 14 Free Combined Days of',
-    paymentTerms: '30% CASH IN ADVANCE 70% CASH AGAINST DOCUMENTS',
-    bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
-    shippingNotes: '',
+    number: '',
+    date: new Date().toISOString().split('T')[0],
+    customerName: '',
+    taxId: '',
+    paymentTerms: '',
+    invoiceNotes: '',
+    estado: 'pendiente',
     items: [
       {
         id: '1',
-        description: 'PP JUMBO BAGS',
-        quantity: 10,
-        weight: 200.00,
-        unitPrice: 240.00,
-        packaging: 'Bales',
-        totalValue: 48000.00
+        description: '',
+        quantity: 0,
+        unitPrice: 0,
+        taxRate: 21,
+        totalValue: 0
       }
     ],
-    origin: 'Spain',
-    containers: 10,
-    totalWeight: 200.00,
-    totalAmount: 48000.00
+    subtotal: 0,
+    taxAmount: 0,
+    totalAmount: 0
   });
 
-  // Simular carga de datos
+  // Cargar datos reales de Supabase
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    const loadInvoice = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const supabase = getSupabaseClient();
+        
+        // Obtener la factura de la base de datos
+        const { data, error: fetchError } = await supabase
+          .from('facturas_cliente')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        if (!data) throw new Error('No se encontró la factura');
+        
+        // Extraer información adicional del campo notas si existe y es JSON válido
+        let notasData = {};
+        let clienteNombre = '';
+        let taxId = '';
+        let paymentTerms = '';
+        let notasText = '';
+        let itemsData = [];
+        let descripcion = '';
+        
+        try {
+          if (data.material) {
+            notasData = JSON.parse(data.material);
+            clienteNombre = notasData.cliente_nombre || '';
+            taxId = notasData.taxId || '';
+            paymentTerms = notasData.paymentTerms || '';
+            notasText = notasData.notas || '';
+            itemsData = notasData.items || [];
+            descripcion = notasData.descripcion || data.material || '';
+          }
+        } catch (e) {
+          // Si no es JSON válido, usar material como texto plano
+          descripcion = data.material || '';
+        }
+        
+        // Transformar datos al formato esperado
+        const invoiceData: Invoice = {
+          id: params.id,
+          number: data.id_externo || '',
+          date: data.fecha || new Date().toISOString().split('T')[0],
+          customerName: clienteNombre,
+          taxId: taxId,
+          paymentTerms: paymentTerms,
+          invoiceNotes: notasText,
+          estado: data.estado || 'pendiente',
+          items: itemsData.length > 0 ? itemsData : [
+            {
+              id: '1',
+              description: descripcion,
+              quantity: 1,
+              unitPrice: data.monto || 0,
+              taxRate: 21,
+              totalValue: data.monto || 0
+            }
+          ],
+          subtotal: data.monto || 0,
+          taxAmount: (data.monto || 0) * 0.21,
+          totalAmount: (data.monto || 0) * 1.21
+        };
+        
+        setInvoice(invoiceData);
+      } catch (error) {
+        console.error('Error al cargar la factura:', error);
+        setError('Ha ocurrido un error al cargar la factura. Por favor, inténtelo de nuevo.');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    return () => clearTimeout(timer);
-  }, []);
+    loadInvoice();
+  }, [params.id]);
 
   const handleCancel = () => {
-    router.push(`/proformas?tab=customer`);
+    router.push(`/facturas?tab=customer`);
   };
 
-  const handleSave = () => {
-    // Aquí iría la lógica para guardar los cambios
+  const handleSave = async () => {
     setLoading(true);
+    setError(null);
     
-    // Simulamos un tiempo de procesamiento
-    setTimeout(() => {
+    try {
+      // Validar campos obligatorios
+      if (!invoice.customerName) {
+        alert('Por favor, seleccione un cliente');
+        setLoading(false);
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      
+      // Recalcular totales
+      const subtotal = invoice.items.reduce((sum, item) => sum + item.totalValue, 0);
+      const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+      const totalAmount = subtotal + taxAmount;
+      
+      // Preparar datos para actualizar en Supabase
+      const facturaData = {
+        id_externo: invoice.number,
+        fecha: invoice.date,
+        monto: totalAmount,
+        material: JSON.stringify({
+          cliente_nombre: invoice.customerName,
+          taxId: invoice.taxId,
+          paymentTerms: invoice.paymentTerms,
+          notas: invoice.invoiceNotes,
+          items: invoice.items,
+          descripcion: invoice.items[0]?.description || ''
+        }),
+        estado: invoice.estado
+      };
+      
+      console.log('Actualizando factura:', facturaData);
+      
+      // Actualizar factura en Supabase
+      const { error: updateError } = await supabase
+        .from('facturas_cliente')
+        .update(facturaData)
+        .eq('id', invoice.id);
+      
+      if (updateError) {
+        throw new Error(`Error al actualizar la factura: ${updateError.message}`);
+      }
+      
+      alert('Factura actualizada correctamente');
+      
+      // Redirigir de vuelta a la página de facturas
+      router.push(`/facturas?tab=customer`);
+    } catch (error) {
+      console.error('Error al actualizar la factura:', error);
+      setError(`Error al actualizar la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
       setLoading(false);
-      // Redirigir de vuelta a la pestaña de proformas
-      router.push(`/proformas?tab=customer`);
-    }, 500);
+    }
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {
-    const updatedItems = [...proforma.items];
+    const updatedItems = [...invoice.items];
     updatedItems[index] = {
       ...updatedItems[index],
       [field]: value
@@ -83,17 +371,17 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
         updatedItems[index].quantity * updatedItems[index].unitPrice;
     }
     
-    setProforma({
-      ...proforma,
+    setInvoice({
+      ...invoice,
       items: updatedItems
     });
   };
 
   const addNewItem = () => {
-    setProforma({
-      ...proforma,
+    setInvoice({
+      ...invoice,
       items: [
-        ...proforma.items,
+        ...invoice.items,
         {
           id: Date.now().toString(),
           description: '',
@@ -108,12 +396,72 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
   };
 
   const removeItem = (index: number) => {
-    const updatedItems = [...proforma.items];
+    const updatedItems = [...invoice.items];
     updatedItems.splice(index, 1);
-    setProforma({
-      ...proforma,
+    setInvoice({
+      ...invoice,
       items: updatedItems
     });
+  };
+
+  const handlePreviewPdf = async () => {
+    if (!printComponentRef.current) return;
+    
+    try {
+      setGeneratingPdf(true);
+      
+      // Hacer visible el componente de impresión
+      const printElement = printComponentRef.current;
+      const originalStyle = printElement.style.display;
+      printElement.style.display = 'block';
+      
+      // Configurar opciones para html2canvas
+      const options = {
+        scale: 2,
+        useCORS: true,
+        logging: false
+      };
+      
+      // Capturar el contenido HTML como canvas
+      const canvas = await html2canvas(printElement, options);
+      
+      // Volver a ocultar el componente
+      printElement.style.display = originalStyle;
+      
+      // Convertir a PDF con jsPDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Calcular dimensiones para ajustar a A4
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Si la altura es mayor que una página, se dividirá en varias
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Agregar páginas adicionales si es necesario
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      // Mostrar PDF en nueva ventana
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      alert('Error al generar el PDF. Por favor, inténtelo de nuevo.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   if (loading) {
@@ -142,7 +490,7 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
               >
                 <FiArrowLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-xl font-medium text-gray-800">Editar Proforma</h1>
+              <h1 className="text-xl font-medium text-gray-800">Editar Factura</h1>
             </div>
             
             <div className="flex space-x-3">
@@ -166,27 +514,42 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
       
       {/* Contenido del formulario */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        {/* Proforma Details */}
+        {/* Mensaje de error */}
+        {error && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <FiAlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">
+                  {error}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Factura Details */}
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Detalles de Proforma</h3>
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Detalles de Factura</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Proforma</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Factura</label>
               <input 
                 type="text" 
-                value={proforma.number}
+                value={invoice.number}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Proforma</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Factura</label>
               <div className="relative">
                 <input 
                   type="date" 
-                  value={proforma.date}
-                  onChange={(e) => setProforma({...proforma, date: e.target.value})}
+                  value={invoice.date}
+                  onChange={(e) => setInvoice({...invoice, date: e.target.value})}
                   className="w-full p-2 border rounded-md pr-10"
                 />
                 <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -207,8 +570,8 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
               <div className="relative">
                 <select 
                   className="w-full p-2 border rounded-md appearance-none"
-                  value={proforma.customerName}
-                  onChange={(e) => setProforma({...proforma, customerName: e.target.value})}
+                  value={invoice.customerName}
+                  onChange={(e) => setInvoice({...invoice, customerName: e.target.value})}
                 >
                   <option>DDH TRADE CO.,LIMITED</option>
                   <option>Construcciones Martínez S.L.</option>
@@ -224,42 +587,8 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
               <input 
                 type="text" 
                 placeholder="ej. XXXX30283-9-00"
-                value={proforma.taxId}
-                onChange={(e) => setProforma({...proforma, taxId: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-          </div>
-        </div>
-        
-        {/* Delivery Terms */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
-              <div className="relative">
-                <select 
-                  className="w-full p-2 border rounded-md appearance-none"
-                  value={proforma.ports}
-                  onChange={(e) => setProforma({...proforma, ports: e.target.value})}
-                >
-                  <option>TEMA PORT - GHANA</option>
-                  <option>BARCELONA - ESPAÑA</option>
-                  <option>VALENCIA - ESPAÑA</option>
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <FiChevronDown className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-              <input 
-                type="text" 
-                value={proforma.deliveryTerms}
-                onChange={(e) => setProforma({...proforma, deliveryTerms: e.target.value})}
+                value={invoice.taxId}
+                onChange={(e) => setInvoice({...invoice, taxId: e.target.value})}
                 className="w-full p-2 border rounded-md"
               />
             </div>
@@ -275,8 +604,8 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
             <div className="relative">
               <select 
                 className="w-full p-2 border rounded-md appearance-none"
-                value={proforma.paymentTerms}
-                onChange={(e) => setProforma({...proforma, paymentTerms: e.target.value})}
+                value={invoice.paymentTerms}
+                onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
               >
                 <option>30% CASH IN ADVANCE 70% CASH AGAINST DOCUMENTS</option>
                 <option>100% CASH IN ADVANCE</option>
@@ -294,7 +623,7 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           <h3 className="text-lg font-medium text-gray-700 mb-4">Descripción de Bienes</h3>
           
           {/* Líneas de productos */}
-          {proforma.items.map((item, index) => (
+          {invoice.items.map((item, index) => (
             <div key={item.id} className="mb-4 border rounded-md overflow-hidden">
               <div className="grid grid-cols-6 gap-2 p-3 bg-white">
                 <div className="col-span-6 md:col-span-1">
@@ -316,15 +645,6 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                   />
                 </div>
                 <div className="col-span-3 md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
-                  <input 
-                    type="number" 
-                    value={item.weight}
-                    onChange={(e) => handleItemChange(index, 'weight', parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border rounded-md"
-                  />
-                </div>
-                <div className="col-span-3 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                   <input 
                     type="number" 
@@ -332,23 +652,6 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                     onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                     className="w-full p-2 border rounded-md"
                   />
-                </div>
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Empaque</label>
-                  <div className="relative">
-                    <select 
-                      className="w-full p-2 border rounded-md appearance-none"
-                      value={item.packaging}
-                      onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
-                    >
-                      <option>Bales</option>
-                      <option>Boxes</option>
-                      <option>Pallets</option>
-                    </select>
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <FiChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
                 </div>
                 <div className="col-span-3 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
@@ -391,31 +694,12 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
-                <input 
-                  type="text" 
-                  placeholder="ej. 19.6"
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-              <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                 <input 
                   type="text" 
                   placeholder="ej. 80€"
                   className="w-full p-2 border rounded-md"
                 />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Empaque</label>
-                <div className="relative">
-                  <select className="w-full p-2 border rounded-md appearance-none">
-                    <option>Type</option>
-                  </select>
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <FiChevronDown className="w-4 h-4" />
-                  </div>
-                </div>
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
@@ -440,37 +724,28 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           {/* Resumen */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Origen <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={proforma.origin}
-                onChange={(e) => setProforma({...proforma, origin: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores 40ft <span className="text-blue-500">auto</span></label>
-              <input 
-                type="text" 
-                value={proforma.containers}
+                value={invoice.subtotal.toFixed(2)}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Peso Total (MT) <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Impuestos <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={proforma.totalWeight.toFixed(2)}
+                value={invoice.taxAmount.toFixed(2)}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Monto Total <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={proforma.totalAmount.toFixed(2)}
+                value={invoice.totalAmount.toFixed(2)}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
@@ -487,8 +762,8 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
             <div className="relative">
               <select 
                 className="w-full p-2 border rounded-md appearance-none"
-                value={proforma.bankAccount}
-                onChange={(e) => setProforma({...proforma, bankAccount: e.target.value})}
+                value={invoice.bankAccount}
+                onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
               >
                 <option>Santander S.A. - ES6000495332142610008899 - USD</option>
                 <option>BBVA - ES9101822370420201558843 - EUR</option>
@@ -509,8 +784,8 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
             <label className="block text-sm font-medium text-gray-700 mb-1">Notas (opcional)</label>
             <textarea 
               placeholder="ej. INVO0149 HDPE PLASTIC SCRAP HS CODE 39151020 -CFR MERSIN PORT- TURKEY CONSIGNEE: OZ BESLENEN TARIMÜRUNLERI NAK. PET.TEKS. SAN VE TİC LTD ŞTİ. AKÇATAŞ MAH. 1CAD, NO:11-1 VİRANŞEHİR/ŞANLIURFA)"
-              value={proforma.shippingNotes}
-              onChange={(e) => setProforma({...proforma, shippingNotes: e.target.value})}
+              value={invoice.invoiceNotes}
+              onChange={(e) => setInvoice({...invoice, invoiceNotes: e.target.value})}
               className="w-full p-2 border rounded-md h-24"
             ></textarea>
           </div>
@@ -521,8 +796,13 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50">
             Exportar
           </button>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50">
-            Vista Previa PDF
+          <button 
+            onClick={handlePreviewPdf}
+            disabled={generatingPdf}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 flex items-center"
+          >
+            <FiFileText className="h-5 w-5 mr-2" />
+            {generatingPdf ? 'Generando...' : 'Vista Previa PDF'}
           </button>
           <button 
             onClick={handleSave}
@@ -533,6 +813,9 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           </button>
         </div>
       </div>
+      
+      {/* Componente oculto para la vista de impresión */}
+      <InvoicePrintView invoice={invoice} ref={printComponentRef} />
     </div>
   );
 } 

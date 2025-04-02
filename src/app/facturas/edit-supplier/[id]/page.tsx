@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface SupplierInvoice {
   id: string;
@@ -38,50 +39,57 @@ export default function EditSupplierInvoicePage() {
 
   // Cargar datos de la factura
   useEffect(() => {
-    // Simular carga de datos
-    setLoading(true);
-    
-    // Aquí se cargarían los datos reales de la API
-    setTimeout(() => {
-      // Datos de ejemplo según el ID
-      if (id === 'sup-001') {
-        setInvoice({
-          id: 'sup-001',
-          dealNumber: 'OP-2023-001',
-          date: '2023-09-10',
-          supplierName: 'Reciclajes Valencia S.L.',
-          totalAmount: 5800.00,
-          materialName: 'PP SCRAP',
-          currency: 'EUR',
-          fileName: 'factura-recivalencia-2023001.pdf'
-        });
-      } else if (id === 'sup-002') {
-        setInvoice({
-          id: 'sup-002',
-          dealNumber: 'OP-2023-015',
-          date: '2023-10-05',
-          supplierName: 'Plásticos Sevilla S.A.',
-          totalAmount: 7200.50,
-          materialName: 'PET BOTTLES',
-          currency: 'EUR',
-          fileName: 'factura-plasevilla-2023015.pdf'
-        });
-      } else if (id === 'sup-003') {
-        setInvoice({
-          id: 'sup-003',
-          dealNumber: 'OP-2023-022',
-          date: '2023-11-12',
-          supplierName: 'Recuperaciones Madrid',
-          totalAmount: 4300.75,
-          materialName: 'HDPE BOTTLES',
-          currency: 'EUR',
-          fileName: 'factura-recumadrid-2023022.pdf'
-        });
-      } else {
-        // Datos genéricos si no se encuentra el ID
+    const loadInvoice = async () => {
+      setLoading(true);
+      
+      try {
+        const supabase = getSupabaseClient();
+        
+        // Obtener la factura de la base de datos
+        const { data, error: fetchError } = await supabase
+          .from('facturas_proveedor')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        if (!data) throw new Error('No se encontró la factura');
+        
+        // Extraer información adicional del campo material si existe y es JSON válido
+        let materialData = {};
+        let nombreMaterial = '';
+        let moneda = 'EUR';
+        let attachmentName = '';
+        
+        try {
+          if (data.material) {
+            materialData = JSON.parse(data.material);
+            nombreMaterial = materialData.nombre_material || '';
+            moneda = materialData.moneda || 'EUR';
+            attachmentName = materialData.attachment_name || '';
+          }
+        } catch (e) {
+          // Si no es JSON válido, usar material como texto plano
+          nombreMaterial = data.material || '';
+        }
+        
+        // Transformar datos al formato esperado
         setInvoice({
           id: id,
-          dealNumber: 'OP-XXXX-XXX',
+          dealNumber: data.id_externo || '',
+          date: data.fecha || new Date().toISOString().split('T')[0],
+          supplierName: data.proveedor_nombre || '',
+          totalAmount: data.monto || 0,
+          materialName: nombreMaterial,
+          currency: moneda,
+          fileName: attachmentName
+        });
+      } catch (error) {
+        console.error('Error al cargar la factura:', error);
+        // En caso de error, inicializar con datos vacíos
+        setInvoice({
+          id: id,
+          dealNumber: '',
           date: new Date().toISOString().split('T')[0],
           supplierName: '',
           totalAmount: 0,
@@ -89,10 +97,12 @@ export default function EditSupplierInvoicePage() {
           currency: 'EUR',
           fileName: ''
         });
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
-    }, 800);
+    };
+    
+    loadInvoice();
   }, [id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -128,20 +138,74 @@ export default function EditSupplierInvoicePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simulación de guardado
     setSaving(true);
     try {
-      // Aquí iría la lógica para guardar los datos
-      console.log('Guardando cambios de factura de proveedor:', invoice);
-      
-      // Simulamos un tiempo de procesamiento
-      setTimeout(() => {
+      // Validar campos obligatorios
+      if (!invoice.dealNumber || !invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
+        alert('Por favor, complete todos los campos obligatorios');
         setSaving(false);
-        // Redirigir a la página de facturas con la pestaña proveedor activa
-        router.push('/facturas?tab=supplier');
-      }, 800);
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      
+      // Preparar datos para actualizar en Supabase
+      const facturaData = {
+        id_externo: invoice.dealNumber,
+        fecha: invoice.date,
+        monto: invoice.totalAmount,
+        proveedor_nombre: invoice.supplierName,
+        estado: 'pendiente',
+        material: JSON.stringify({
+          nombre_material: invoice.materialName,
+          moneda: invoice.currency,
+          notas: '',
+          attachment_name: invoice.attachment ? invoice.attachment.name : invoice.fileName
+        })
+      };
+      
+      console.log('Actualizando factura de proveedor:', facturaData);
+      
+      // Actualizar factura en Supabase
+      const { error: updateError } = await supabase
+        .from('facturas_proveedor')
+        .update(facturaData)
+        .eq('id', invoice.id);
+      
+      if (updateError) {
+        throw new Error(`Error al actualizar la factura: ${updateError.message}`);
+      }
+      
+      // Si hay un archivo adjunto nuevo, subirlo a Storage
+      if (invoice.attachment) {
+        const fileExt = invoice.attachment.name.split('.').pop();
+        const fileName = `facturas-proveedor/${invoice.id}.${fileExt}`;
+        
+        // Primero eliminamos el archivo existente
+        await supabase
+          .storage
+          .from('facturas')
+          .remove([fileName]);
+        
+        // Subimos el nuevo archivo
+        const { error: uploadError } = await supabase
+          .storage
+          .from('facturas')
+          .upload(fileName, invoice.attachment);
+        
+        if (uploadError) {
+          console.error('Error al subir el archivo adjunto:', uploadError);
+          // No bloqueamos el flujo por un error en la subida del archivo
+        }
+      }
+      
+      alert('Factura actualizada correctamente');
+      
+      // Redirigir a la página de facturas con la pestaña proveedor activa
+      router.push('/facturas?tab=supplier');
     } catch (error) {
       console.error('Error al guardar la factura:', error);
+      alert(`Error al actualizar la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       setSaving(false);
     }
   };

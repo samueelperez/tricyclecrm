@@ -1,0 +1,176 @@
+/**
+ * Esquema de la base de datos de TricycleCRM
+ * 
+ * Este archivo define la estructura de la base de datos para mejorar
+ * las sugerencias y validaciones de Cursor y la IA.
+ */
+
+// Definición del esquema de la base de datos basado en los tipos generados
+const databaseSchema = {
+  // Tabla de clientes
+  clientes: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      nombre: { type: 'string', required: true },
+      email: { type: 'string', required: false },
+      telefono: { type: 'string', required: false },
+      direccion: { type: 'string', required: false },
+      ciudad: { type: 'string', required: false },
+      codigo_postal: { type: 'string', required: false },
+      pais: { type: 'string', required: false },
+      id_fiscal: { type: 'string', required: false },
+      contacto_nombre: { type: 'string', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'negocios', foreignKey: 'cliente_id', type: 'hasMany' },
+      { table: 'proformas', foreignKey: 'cliente_id', type: 'hasMany' }
+    ]
+  },
+  
+  // Tabla de negocios
+  negocios: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      id_externo: { type: 'string', required: true },
+      cliente_id: { type: 'number', required: false },
+      cliente_nombre: { type: 'string', required: true },
+      fecha_creacion: { type: 'string', required: true },
+      fecha_entrega: { type: 'string', required: false },
+      fecha_envio: { type: 'string', required: false },
+      fecha_estimada_finalizacion: { type: 'string', required: false },
+      fecha_estimada_llegada: { type: 'string', required: false },
+      estado: { type: 'string', required: false },
+      notas: { type: 'string', required: false },
+      progreso: { type: 'number', required: false },
+      total_ingresos: { type: 'number', required: false },
+      total_gastos: { type: 'number', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'clientes', foreignKey: 'cliente_id', type: 'belongsTo' },
+      { table: 'facturas_cliente', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'facturas_proveedor', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'albaranes', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'proformas', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'recibos', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'negocios_materiales', foreignKey: 'negocio_id', type: 'hasMany' },
+      { table: 'negocios_proveedores', foreignKey: 'negocio_id', type: 'hasMany' }
+    ]
+  },
+  
+  // Tabla de facturas de cliente
+  facturas_cliente: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      id_externo: { type: 'string', required: true },
+      fecha: { type: 'string', required: true },
+      monto: { type: 'number', required: true },
+      estado: { type: 'string', required: false },
+      material: { type: 'string', required: false },
+      negocio_id: { type: 'number', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'negocios', foreignKey: 'negocio_id', type: 'belongsTo' }
+    ]
+  },
+  
+  // Tabla de facturas de proveedor
+  facturas_proveedor: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      id_externo: { type: 'string', required: true },
+      fecha: { type: 'string', required: true },
+      monto: { type: 'number', required: true },
+      estado: { type: 'string', required: false },
+      material: { type: 'string', required: false },
+      proveedor_id: { type: 'number', required: false },
+      proveedor_nombre: { type: 'string', required: true },
+      negocio_id: { type: 'number', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'negocios', foreignKey: 'negocio_id', type: 'belongsTo' },
+      { table: 'proveedores', foreignKey: 'proveedor_id', type: 'belongsTo' }
+    ]
+  },
+  
+  // Tabla de albaranes
+  albaranes: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      id_externo: { type: 'string', required: true },
+      fecha: { type: 'string', required: true },
+      monto: { type: 'number', required: true },
+      transportista: { type: 'string', required: true },
+      origen: { type: 'string', required: false },
+      destino: { type: 'string', required: false },
+      estado: { type: 'string', required: false },
+      tracking_number: { type: 'string', required: false },
+      instrucciones: { type: 'string', required: false },
+      material: { type: 'string', required: false },
+      metodo_envio: { type: 'string', required: false },
+      tipo_contenedor: { type: 'string', required: false },
+      peso_total: { type: 'number', required: false },
+      valor_declarado: { type: 'number', required: false },
+      negocio_id: { type: 'number', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'negocios', foreignKey: 'negocio_id', type: 'belongsTo' }
+    ]
+  },
+  
+  // Tabla de proformas
+  proformas: {
+    columns: {
+      id: { type: 'number', primaryKey: true },
+      id_externo: { type: 'string', required: true },
+      fecha: { type: 'string', required: true },
+      monto: { type: 'number', required: true },
+      cliente_id: { type: 'number', required: false },
+      negocio_id: { type: 'number', required: false },
+      origen: { type: 'string', required: false },
+      puerto: { type: 'string', required: false },
+      id_fiscal: { type: 'string', required: false },
+      cuenta_bancaria: { type: 'string', required: false },
+      terminos_pago: { type: 'string', required: false },
+      terminos_entrega: { type: 'string', required: false },
+      notas: { type: 'string', required: false },
+      cantidad_contenedores: { type: 'number', required: false },
+      peso_total: { type: 'number', required: false },
+      created_at: { type: 'timestamp', required: false },
+      updated_at: { type: 'timestamp', required: false }
+    },
+    relationships: [
+      { table: 'clientes', foreignKey: 'cliente_id', type: 'belongsTo' },
+      { table: 'negocios', foreignKey: 'negocio_id', type: 'belongsTo' },
+      { table: 'proformas_productos', foreignKey: 'proforma_id', type: 'hasMany' }
+    ]
+  },
+  
+  // Y así con el resto de tablas...
+};
+
+// Función para obtener información sobre una tabla específica
+function getTableInfo(tableName) {
+  return databaseSchema[tableName];
+}
+
+// Función para obtener todas las relaciones para una tabla
+function getTableRelationships(tableName) {
+  return databaseSchema[tableName]?.relationships || [];
+}
+
+// Exportar utilidades
+return {
+  databaseSchema,
+  getTableInfo,
+  getTableRelationships
+}; 

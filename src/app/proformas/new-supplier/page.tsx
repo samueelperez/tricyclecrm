@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface SupplierProforma {
   dealNumber: string;
@@ -60,20 +61,54 @@ export default function NewSupplierProformaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simulación de guardado
     setLoading(true);
+    const supabase = getSupabaseClient();
+    
     try {
-      // Aquí iría la lógica para guardar los datos
-      console.log('Saving new proforma:', proforma);
-      
-      // Simulamos un tiempo de procesamiento
-      setTimeout(() => {
+      // Validar campos obligatorios
+      if (!proforma.supplierName || !proforma.totalAmount) {
+        alert('Por favor complete todos los campos obligatorios');
         setLoading(false);
-        // Redirigir a la página de proformas con la pestaña de proveedores activa
-        router.push('/proformas?tab=supplier');
-      }, 500);
+        return;
+      }
+      
+      // Generar un ID externo con formato claro de proforma de proveedor
+      const idExterno = proforma.dealNumber || `PRO-SUPP-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      
+      // Preparar datos para guardar en Supabase
+      const proformaData = {
+        id_externo: idExterno,
+        fecha: proforma.date,
+        monto: proforma.totalAmount,
+        notas: `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`
+      };
+      
+      console.log('Guardando proforma de proveedor:', proformaData);
+      
+      // Insertar proforma en Supabase
+      const { data, error } = await supabase
+        .from('proformas')
+        .insert(proformaData)
+        .select('id')
+        .single();
+      
+      if (error) {
+        throw new Error(`Error al guardar la proforma: ${error.message}`);
+      }
+      
+      // Si hay un archivo adjunto, podríamos subirlo a Storage pero eso requiere configuración adicional
+      if (proforma.attachment) {
+        console.log('Se podría implementar la carga del archivo adjunto en una funcionalidad futura');
+      }
+      
+      alert('Proforma guardada correctamente');
+      
+      // Redirigir a la página de proformas con la pestaña de proveedores activa
+      router.push('/proformas?tab=supplier');
     } catch (error) {
       console.error('Error saving proforma:', error);
+      alert(`Error al guardar la proforma: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
       setLoading(false);
     }
   };

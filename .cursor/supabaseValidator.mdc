@@ -1,0 +1,261 @@
+/**
+ * Validador de acceso a Supabase
+ * 
+ * Verifica que los accesos a la base de datos:
+ * - Usen el tipado correcto
+ * - Accedan a tablas y columnas existentes
+ * - Implementen manejo de errores
+ */
+
+// Importar el esquema
+const { databaseSchema } = require('./supabase-schema.mdc');
+
+// Validar una consulta a Supabase
+function validateSupabaseQuery(queryCode) {
+  const issues = [];
+  
+  // Verificar que se use el tipo Database
+  if (!queryCode.includes('<Database>')) {
+    issues.push({
+      severity: 'warning',
+      message: 'Es recomendable usar el tipo Database generado por Supabase para obtener autocompletado y validación de tipos'
+    });
+  }
+  
+  // Verificar uso de try/catch para manejo de errores
+  if (queryCode.includes('.from(') && !queryCode.includes('try') && !queryCode.includes('catch')) {
+    issues.push({
+      severity: 'error',
+      message: 'Las consultas a Supabase deben estar dentro de bloques try/catch para manejar errores'
+    });
+  }
+  
+  // Verificar que se revisen los errores
+  if (queryCode.includes('.from(') && !queryCode.includes('if (error)')) {
+    issues.push({
+      severity: 'error',
+      message: 'Siempre se debe verificar si hay errores en las respuestas de Supabase'
+    });
+  }
+  
+  // Verificar acceso a tablas definidas en el esquema
+  const tableMatches = queryCode.match(/\.from\(['"](\w+)['"]\)/g);
+  if (tableMatches) {
+    tableMatches.forEach(match => {
+      const tableName = match.match(/\.from\(['"](\w+)['"]\)/)[1];
+      if (!databaseSchema[tableName]) {
+        issues.push({
+          severity: 'error',
+          message: `La tabla '${tableName}' no está definida en el esquema de la base de datos`
+        });
+      }
+    });
+  }
+  
+  // Verificar que se usen consultas con paginación cuando es probable que haya muchos resultados
+  if (queryCode.includes('.from(') && !queryCode.includes('.limit(') && !queryCode.includes('.range(')) {
+    issues.push({
+      severity: 'warning',
+      message: 'Es recomendable limitar el número de resultados con .limit() o .range() para evitar problemas de rendimiento'
+    });
+  }
+  
+  // Verificar que se usen single() cuando se espera un único resultado
+  if (queryCode.includes('.eq(\'id\',') && !queryCode.includes('.single()')) {
+    issues.push({
+      severity: 'warning',
+      message: 'Cuando se busca por ID, es recomendable usar .single() para obtener un objeto en lugar de un array'
+    });
+  }
+  
+  return {
+    isValid: issues.filter(issue => issue.severity === 'error').length === 0,
+    issues
+  };
+}
+
+// Función para generar sugerencias de corrección
+function suggestSupabaseCorrections(issues) {
+  return issues.map(issue => ({
+    problem: issue.message,
+    solution: issue.severity === 'error' 
+      ? 'Este problema debe corregirse para evitar errores en tiempo de ejecución'
+      : 'Considera implementar esta mejora para una mejor integración con Supabase'
+  }));
+}
+
+// Función para generar un servicio de Supabase para una tabla
+function generateSupabaseService(tableName) {
+  if (!databaseSchema[tableName]) {
+    return {
+      error: `La tabla '${tableName}' no está definida en el esquema`
+    };
+  }
+  
+  const tableInfo = databaseSchema[tableName];
+  const entityName = tableName.endsWith('s') 
+    ? tableName.slice(0, -1) // Quitar 's' final para obtener nombre en singular
+    : tableName;
+  const pascalEntityName = entityName.charAt(0).toUpperCase() + entityName.slice(1);
+  const pluralEntityName = tableName;
+  const pascalPluralEntityName = pluralEntityName.charAt(0).toUpperCase() + pluralEntityName.slice(1);
+  
+  return `import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { Database } from '../database.types';
+
+type ${pascalEntityName} = Database['public']['Tables']['${tableName}']['Row'];
+
+/**
+ * Obtener todos los ${pluralEntityName} con paginación
+ * @param page Número de página (1-indexed)
+ * @param pageSize Cantidad de elementos por página
+ * @returns Lista de ${pluralEntityName} paginada con metadatos de paginación
+ */
+export async function getAll${pascalPluralEntityName}(page = 1, pageSize = 10) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  
+  // Calcular rango para paginación
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  
+  try {
+    const { data, error, count } = await supabase
+      .from('${tableName}')
+      .select('*', { count: 'exact' })
+      .range(from, to)
+      .order('${tableInfo.columns.created_at ? 'created_at' : 'id'}', { ascending: false });
+      
+    if (error) throw error;
+    
+    return { 
+      data, 
+      pagination: {
+        currentPage: page,
+        totalPages: count ? Math.ceil(count / pageSize) : 0,
+        totalItems: count || 0,
+        pageSize
+      } 
+    };
+  } catch (error) {
+    console.error('Error al obtener ${pluralEntityName}:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener un ${entityName} por su ID
+ * @param id ID del ${entityName}
+ * @returns Datos del ${entityName}
+ */
+export async function get${pascalEntityName}ById(id: number) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  
+  try {
+    const { data, error } = await supabase
+      .from('${tableName}')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error(\`Error al obtener ${entityName} con ID \${id}:\`, error);
+    throw error;
+  }
+}
+
+/**
+ * Crear un nuevo ${entityName}
+ * @param ${entityName}Data Datos del ${entityName} a crear
+ * @returns El ${entityName} creado
+ */
+export async function create${pascalEntityName}(${entityName}Data: Omit<Database['public']['Tables']['${tableName}']['Insert'], 'id'>) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  
+  try {
+    const { data, error } = await supabase
+      .from('${tableName}')
+      .insert([{
+        ...${entityName}Data,
+        ${tableInfo.columns.created_at ? "created_at: new Date().toISOString()," : ""}
+        ${tableInfo.columns.updated_at ? "updated_at: new Date().toISOString()" : ""}
+      }])
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error('Error al crear ${entityName}:', error);
+    throw error;
+  }
+}
+
+/**
+ * Actualizar un ${entityName} existente
+ * @param id ID del ${entityName} a actualizar
+ * @param ${entityName}Data Datos actualizados del ${entityName}
+ * @returns El ${entityName} actualizado
+ */
+export async function update${pascalEntityName}(id: number, ${entityName}Data: Partial<Database['public']['Tables']['${tableName}']['Update']>) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  
+  try {
+    const { data, error } = await supabase
+      .from('${tableName}')
+      .update({
+        ...${entityName}Data,
+        ${tableInfo.columns.updated_at ? "updated_at: new Date().toISOString()" : ""}
+      })
+      .eq('id', id)
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error(\`Error al actualizar ${entityName} con ID \${id}:\`, error);
+    throw error;
+  }
+}
+
+/**
+ * Eliminar un ${entityName}
+ * @param id ID del ${entityName} a eliminar
+ * @returns true si se eliminó correctamente
+ */
+export async function delete${pascalEntityName}(id: number) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  
+  try {
+    const { error } = await supabase
+      .from('${tableName}')
+      .delete()
+      .eq('id', id);
+      
+    if (error) throw error;
+    
+    return true;
+  } catch (error) {
+    console.error(\`Error al eliminar ${entityName} con ID \${id}:\`, error);
+    throw error;
+  }
+}`;
+}
+
+// Exportar funciones
+return {
+  validateSupabaseQuery,
+  suggestSupabaseCorrections,
+  generateSupabaseService
+}; 

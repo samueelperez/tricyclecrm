@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Actualizar tipos de Supabase después de un pull o merge
+bash scripts/update-supabase-types.sh 

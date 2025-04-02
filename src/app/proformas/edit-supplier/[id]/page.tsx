@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface SupplierProforma {
   id: string;
@@ -30,28 +31,44 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
     attachment: null
   });
 
-  // Simular carga de datos
+  // Cargar datos reales desde Supabase
   useEffect(() => {
     const loadProforma = async () => {
       setLoading(true);
       try {
-        // Simulación de carga de datos
-        setTimeout(() => {
-          // Datos de ejemplo
-          setProforma({
-            id: params.id,
-            dealNumber: 'INV002',
-            date: '2025-03-10',
-            supplierName: 'Recisur',
-            totalAmount: 12600.0,
-            materialName: 'PP JUMBO BAGS',
-            currency: 'EUR',
-            attachment: null
-          });
-          setLoading(false);
-        }, 500);
+        const supabase = getSupabaseClient();
+        
+        // Obtener la proforma de la base de datos
+        const { data, error } = await supabase
+          .from('proformas')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+        
+        if (error) throw error;
+        if (!data) throw new Error('No se encontró la proforma');
+        
+        // Extraer datos de las notas
+        const proveedorMatch = data.notas?.match(/Proveedor: (.+?)(\n|$)/);
+        const materialMatch = data.notas?.match(/Material: (.+?)(\n|$)/);
+        const monedaMatch = data.notas?.match(/Moneda: (.+?)(\n|$)/);
+        
+        // Actualizar el estado
+        setProforma({
+          id: params.id,
+          dealNumber: data.id_externo || '',
+          date: data.fecha || new Date().toISOString().split('T')[0],
+          supplierName: proveedorMatch ? proveedorMatch[1] : '',
+          totalAmount: data.monto || 0,
+          materialName: materialMatch ? materialMatch[1] : '',
+          currency: monedaMatch ? monedaMatch[1] : 'EUR',
+          attachment: null
+        });
+        
       } catch (error) {
         console.error('Error loading proforma:', error);
+        alert(`Error al cargar la proforma: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      } finally {
         setLoading(false);
       }
     };
@@ -92,20 +109,50 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simulación de guardado
     setLoading(true);
     try {
-      // Aquí iría la lógica para guardar los datos
-      console.log('Saving proforma:', proforma);
-      
-      // Simulamos un tiempo de procesamiento
-      setTimeout(() => {
+      // Validación básica
+      if (!proforma.supplierName || !proforma.totalAmount) {
+        alert('Por favor complete todos los campos obligatorios');
         setLoading(false);
-        // Redirigir a la página de proformas con la pestaña de proveedores activa
-        router.push('/proformas?tab=supplier');
-      }, 500);
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      
+      // Preparar datos para guardar en Supabase
+      const proformaData = {
+        id_externo: proforma.dealNumber,
+        fecha: proforma.date,
+        monto: proforma.totalAmount,
+        notas: `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`
+      };
+      
+      console.log('Actualizando proforma:', proformaData);
+      
+      // Actualizar la proforma en Supabase
+      const { error } = await supabase
+        .from('proformas')
+        .update(proformaData)
+        .eq('id', proforma.id);
+      
+      if (error) {
+        throw new Error(`Error al guardar la proforma: ${error.message}`);
+      }
+      
+      // Si hay un archivo adjunto, podría implementarse la carga aquí
+      if (proforma.attachment) {
+        console.log('Se podría implementar la carga del archivo adjunto en una funcionalidad futura');
+      }
+      
+      alert('Proforma actualizada correctamente');
+      
+      // Redirigir a la página de proformas con la pestaña de proveedores activa
+      router.push('/proformas?tab=supplier');
     } catch (error) {
       console.error('Error saving proforma:', error);
+      alert(`Error al guardar la proforma: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
       setLoading(false);
     }
   };

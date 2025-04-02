@@ -11,63 +11,199 @@ import {
   FiTrash2,
   FiSave
 } from 'react-icons/fi';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export default function EditCustomerProformaPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Datos de ejemplo para la proforma
+  // Datos iniciales de la proforma
   const [proforma, setProforma] = useState({
     id: params.id,
-    number: `PRF-${params.id.substring(0, 8)}`,
-    date: '2025-01-13',
-    customerName: 'DDH TRADE CO.,LIMITED',
-    taxId: 'XXXX30283-9-00',
-    ports: 'TEMA PORT - GHANA',
-    deliveryTerms: 'CIF (Cost, Insurance, and Freight), DTHC Not Included, 14 Free Combined Days of',
-    paymentTerms: '30% CASH IN ADVANCE 70% CASH AGAINST DOCUMENTS',
-    bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
+    number: '',  // Será actualizado con id_externo desde la base de datos
+    date: new Date().toISOString().split('T')[0],
+    customerName: '',
+    taxId: '',
+    ports: '',
+    deliveryTerms: '',
+    paymentTerms: '',
+    bankAccount: '',
     shippingNotes: '',
-    items: [
-      {
-        id: '1',
-        description: 'PP JUMBO BAGS',
-        quantity: 10,
-        weight: 200.00,
-        unitPrice: 240.00,
-        packaging: 'Bales',
-        totalValue: 48000.00
-      }
-    ],
-    origin: 'Spain',
-    containers: 10,
-    totalWeight: 200.00,
-    totalAmount: 48000.00
+    items: [] as any[],
+    origin: '',
+    containers: 0,
+    totalWeight: 0,
+    totalAmount: 0
   });
 
-  // Simular carga de datos
+  // Cargar datos reales desde Supabase
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    async function loadProformaData() {
+      try {
+        setLoading(true);
+        const supabase = getSupabaseClient();
+        
+        // Consultar la proforma
+        const { data: proformaData, error: proformaError } = await supabase
+          .from('proformas')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+        
+        if (proformaError) throw new Error(`Error al cargar la proforma: ${proformaError.message}`);
+        if (!proformaData) throw new Error('No se encontró la proforma');
+        
+        // Consultar los productos relacionados
+        const { data: productosData, error: productosError } = await supabase
+          .from('proformas_productos')
+          .select('*')
+          .eq('proforma_id', params.id);
+        
+        if (productosError) throw new Error(`Error al cargar los productos: ${productosError.message}`);
+        
+        // Preparar los items
+        const items = productosData ? productosData.map(producto => ({
+          id: producto.id.toString(),
+          description: producto.descripcion || '',
+          quantity: producto.cantidad || 0,
+          weight: producto.peso || 0,
+          unitPrice: producto.precio_unitario || 0,
+          packaging: producto.tipo_empaque || 'Type',
+          totalValue: producto.valor_total || (producto.cantidad * producto.precio_unitario)
+        })) : [];
+        
+        // Si no hay items, agregar uno vacío
+        if (items.length === 0) {
+          items.push({
+            id: '1',
+            description: '',
+            quantity: 0,
+            weight: 0,
+            unitPrice: 0,
+            packaging: 'Type',
+            totalValue: 0
+          });
+        }
+        
+        // Actualizar el estado
+        setProforma({
+          id: params.id,
+          number: proformaData.id_externo || `Sin número`, // Usar id_externo de la BD
+          date: proformaData.fecha || new Date().toISOString().split('T')[0],
+          customerName: proformaData.cliente_nombre || '',
+          taxId: proformaData.id_fiscal || '',
+          ports: proformaData.puerto || '',
+          deliveryTerms: proformaData.terminos_entrega || '',
+          paymentTerms: proformaData.terminos_pago || '',
+          bankAccount: proformaData.cuenta_bancaria || '',
+          shippingNotes: proformaData.notas || '',
+          items: items,
+          origin: proformaData.origen || 'Spain',
+          containers: proformaData.cantidad_contenedores || 0,
+          totalWeight: proformaData.peso_total || 0,
+          totalAmount: proformaData.monto || 0
+        });
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error cargando datos:', err);
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      } finally {
+        setLoading(false);
+      }
+    }
     
-    return () => clearTimeout(timer);
-  }, []);
+    loadProformaData();
+  }, [params.id]);
 
   const handleCancel = () => {
     router.push(`/proformas?tab=customer`);
   };
 
-  const handleSave = () => {
-    // Aquí iría la lógica para guardar los cambios
-    setLoading(true);
-    
-    // Simulamos un tiempo de procesamiento
-    setTimeout(() => {
-      setLoading(false);
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      
+      // Validar datos básicos
+      if (!proforma.customerName) {
+        alert('Por favor, seleccione un cliente');
+        setLoading(false);
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      
+      // Preparar datos para actualizar en Supabase
+      const proformaData = {
+        id_externo: proforma.number, // Mantener el mismo número de proforma
+        fecha: proforma.date,
+        id_fiscal: proforma.taxId,
+        monto: proforma.totalAmount,
+        puerto: proforma.ports,
+        origen: proforma.origin,
+        terminos_entrega: proforma.deliveryTerms,
+        terminos_pago: proforma.paymentTerms,
+        cuenta_bancaria: proforma.bankAccount,
+        notas: proforma.shippingNotes + '\nCliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || ''),
+        peso_total: proforma.totalWeight,
+        cantidad_contenedores: proforma.containers
+      };
+      
+      console.log('Actualizando proforma:', proformaData);
+      
+      // Actualizar proforma en Supabase
+      const { error: proformaError } = await supabase
+        .from('proformas')
+        .update(proformaData)
+        .eq('id', proforma.id);
+      
+      if (proformaError) {
+        throw new Error(`Error al actualizar la proforma: ${proformaError.message}`);
+      }
+      
+      // Borrar productos anteriores
+      const { error: deleteError } = await supabase
+        .from('proformas_productos')
+        .delete()
+        .eq('proforma_id', proforma.id);
+        
+      if (deleteError) {
+        throw new Error(`Error al eliminar productos anteriores: ${deleteError.message}`);
+      }
+      
+      // Preparar productos para guardar
+      const productosData = proforma.items.map(item => ({
+        proforma_id: proforma.id,
+        descripcion: item.description,
+        cantidad: item.quantity,
+        precio_unitario: item.unitPrice,
+        peso: item.weight,
+        tipo_empaque: item.packaging
+        // No incluimos valor_total porque se calcula automáticamente en la base de datos
+      }));
+      
+      // Insertar productos de la proforma
+      const { error: productosError } = await supabase
+        .from('proformas_productos')
+        .insert(productosData);
+      
+      if (productosError) {
+        throw new Error(`Error al guardar los productos: ${productosError.message}`);
+      }
+      
+      console.log('Proforma actualizada correctamente');
+      
+      alert('Proforma actualizada correctamente');
+      
       // Redirigir de vuelta a la pestaña de proformas
       router.push(`/proformas?tab=customer`);
-    }, 500);
+    } catch (error) {
+      console.error('Error al actualizar la proforma:', error);
+      alert(`Error al actualizar la proforma: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {

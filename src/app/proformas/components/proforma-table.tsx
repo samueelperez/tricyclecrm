@@ -14,6 +14,36 @@ interface ProformaTableProps {
   activeTab: ProformaTab;
 }
 
+// Función para extraer información del cliente de las notas
+const extractClientInfo = (notes?: string): string => {
+  if (!notes) return '';
+  
+  // Buscar un patrón como "Cliente: Nombre del Cliente" o "Proveedor: Nombre del Proveedor"
+  const clientMatch = notes.match(/Cliente: (.+?)($|\n)/);
+  const supplierMatch = notes.match(/Proveedor: (.+?)($|\n)/);
+  
+  // Devolver el primer grupo capturado (el nombre)
+  if (clientMatch) return clientMatch[1].trim();
+  if (supplierMatch) return supplierMatch[1].trim();
+  
+  // Si no hay coincidencia, devolver las primeras palabras de las notas (hasta 25 caracteres)
+  return notes.split('\n')[0].substring(0, 25) + (notes.length > 25 ? '...' : '');
+};
+
+// Función para extraer información del material de las notas
+const extractMaterialInfo = (notes?: string): string => {
+  if (!notes) return '';
+  
+  // Buscar un patrón como "Material: Nombre del Material"
+  const materialMatch = notes.match(/Material: (.+?)($|\n)/);
+  
+  // Devolver el primer grupo capturado (el nombre del material)
+  if (materialMatch) return materialMatch[1].trim();
+  
+  // Si no hay coincidencia, devolver vacío
+  return '';
+};
+
 // Componente memoizado para la tarjeta de proforma individual
 const ProformaCard = memo(({
   proforma,
@@ -40,10 +70,10 @@ const ProformaCard = memo(({
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
         <div className="mb-4 md:mb-0">
           <h3 className="text-lg font-semibold text-gray-800">
-            {proforma.id_externo || `PRF-${proforma.id.substring(0, 8)}`}
+            {proforma.id_externo || `Sin ID`}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {proforma.cliente_nombre}
+            {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {extractClientInfo(proforma.notas) || 'Sin cliente'}
           </p>
         </div>
         
@@ -59,7 +89,7 @@ const ProformaCard = memo(({
       
       <div className="mt-4 flex flex-col md:flex-row md:justify-between md:items-center">
         <p className="text-sm text-gray-600">
-          <span className="font-medium">Material:</span> {proforma.material}
+          <span className="font-medium">Material:</span> {extractMaterialInfo(proforma.notas) || 'Sin material'}
         </p>
         
         <div className="mt-4 md:mt-0 flex space-x-4">

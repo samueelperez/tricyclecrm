@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+
+/**
+ * CLI para gestionar la base de datos de TricycleCRM
+ */
+
+const { execSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+// Directorio raíz del proyecto
+const rootDir = path.resolve(__dirname, '..');
+
+// Colores para la consola
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m'
+};
+
+/**
+ * Imprime un mensaje con formato
+ */
+function print(message, color = colors.reset) {
+  console.log(`${color}${message}${colors.reset}`);
+}
+
+/**
+ * Ejecuta un comando npm
+ */
+function runCommand(scriptName, args = []) {
+  try {
+    const fullCommand = `npm run ${scriptName} -- ${args.join(' ')}`;
+    print(`Ejecutando: ${fullCommand}`, colors.dim);
+    execSync(fullCommand, { stdio: 'inherit', cwd: rootDir });
+    return true;
+  } catch (error) {
+    print(`Error al ejecutar ${scriptName}:`, colors.red);
+    if (error.message) {
+      print(error.message, colors.red + colors.dim);
+    }
+    return false;
+  }
+}
+
+/**
+ * Muestra la ayuda del comando
+ */
+function showHelp() {
+  print('\n🔧 Utilidad de línea de comandos para TricycleCRM', colors.cyan + colors.bright);
+  print('\nUso: tricycle-db <comando> [opciones]', colors.bright);
+  
+  print('\nComandos disponibles:', colors.yellow);
+  print('  setup           Configura la base de datos (verifica credenciales, aplica migraciones y comprueba integridad)');
+  print('  apply           Aplica las migraciones pendientes');
+  print('  check           Verifica la integridad de la base de datos');
+  print('  sync            Sincroniza el esquema de la base de datos');
+  print('  migrate         Genera una nueva migración');
+  print('  watch           Observa cambios en el esquema y genera migraciones automáticamente');
+  
+  print('\nEjemplos:', colors.green);
+  print('  tricycle-db setup', colors.dim);
+  print('  tricycle-db check', colors.dim);
+  print('  tricycle-db apply', colors.dim);
+  
+  print('\nPara más información, visita la documentación:', colors.bright);
+  print('https://github.com/tu-usuario/tricyclecrm\n', colors.blue);
+}
+
+// Comando principal
+const command = process.argv[2];
+const args = process.argv.slice(3);
+
+if (!command || command === 'help' || command === '--help' || command === '-h') {
+  showHelp();
+  process.exit(0);
+}
+
+// Mapeo de comandos a scripts de npm
+const commandMap = {
+  'setup': 'db:setup',
+  'apply': 'db:apply-migrations',
+  'check': 'db:check',
+  'sync': 'db:sync',
+  'migrate': 'db:migrate',
+  'watch': 'db:watch'
+};
+
+if (!commandMap[command]) {
+  print(`\n❌ Comando desconocido: ${command}`, colors.red);
+  print('Utiliza "tricycle-db help" para ver los comandos disponibles.\n', colors.yellow);
+  process.exit(1);
+}
+
+// Ejecutar el comando
+const success = runCommand(commandMap[command], args);
+
+if (!success) {
+  process.exit(1);
+} 

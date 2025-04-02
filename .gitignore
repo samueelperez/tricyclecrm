@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# No ignorar los archivos de tipos generados
+!database.types.ts
+!src/lib/supabase/database.types.ts
