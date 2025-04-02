@@ -403,7 +403,8 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           weight: 0,
           unitPrice: 0,
           packaging: 'Type',
-          totalValue: 0
+          totalValue: 0,
+          taxRate: 21
         }
       ]
     });
