@@ -55,171 +55,188 @@ interface Proforma {
 const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma }>(
   ({ proforma }, ref) => {
     // Extraer fecha formateada
-    const formattedDate = new Date(proforma.fecha).toLocaleDateString('es-ES', {
+    const formattedDate = new Date(proforma.fecha).toLocaleDateString('en-US', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
-    });
+    }).replace(/\//g, '.');
     
     // Calcular el total si no está disponible
     const montoTotal = proforma.monto_total || proforma.monto || 0;
 
     // Determinar si es proforma para cliente o proveedor basado en el contenido del campo notas
     const esProveedor = proforma.notas?.includes('Proveedor:') || false;
-    const tipoProforma = esProveedor ? 'PROFORMA PROVEEDOR' : 'PROFORMA CLIENTE';
 
     return (
-      <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none' }}>
-        {/* Cabecera con logo */}
-        <div className="mb-8 flex justify-between items-start border-b pb-6">
-          <div className="flex items-center">
+      <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none', fontFamily: 'Arial, sans-serif' }}>
+        {/* Cabecera con logo y datos de empresa */}
+        <div className="mb-10 flex justify-between">
+          <div className="w-1/2">
             <img 
               src="/images/logo.png" 
-              alt="Logo TriCycle CRM" 
-              className="h-20 mr-4" 
-              style={{ objectFit: 'contain' }}
+              alt="TRICYCLE PRODUCTS, S.L." 
+              className="h-16 mb-2" 
+              style={{ objectFit: 'contain', objectPosition: 'left' }}
             />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">TRICYCLE CRM</h1>
-              <p className="text-gray-600">C/ Principal 123</p>
-              <p className="text-gray-600">28001 Madrid, España</p>
-              <p className="text-gray-600">CIF: B12345678</p>
-            </div>
+            <h2 className="text-xl font-bold text-[#1b5a7a]">TRICYCLE PRODUCTS, S.L.</h2>
           </div>
-          <div className="text-right">
-            <div className="text-xl font-bold text-gray-800 mb-2">{tipoProforma}</div>
-            <table className="ml-auto text-right">
-              <tbody>
-                <tr>
-                  <td className="pr-2 text-gray-600 font-medium">Número:</td>
-                  <td className="font-bold">{proforma.numero || proforma.id_externo}</td>
-                </tr>
-                <tr>
-                  <td className="pr-2 text-gray-600 font-medium">Fecha:</td>
-                  <td>{formattedDate}</td>
-                </tr>
-                {proforma.origen && (
-                  <tr>
-                    <td className="pr-2 text-gray-600 font-medium">Origen:</td>
-                    <td>{proforma.origen}</td>
-                  </tr>
-                )}
-                {proforma.puerto && (
-                  <tr>
-                    <td className="pr-2 text-gray-600 font-medium">Puerto:</td>
-                    <td>{proforma.puerto}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="w-1/2 text-right">
+            <p className="font-bold">TRICYCLE PRODUCTS, S.L.</p>
+            <p>PEREZ DOLZ, 8, ENTRS. 12003</p>
+            <p>Castellon - SPAIN</p>
+            <p>VAT: B56194830</p>
+            <p>Tel. +34 964 041 556</p>
+            <p>E-mail: info@tricycleproducts.es</p>
           </div>
         </div>
 
-        {/* Información del cliente/proveedor */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">
-              {esProveedor ? 'Proveedor' : 'Cliente'}
-            </h2>
-            <p className="font-medium text-lg">
-              {proforma.cliente?.nombre || (esProveedor ? 
-                proforma.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] :
-                proforma.notas?.match(/Cliente: (.+?)(\n|$)/)?.[1]) || 'No especificado'}
+        {/* Número de proforma y fecha */}
+        <div className="mb-8 flex justify-between">
+          <div>
+            <p className="font-bold text-lg">Proforma {proforma.id_externo || proforma.numero || proforma.id}</p>
+          </div>
+          <div>
+            <p className="font-bold">DATE: {formattedDate}</p>
+          </div>
+        </div>
+
+        {/* Información del cliente */}
+        <div className="mb-6">
+          <p className="font-bold">Name: <span className="font-normal">{proforma.cliente?.nombre || 'Cliente no especificado'}</span></p>
+          <p className="font-bold">Address: <span className="font-normal">{proforma.cliente?.direccion || proforma.notas?.match(/Dirección: (.+?)(\n|$)/)?.[1] || 'Dirección no especificada'}</span></p>
+          {proforma.cliente?.codigo_postal && (
+            <p className="font-bold">Postal Code <span className="font-normal">{proforma.cliente.codigo_postal}</span></p>
+          )}
+          <p className="font-bold">TAX ID: <span className="font-normal">{proforma.id_fiscal || proforma.cliente?.id_fiscal || 'No especificado'}</span></p>
+        </div>
+
+        {/* Detalles de entrega */}
+        {(proforma.terminos_entrega || proforma.puerto) && (
+          <div className="mb-6">
+            <p className="font-bold uppercase">
+              DELIVERY : {proforma.terminos_entrega || ''} {proforma.puerto || ''} 
+              {proforma.notas?.includes('DTHC NOT INCLUDED') ? ' DTHC NOT INCLUDED, ' : ''}
+              {proforma.notas?.includes('FREE COMBINED DAYS') ? '14 FREE COMBINED DAYS OF DETENTION AND DEMURRAGE.' : ''}
             </p>
-            {proforma.id_fiscal && <p className="text-gray-600">CIF/NIF: {proforma.id_fiscal}</p>}
           </div>
-          
-          {/* Términos */}
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Condiciones</h2>
-            {proforma.terminos_pago && (
-              <p className="mb-1"><span className="font-medium">Pago:</span> {proforma.terminos_pago}</p>
-            )}
-            {proforma.terminos_entrega && (
-              <p className="mb-1"><span className="font-medium">Entrega:</span> {proforma.terminos_entrega}</p>
-            )}
-            {proforma.cuenta_bancaria && (
-              <p className="mb-1"><span className="font-medium">Cuenta:</span> {proforma.cuenta_bancaria}</p>
-            )}
-          </div>
-        </div>
+        )}
 
-        {/* Líneas de proforma */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-3 text-gray-700 border-b pb-1">Detalle de proforma</h2>
-          <table className="w-full border-collapse">
+        {/* Términos de pago */}
+        {proforma.terminos_pago && (
+          <div className="mb-6">
+            <p className="font-bold">Payment Terms : {proforma.terminos_pago}</p>
+          </div>
+        )}
+
+        {/* Tabla de productos */}
+        <div className="mb-6">
+          <table className="w-full border-collapse border border-gray-800">
             <thead>
               <tr className="bg-gray-100">
-                <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
-                {!esProveedor && <th className="py-2 px-4 text-right border border-gray-300">Peso</th>}
-                <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
-                {!esProveedor && <th className="py-2 px-4 text-center border border-gray-300">Tipo empaque</th>}
-                <th className="py-2 px-4 text-right border border-gray-300">Total</th>
+                <th className="border border-gray-800 p-2 text-center">Full description of goods</th>
+                <th className="border border-gray-800 p-2 text-center">Quantity</th>
+                <th className="border border-gray-800 p-2 text-center">40ft</th>
+                <th className="border border-gray-800 p-2 text-center">Price</th>
+                <th className="border border-gray-800 p-2 text-center">Total Value</th>
+                <th className="border border-gray-800 p-2 text-center">Packing</th>
               </tr>
             </thead>
             <tbody>
               {proforma.productos && proforma.productos.length > 0 ? (
                 proforma.productos.map((producto, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-2 px-4 border border-gray-300">{producto.descripcion}</td>
-                    <td className="py-2 px-4 text-right border border-gray-300">{producto.cantidad}</td>
-                    {!esProveedor && <td className="py-2 px-4 text-right border border-gray-300">{producto.peso || '-'}</td>}
-                    <td className="py-2 px-4 text-right border border-gray-300">{producto.precio_unitario.toFixed(2)} €</td>
-                    {!esProveedor && <td className="py-2 px-4 text-center border border-gray-300">{producto.tipo_empaque || '-'}</td>}
-                    <td className="py-2 px-4 text-right border border-gray-300">{producto.valor_total?.toFixed(2) || (producto.cantidad * producto.precio_unitario).toFixed(2)} €</td>
+                  <tr key={index}>
+                    <td className="border border-gray-800 p-2">{producto.descripcion}</td>
+                    <td className="border border-gray-800 p-2 text-center">{producto.cantidad} {producto.peso ? 'MT' : ''}</td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {proforma.cantidad_contenedores || '5'}
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">{producto.precio_unitario} EUR</td>
+                    <td className="border border-gray-800 p-2 text-center">
+                      {(producto.valor_total || (producto.cantidad * producto.precio_unitario)).toFixed(2)} EUR
+                    </td>
+                    <td className="border border-gray-800 p-2 text-center">{producto.tipo_empaque || 'BALES'}</td>
                   </tr>
                 ))
               ) : (
-                <tr className="bg-white">
-                  <td className="py-2 px-4 border border-gray-300">
-                    {proforma.notas?.match(/Material: (.+?)(\n|$)/)?.[1] || 'Material no especificado'}
+                <tr>
+                  <td className="border border-gray-800 p-2">
+                    {proforma.notas?.match(/Material: (.+?)(\n|$)/)?.[1] || 'PP JUMBO BAGS C'}
                   </td>
-                  <td className="py-2 px-4 text-right border border-gray-300">1</td>
-                  {!esProveedor && <td className="py-2 px-4 text-right border border-gray-300">{proforma.peso_total || '-'}</td>}
-                  <td className="py-2 px-4 text-right border border-gray-300">{montoTotal.toFixed(2)} €</td>
-                  {!esProveedor && <td className="py-2 px-4 text-center border border-gray-300">-</td>}
-                  <td className="py-2 px-4 text-right border border-gray-300">{montoTotal.toFixed(2)} €</td>
+                  <td className="border border-gray-800 p-2 text-center">{proforma.peso_total || '22'} MT</td>
+                  <td className="border border-gray-800 p-2 text-center">{proforma.cantidad_contenedores || '5'}</td>
+                  <td className="border border-gray-800 p-2 text-center">100 EUR</td>
+                  <td className="border border-gray-800 p-2 text-center">{montoTotal.toFixed(2)} EUR</td>
+                  <td className="border border-gray-800 p-2 text-center">BALES</td>
                 </tr>
               )}
+              {/* Fila de total */}
+              <tr>
+                <td className="border border-gray-800 p-2 font-bold">Origin of Goods Spain</td>
+                <td className="border border-gray-800 p-2 text-center">{proforma.peso_total || '110'} MT</td>
+                <td className="border border-gray-800 p-2 text-center">{proforma.cantidad_contenedores || '5'}</td>
+                <td className="border border-gray-800 p-2 text-center font-bold">Total</td>
+                <td className="border border-gray-800 p-2 text-center font-bold">{montoTotal.toFixed(2)} EUR</td>
+                <td className="border border-gray-800 p-2 text-center">BALES</td>
+              </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Resumen */}
-        <div className="mb-6 flex justify-end">
-          <div className="w-64 border border-gray-300 rounded-md overflow-hidden">
-            {proforma.peso_total && (
-              <div className="flex justify-between py-2 px-4 bg-gray-50 border-b">
-                <span className="font-medium">Peso total:</span>
-                <span>{proforma.peso_total} kg</span>
-              </div>
-            )}
-            {proforma.cantidad_contenedores && (
-              <div className="flex justify-between py-2 px-4 bg-white border-b">
-                <span className="font-medium">Contenedores:</span>
-                <span>{proforma.cantidad_contenedores}</span>
-              </div>
-            )}
-            <div className="flex justify-between py-3 px-4 bg-gray-100 font-bold">
-              <span>Total:</span>
-              <span>{montoTotal.toFixed(2)} €</span>
-            </div>
-          </div>
+        {/* Información fiscal */}
+        <div className="mb-6">
+          <p className="font-bold">Exempt VAT. EXPORT Section 21.1 Ley 37/1992</p>
         </div>
 
-        {/* Notas adicionales */}
-        {proforma.notas && (
-          <div className="mb-8 border border-gray-200 rounded-md p-4 bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Notas</h2>
-            <p className="text-gray-700 whitespace-pre-line">{proforma.notas}</p>
+        {/* Información bancaria */}
+        <div className="mb-6">
+          <p className="text-red-600 font-bold">Bank Informaiton:</p>
+          <p><span className="font-bold">Bank Name : </span>Banco Santander S.A</p>
+          <p><span className="font-bold">IBAN EURO: </span>ES4000495332142210008708</p>
+          <p><span className="font-bold">SWIFT BIC: </span>BSCHESMM</p>
+          <p><span className="font-bold">Beneficiary: </span>TRICYCLE PRODUCTS S.L.</p>
+        </div>
+
+        {/* Condiciones de carga */}
+        <div className="mb-10">
+          <p className="font-bold uppercase">LOADING CONDITIONS</p>
+          <table className="w-full mt-2">
+            <tbody>
+              <tr>
+                <td className="py-1 w-1/3 align-top"><span className="font-bold">SHIPPING INSTRUCTIONS:</span></td>
+                <td className="py-1 align-top">PROVIDED PRIOR SHIPPING INSTRUCTIONS BY BUYER. CONSIGNEE MUST BE A COMPANY OF IMPORTING COUNTRY AS ANNEX VII SHOWING THIS IS OBLIGATORY BE PROVIDED BY CUSTOMS IN EXPORTING COUNTRY</td>
+              </tr>
+              <tr>
+                <td className="py-1 align-top"><span className="font-bold">Loading date:</span></td>
+                <td className="py-1 align-top">AS SOON AS POSSIBLE, MAXIMUM 30 DAYS FROM CONTRACT SIGNING DATE</td>
+              </tr>
+              <tr>
+                <td className="py-1 align-top"><span className="font-bold">Type of transport:</span></td>
+                <td className="py-1 align-top">40 FT SEA CONTAINER</td>
+              </tr>
+              <tr>
+                <td className="py-1 align-top"><span className="font-bold">Modifications on BL:</span></td>
+                <td className="py-1 align-top">BL AMENDMENTS CAN BE DONE BEFORE SHIP LEAVES BCN PORT OF ORIGIN, AFTERWARDS AMENDMENTS WILL BE ON BUYER´S ACCOUNT AS SHIPPING LINE CHARGE (100 USD/AMENDMENT APROX)</td>
+              </tr>
+              <tr>
+                <td className="py-1 align-top"><span className="font-bold">Special conditions:</span></td>
+                <td className="py-1 align-top">LOI, AP, PSIC, IMPORT PERMISSIONS UNDER PURCHASER´S ACCOUNT</td>
+              </tr>
+              <tr>
+                <td className="py-1 align-top"><span className="font-bold">Loading Pictures:</span></td>
+                <td className="py-1 align-top">FULL SET OF LOADING PICTURES WILL BE PROVIDED</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Firmas */}
+        <div className="flex justify-between mt-8">
+          <div>
+            <p className="font-bold mb-16">Buyer Signature :</p>
           </div>
-        )}
-        
-        {/* Pie de página */}
-        <div className="mt-10 pt-4 border-t text-center text-gray-500 text-xs">
-          <p>Esta proforma ha sido generada por TriCycle CRM</p>
-          <p>www.tricyclecrm.com | soporte@tricyclecrm.com | +34 912 345 678</p>
+          <div>
+            <p className="font-bold mb-16">Seller Signature :</p>
+          </div>
         </div>
       </div>
     );
