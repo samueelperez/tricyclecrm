@@ -6,7 +6,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { supabase, getServerSupabaseClient } from '../supabase';
+import { supabase, getSupabaseClient } from '../supabase';
 
 // Interfaces de gestión de base de datos
 export interface TableColumn {
