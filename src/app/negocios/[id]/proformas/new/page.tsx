@@ -161,7 +161,7 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
   
   // Actualizar producto
   const handleProductoChange = (index: number, field: keyof ProformaProducto, value: any) => {
-    const newProductos = [...productos];
+    const newProductos: ProformaProducto[] = [...productos];
     newProductos[index][field] = value;
     
     // Calcular valor total automáticamente
