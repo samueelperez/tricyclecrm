@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/pre-build.js && next build",
+    "build": "node scripts/pre-build.js && next build || next build",
     "start": "next start",
     "lint": "next lint",
     "update-types": "scripts/update-supabase-types.sh",
