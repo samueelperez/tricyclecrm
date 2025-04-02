@@ -19,6 +19,7 @@ import {
 interface Proforma {
   id: number;
   id_externo: string;
+  numero?: string;
   fecha: string;
   monto: number;
   cliente_id: number | null;
@@ -32,6 +33,7 @@ interface Proforma {
   notas: string | null;
   cantidad_contenedores: number | null;
   peso_total: number | null;
+  monto_total?: number;
 }
 
 interface ProformaProducto {
