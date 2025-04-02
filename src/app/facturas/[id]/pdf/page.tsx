@@ -43,8 +43,8 @@ interface FacturaItem {
 }
 
 // Componente para la vista de impresión de factura
-const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string }>((props, ref) => {
-  const { factura, numeroFactura } = props;
+const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string, nombreDestinatario: string }>((props, ref) => {
+  const { factura, numeroFactura, nombreDestinatario } = props;
   
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
@@ -68,14 +68,6 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
 
   // Calcular totales
   const totalPeso = factura.items?.reduce((acc, item) => acc + (item.peso || 0), 0) || 0;
-  
-  // Obtener destinatario según tipo de factura
-  const getNombreDestinatario = () => {
-    if (factura.tipo === 'proveedor') {
-      return factura.proveedor || 'Proveedor sin especificar';
-    }
-    return factura.cliente || 'Cliente sin especificar';
-  };
   
   // Obtener dirección del destinatario
   const getDireccionDestinatario = () => {
@@ -116,10 +108,14 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
         {/* Logo */}
         <div style={{ width: '150px' }}>
-          <img 
-            src="/logo.png" 
+          <Image 
+            src="/images/logo.png" 
             alt="Tricycle Products S.L."
-            style={{ width: '100%', objectFit: 'contain' }}
+            width={150}
+            height={80}
+            style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+            priority
+            unoptimized
           />
         </div>
         
@@ -128,6 +124,8 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
           <div style={{ fontWeight: 'bold', fontSize: '12pt' }}>TRICYCLE PRODUCTS, S.L</div>
           <div>PEREZ DOLZ, 8, ENTRS. 12003 Castellon – SPAIN</div>
           <div>VAT: B56194830</div>
+          <div>Tel. +34 964 041 556</div>
+          <div>E-mail: info@tricycleproducts.es</div>
         </div>
       </div>
       
@@ -144,7 +142,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       
       {/* Datos del cliente */}
       <div style={{ marginBottom: '30px' }}>
-        <div><span style={{ fontWeight: 'bold' }}>Name:</span> {getNombreDestinatario()}</div>
+        <div><span style={{ fontWeight: 'bold' }}>Name:</span> {nombreDestinatario}</div>
         <div><span style={{ fontWeight: 'bold' }}>Address:</span> {getDireccionDestinatario()}</div>
         {factura.cliente_ciudad && factura.cliente_pais && (
           <div>{factura.cliente_ciudad} {factura.cliente_pais}</div>
@@ -277,6 +275,11 @@ export default function FacturaPDFPage() {
   const [editing, setEditing] = useState(false);
   const [facturaNumero, setFacturaNumero] = useState('');
   const [savingNumero, setSavingNumero] = useState(false);
+  const [nombreDestinatario, setNombreDestinatario] = useState('');
+  
+  // Estados para editar el nombre
+  const [editingNombre, setEditingNombre] = useState(false);
+  const [savingNombre, setSavingNombre] = useState(false);
   
   const printRef = useRef<HTMLDivElement>(null);
   
@@ -308,6 +311,7 @@ export default function FacturaPDFPage() {
           
           setFactura(facturaData);
           setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
+          setNombreDestinatario(facturaData.cliente || 'Cliente sin especificar');
           setLoading(false);
           return;
         }
@@ -334,6 +338,7 @@ export default function FacturaPDFPage() {
           
           setFactura(facturaData);
           setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
+          setNombreDestinatario(facturaData.proveedor || 'Proveedor sin especificar');
           setLoading(false);
         } else {
           // Si no se encuentra, mostrar error
@@ -390,6 +395,63 @@ export default function FacturaPDFPage() {
       setError('Error al guardar el número de factura');
     } finally {
       setSavingNumero(false);
+    }
+  };
+  
+  // Guardar el nombre del cliente/proveedor
+  const handleSaveNombre = async () => {
+    if (!factura) return;
+    
+    setSavingNombre(true);
+    
+    try {
+      const supabase = getSupabaseClient();
+      
+      // Actualizar según el tipo de factura
+      if (factura.tipo === 'proveedor') {
+        // Para facturas de proveedor
+        const { error } = await supabase
+          .from('facturas')
+          .update({ proveedor: nombreDestinatario })
+          .eq('id', factura.id);
+        
+        if (error) throw error;
+        
+        // Actualizar el estado local
+        setFactura(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            proveedor: nombreDestinatario
+          };
+        });
+      } else {
+        // Para facturas de cliente
+        const { error } = await supabase
+          .from('facturas')
+          .update({ cliente: nombreDestinatario })
+          .eq('id', factura.id);
+        
+        if (error) throw error;
+        
+        // Actualizar el estado local
+        setFactura(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            cliente: nombreDestinatario
+          };
+        });
+      }
+      
+      // Desactivar el modo de edición
+      setEditingNombre(false);
+      
+    } catch (err) {
+      console.error('Error al guardar el nombre:', err);
+      setError('Error al guardar el nombre del destinatario');
+    } finally {
+      setSavingNombre(false);
     }
   };
   
@@ -471,44 +533,90 @@ export default function FacturaPDFPage() {
             ← Volver a facturas
           </a>
           
-          {/* Control para editar el número de factura */}
-          <div className="flex items-center space-x-2 mb-3 sm:mb-0">
-            {editing ? (
-              <>
-                <input
-                  type="text"
-                  value={facturaNumero}
-                  onChange={(e) => setFacturaNumero(e.target.value)}
-                  className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+          <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-3 sm:mb-0">
+            {/* Control para editar el número de factura */}
+            <div className="flex items-center space-x-2">
+              {editing ? (
+                <>
+                  <input
+                    type="text"
+                    value={facturaNumero}
+                    onChange={(e) => setFacturaNumero(e.target.value)}
+                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={handleSaveNumeroFactura}
+                    disabled={savingNumero}
+                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {savingNumero ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditing(false);
+                      // Restaurar el número original
+                      if (factura) {
+                        setFacturaNumero(factura.numero_factura || factura.id_externo || `INV${String(factura.id).padStart(4, '0')}`);
+                      }
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={handleSaveNumeroFactura}
-                  disabled={savingNumero}
-                  className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  onClick={() => setEditing(true)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {savingNumero ? 'Guardando...' : 'Guardar'}
+                  Editar número
                 </button>
+              )}
+            </div>
+            
+            {/* Control para editar el nombre del cliente/proveedor */}
+            <div className="flex items-center space-x-2">
+              {editingNombre ? (
+                <>
+                  <input
+                    type="text"
+                    value={nombreDestinatario}
+                    onChange={(e) => setNombreDestinatario(e.target.value)}
+                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={handleSaveNombre}
+                    disabled={savingNombre}
+                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {savingNombre ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingNombre(false);
+                      // Restaurar el nombre original
+                      if (factura) {
+                        if (factura.tipo === 'proveedor') {
+                          setNombreDestinatario(factura.proveedor || 'Proveedor sin especificar');
+                        } else {
+                          setNombreDestinatario(factura.cliente || 'Cliente sin especificar');
+                        }
+                      }
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={() => {
-                    setEditing(false);
-                    // Restaurar el número original
-                    if (factura) {
-                      setFacturaNumero(factura.numero_factura || factura.id_externo || `INV${String(factura.id).padStart(4, '0')}`);
-                    }
-                  }}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  onClick={() => setEditingNombre(true)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  Cancelar
+                  Editar nombre
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                Editar número
-              </button>
-            )}
+              )}
+            </div>
           </div>
           
           <button
@@ -532,7 +640,7 @@ export default function FacturaPDFPage() {
         
         {/* Vista previa */}
         <div className="bg-white shadow-xl mb-8 mx-auto" style={{ maxWidth: '210mm' }}>
-          <FacturaPrintView factura={factura} numeroFactura={facturaNumero} ref={printRef} />
+          <FacturaPrintView factura={factura} numeroFactura={facturaNumero} nombreDestinatario={nombreDestinatario} ref={printRef} />
         </div>
       </div>
     </div>

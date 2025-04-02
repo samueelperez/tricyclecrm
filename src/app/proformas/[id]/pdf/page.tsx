@@ -40,8 +40,8 @@ interface ProformaProducto {
 }
 
 // Componente para la vista de impresión de proforma
-const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numeroProforma: string }>((props, ref) => {
-  const { proforma, numeroProforma } = props;
+const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numeroProforma: string; nombreDestinatario: string }>((props, ref) => {
+  const { proforma, numeroProforma, nombreDestinatario } = props;
   
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
@@ -65,14 +65,6 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
 
   // Calcular totales
   const totalPeso = proforma.peso_total || proforma.productos?.reduce((acc, item) => acc + (item.peso || 0), 0) || 0;
-  
-  // Obtener destinatario según tipo de proforma
-  const getNombreDestinatario = () => {
-    if (proforma.tipo === 'proveedor') {
-      return proforma.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] || 'Proveedor sin especificar';
-    }
-    return proforma.cliente?.nombre || proforma.notas?.match(/Cliente: (.+?)(\n|$)/)?.[1] || 'Cliente sin especificar';
-  };
   
   // Obtener material desde notas
   const getMaterial = () => {
@@ -98,12 +90,13 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
         {/* Logo */}
         <div style={{ width: '150px' }}>
           <Image 
-            src="/logo.png" 
+            src="/images/logo.png" 
             alt="Tricycle Products S.L."
             width={150}
             height={80}
             style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
             priority
+            unoptimized
           />
         </div>
         
@@ -130,7 +123,7 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
       
       {/* Datos del cliente */}
       <div style={{ marginBottom: '30px' }}>
-        <div><span style={{ fontWeight: 'bold' }}>Name:</span> {getNombreDestinatario()}</div>
+        <div><span style={{ fontWeight: 'bold' }}>Name:</span> {nombreDestinatario}</div>
         <div><span style={{ fontWeight: 'bold' }}>Address:</span> {proforma.cliente?.direccion || ''}</div>
         {proforma.cliente?.ciudad && proforma.cliente?.pais && (
           <div>{proforma.cliente.ciudad} {proforma.cliente.pais}</div>
@@ -282,6 +275,11 @@ export default function ProformaPDFPage() {
   const [proformaNumero, setProformaNumero] = useState('');
   const [savingNumero, setSavingNumero] = useState(false);
   
+  // Estados para editar el nombre del cliente/proveedor
+  const [editingNombre, setEditingNombre] = useState(false);
+  const [nombreDestinatario, setNombreDestinatario] = useState('');
+  const [savingNombre, setSavingNombre] = useState(false);
+  
   const printRef = useRef<HTMLDivElement>(null);
   
   // Cargar los datos de la proforma
@@ -320,6 +318,15 @@ export default function ProformaPDFPage() {
           
           setProforma(proformaData);
           setProformaNumero(proformaData.id_externo || `PRO${String(proformaData.id).padStart(4, '0')}`);
+          
+          // Inicializar el nombre del destinatario
+          if (esProveedor) {
+            const nombreProveedor = proformaData.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] || 'Proveedor sin especificar';
+            setNombreDestinatario(nombreProveedor);
+          } else {
+            setNombreDestinatario(proformaData.cliente?.nombre || 'Cliente sin especificar');
+          }
+          
           setLoading(false);
         } else {
           setError('No se encontró la proforma solicitada');
@@ -371,6 +378,78 @@ export default function ProformaPDFPage() {
       setError('Error al guardar el número de proforma');
     } finally {
       setSavingNumero(false);
+    }
+  };
+  
+  // Guardar el nombre del cliente/proveedor
+  const handleSaveNombre = async () => {
+    if (!proforma) return;
+    
+    setSavingNombre(true);
+    
+    try {
+      // Si es una proforma de proveedor, actualizamos las notas
+      if (proforma.tipo === 'proveedor') {
+        const supabase = getSupabaseClient();
+        
+        // Actualizar las notas reemplazando la línea de "Proveedor:"
+        let nuevasNotas = proforma.notas || '';
+        
+        if (nuevasNotas.includes('Proveedor:')) {
+          // Reemplazar la línea existente
+          nuevasNotas = nuevasNotas.replace(/Proveedor:.+?(\n|$)/, `Proveedor: ${nombreDestinatario}$1`);
+        } else {
+          // Agregar al inicio si no existe
+          nuevasNotas = `Proveedor: ${nombreDestinatario}\n${nuevasNotas}`;
+        }
+        
+        const { error } = await supabase
+          .from('proformas')
+          .update({ notas: nuevasNotas })
+          .eq('id', proforma.id);
+        
+        if (error) throw error;
+        
+        // Actualizar el estado local
+        setProforma(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            notas: nuevasNotas
+          };
+        });
+      } else if (proforma.cliente_id) {
+        // Si es una proforma de cliente y tiene cliente_id, actualizamos el nombre del cliente
+        const supabase = getSupabaseClient();
+        
+        const { error } = await supabase
+          .from('clientes')
+          .update({ nombre: nombreDestinatario })
+          .eq('id', proforma.cliente_id);
+        
+        if (error) throw error;
+        
+        // Actualizar el estado local
+        setProforma(prev => {
+          if (!prev || !prev.cliente) return prev;
+          return {
+            ...prev,
+            cliente: {
+              ...prev.cliente,
+              nombre: nombreDestinatario
+            }
+          };
+        });
+      }
+      
+      // Desactivar el modo de edición
+      setEditingNombre(false);
+      
+    } catch (err) {
+      console.error('Error al guardar el nombre:', err);
+      setError('Error al guardar el nombre del destinatario');
+    } finally {
+      setSavingNombre(false);
     }
   };
   
@@ -452,44 +531,91 @@ export default function ProformaPDFPage() {
             ← Volver a proformas
           </a>
           
-          {/* Control para editar el número de proforma */}
-          <div className="flex items-center space-x-2 mb-3 sm:mb-0">
-            {editing ? (
-              <>
-                <input
-                  type="text"
-                  value={proformaNumero}
-                  onChange={(e) => setProformaNumero(e.target.value)}
-                  className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+          <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-3 sm:mb-0">
+            {/* Control para editar el número de proforma */}
+            <div className="flex items-center space-x-2">
+              {editing ? (
+                <>
+                  <input
+                    type="text"
+                    value={proformaNumero}
+                    onChange={(e) => setProformaNumero(e.target.value)}
+                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={handleSaveNumeroProforma}
+                    disabled={savingNumero}
+                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {savingNumero ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditing(false);
+                      // Restaurar el número original
+                      if (proforma) {
+                        setProformaNumero(proforma.id_externo || `PRO${String(proforma.id).padStart(4, '0')}`);
+                      }
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={handleSaveNumeroProforma}
-                  disabled={savingNumero}
-                  className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  onClick={() => setEditing(true)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {savingNumero ? 'Guardando...' : 'Guardar'}
+                  Editar número
                 </button>
+              )}
+            </div>
+            
+            {/* Control para editar el nombre del cliente/proveedor */}
+            <div className="flex items-center space-x-2">
+              {editingNombre ? (
+                <>
+                  <input
+                    type="text"
+                    value={nombreDestinatario}
+                    onChange={(e) => setNombreDestinatario(e.target.value)}
+                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={handleSaveNombre}
+                    disabled={savingNombre}
+                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {savingNombre ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingNombre(false);
+                      // Restaurar el nombre original
+                      if (proforma) {
+                        if (proforma.tipo === 'proveedor') {
+                          const nombreProveedor = proforma.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] || 'Proveedor sin especificar';
+                          setNombreDestinatario(nombreProveedor);
+                        } else {
+                          setNombreDestinatario(proforma.cliente?.nombre || 'Cliente sin especificar');
+                        }
+                      }
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={() => {
-                    setEditing(false);
-                    // Restaurar el número original
-                    if (proforma) {
-                      setProformaNumero(proforma.id_externo || `PRO${String(proforma.id).padStart(4, '0')}`);
-                    }
-                  }}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  onClick={() => setEditingNombre(true)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  Cancelar
+                  Editar nombre
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                Editar número
-              </button>
-            )}
+              )}
+            </div>
           </div>
           
           <button
@@ -513,7 +639,7 @@ export default function ProformaPDFPage() {
         
         {/* Vista previa */}
         <div className="bg-white shadow-xl mb-8 mx-auto" style={{ maxWidth: '210mm' }}>
-          <ProformaPrintView proforma={proforma} numeroProforma={proformaNumero} ref={printRef} />
+          <ProformaPrintView proforma={proforma} numeroProforma={proformaNumero} ref={printRef} nombreDestinatario={nombreDestinatario} />
         </div>
       </div>
     </div>
