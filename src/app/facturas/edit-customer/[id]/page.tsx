@@ -53,6 +53,7 @@ interface Invoice {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  bankAccount?: string;
 }
 
 // Componente para la vista de impresión de factura
@@ -226,7 +227,8 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     ],
     subtotal: 0,
     taxAmount: 0,
-    totalAmount: 0
+    totalAmount: 0,
+    bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD'
   });
 
   // Cargar datos reales de Supabase
