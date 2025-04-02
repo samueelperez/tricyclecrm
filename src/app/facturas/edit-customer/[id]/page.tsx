@@ -16,7 +16,9 @@ import {
 import { getSupabaseClient } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
+// Interfaces para los datos
 interface InvoiceItem {
   id: string;
   description: string;
@@ -24,6 +26,18 @@ interface InvoiceItem {
   unitPrice: number;
   taxRate: number;
   totalValue: number;
+  weight?: number;
+  packaging?: string;
+}
+
+// Interfaz para los datos almacenados en el campo material
+interface NotasData {
+  cliente_nombre?: string;
+  taxId?: string;
+  paymentTerms?: string;
+  notas?: string;
+  items?: InvoiceItem[];
+  descripcion?: string;
 }
 
 interface Invoice {
@@ -235,7 +249,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         if (!data) throw new Error('No se encontró la factura');
         
         // Extraer información adicional del campo notas si existe y es JSON válido
-        let notasData = {};
+        let notasData: NotasData = {};
         let clienteNombre = '';
         let taxId = '';
         let paymentTerms = '';
