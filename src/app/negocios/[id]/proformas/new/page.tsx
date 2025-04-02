@@ -45,10 +45,10 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
     {
       descripcion: '',
       cantidad: 0,
-      peso: 0,
+      peso: null,
       precio_unitario: 0,
-      tipo_empaque: '',
-      valor_total: 0
+      tipo_empaque: null,
+      valor_total: null
     }
   ]);
   
@@ -162,12 +162,18 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
   // Actualizar producto
   const handleProductoChange = (index: number, field: keyof ProformaProducto, value: any) => {
     const newProductos: ProformaProducto[] = [...productos];
-    newProductos[index][field] = value;
+    
+    // Adaptar el valor según el campo
+    if (field === 'descripcion' || field === 'tipo_empaque') {
+      newProductos[index][field] = value as string;
+    } else if (field === 'cantidad' || field === 'precio_unitario' || field === 'peso' || field === 'valor_total') {
+      newProductos[index][field] = typeof value === 'number' ? value : parseFloat(value) || null;
+    }
     
     // Calcular valor total automáticamente
     if (field === 'cantidad' || field === 'precio_unitario') {
-      const cantidad = field === 'cantidad' ? value : newProductos[index].cantidad;
-      const precioUnitario = field === 'precio_unitario' ? value : newProductos[index].precio_unitario;
+      const cantidad = newProductos[index].cantidad;
+      const precioUnitario = newProductos[index].precio_unitario;
       newProductos[index].valor_total = cantidad * precioUnitario;
     }
     
@@ -182,10 +188,10 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
       {
         descripcion: '',
         cantidad: 0,
-        peso: 0,
+        peso: null,
         precio_unitario: 0,
-        tipo_empaque: '',
-        valor_total: 0
+        tipo_empaque: null,
+        valor_total: null
       }
     ]);
   };
