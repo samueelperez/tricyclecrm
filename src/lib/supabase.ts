@@ -15,45 +15,52 @@ export const getSupabaseClient = () => {
   return createClientComponentClient();
 };
 
+// Tipo común para las respuestas de migración
+interface MigracionResponse {
+  success: boolean;
+  message: string;
+  error?: any;
+}
+
 // Exportar todas las funciones de migración que están en el archivo original supabase.ts
-export const ejecutarMigracionAlmacenamiento = async () => {
+export const ejecutarMigracionAlmacenamiento = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de almacenamiento...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionListasEmpaque = async () => {
+export const ejecutarMigracionListasEmpaque = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de listas de empaque...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionRecibos = async () => {
+export const ejecutarMigracionRecibos = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de recibos...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionInstruccionesBL = async () => {
+export const ejecutarMigracionInstruccionesBL = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de instrucciones BL...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionConfiguracion = async () => {
+export const ejecutarMigracionConfiguracion = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de configuración...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionNegocios = async () => {
+export const ejecutarMigracionNegocios = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de negocios...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionProformas = async () => {
+export const ejecutarMigracionProformas = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de proformas...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
-export const ejecutarMigracionFacturas = async () => {
+export const ejecutarMigracionFacturas = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de facturas...');
-  return { success: true, message: 'Migración simulada (entorno de producción)' };
+  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
 };
 
 // Asegurarse de que albaranes/envios también están disponibles
