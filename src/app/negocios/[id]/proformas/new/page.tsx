@@ -166,7 +166,11 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
     // Adaptar el valor según el campo
     if (field === 'descripcion' || field === 'tipo_empaque') {
       newProductos[index][field] = value as string;
-    } else if (field === 'cantidad' || field === 'precio_unitario' || field === 'peso' || field === 'valor_total') {
+    } else if (field === 'cantidad' || field === 'precio_unitario') {
+      // Estos campos no pueden ser null, usar 0 como valor por defecto
+      newProductos[index][field] = typeof value === 'number' ? value : parseFloat(value) || 0;
+    } else if (field === 'peso' || field === 'valor_total') {
+      // Estos campos pueden ser null
       newProductos[index][field] = typeof value === 'number' ? value : parseFloat(value) || null;
     }
     
