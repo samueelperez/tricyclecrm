@@ -130,9 +130,9 @@ export default function NegociosPage() {
   // Filtrar negocios
   const negociosFiltrados = negocios.filter(negocio => {
     const cumpleFiltroTexto = 
-      negocio.numero_negocio.toLowerCase().includes(filtro.toLowerCase()) ||
-      negocio.cliente.toLowerCase().includes(filtro.toLowerCase()) ||
-      negocio.asignado_a.toLowerCase().includes(filtro.toLowerCase());
+      (negocio.numero_negocio?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
+      (negocio.cliente?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
+      (negocio.asignado_a?.toLowerCase() || '').includes(filtro.toLowerCase());
     
     const cumpleFiltroEstado = estadoFiltro === "todos" || negocio.estado === estadoFiltro;
     
