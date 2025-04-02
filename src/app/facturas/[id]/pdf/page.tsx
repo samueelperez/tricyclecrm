@@ -43,8 +43,8 @@ interface FacturaItem {
 }
 
 // Componente para la vista de impresión de factura
-const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura }>((props, ref) => {
-  const { factura } = props;
+const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string }>((props, ref) => {
+  const { factura, numeroFactura } = props;
   
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
@@ -134,7 +134,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura }>((props
       {/* Número de factura y fecha */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}>
         <div style={{ fontSize: '18pt', fontWeight: 'bold' }}>
-          {getInvoiceNumber()}
+          {numeroFactura}
         </div>
         <div>
           <span style={{ fontWeight: 'normal' }}>Date </span> 
@@ -274,6 +274,9 @@ export default function FacturaPDFPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [facturaNumero, setFacturaNumero] = useState('');
+  const [savingNumero, setSavingNumero] = useState(false);
   
   const printRef = useRef<HTMLDivElement>(null);
   
@@ -283,50 +286,112 @@ export default function FacturaPDFPage() {
       try {
         const supabase = getSupabaseClient();
         
-        // Intentar obtener de facturas_cliente
+        // Intentar obtener de facturas_cliente sin la relación que causa errores
         const { data: clienteData, error: clienteError } = await supabase
           .from('facturas_cliente')
-          .select('*, items:facturas_items(*)')
+          .select('*')
           .eq('id', id)
           .single();
         
         if (clienteData) {
-          setFactura({
+          // Obtener los items en una consulta separada si es necesario
+          // const { data: itemsData } = await supabase
+          //   .from('facturas_items')
+          //   .select('*')
+          //   .eq('factura_id', id);
+          
+          const facturaData = {
             ...clienteData,
             tipo: 'cliente',
-            items: clienteData.items || []
-          });
+            items: [] // itemsData || []
+          };
+          
+          setFactura(facturaData);
+          setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
           setLoading(false);
           return;
         }
         
-        // Si no, intentar obtener de facturas_proveedor
+        // Si no, intentar obtener de facturas_proveedor sin la relación
         const { data: proveedorData, error: proveedorError } = await supabase
           .from('facturas_proveedor')
-          .select('*, items:facturas_items(*)')
+          .select('*')
           .eq('id', id)
           .single();
         
         if (proveedorData) {
-          setFactura({
+          // Obtener los items en una consulta separada si es necesario
+          // const { data: itemsData } = await supabase
+          //   .from('facturas_items')
+          //   .select('*')
+          //   .eq('factura_id', id);
+          
+          const facturaData = {
             ...proveedorData,
             tipo: 'proveedor',
-            items: proveedorData.items || []
-          });
+            items: [] // itemsData || []
+          };
+          
+          setFactura(facturaData);
+          setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
+          setLoading(false);
         } else {
           // Si no se encuentra, mostrar error
           setError('No se encontró la factura solicitada');
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error al cargar la factura:', err);
         setError('Error al cargar los datos de la factura');
-      } finally {
         setLoading(false);
       }
     };
     
     fetchFactura();
   }, [id]);
+  
+  // Guardar el número de factura
+  const handleSaveNumeroFactura = async () => {
+    if (!factura) return;
+    
+    setSavingNumero(true);
+    
+    try {
+      const supabase = getSupabaseClient();
+      const tableName = factura.tipo === 'cliente' ? 'facturas_cliente' : 'facturas_proveedor';
+      
+      // Actualizar el número de factura
+      const { error } = await supabase
+        .from(tableName)
+        .update({ 
+          numero_factura: facturaNumero,
+          // También podemos actualizar id_externo si es necesario
+          id_externo: facturaNumero 
+        })
+        .eq('id', factura.id);
+      
+      if (error) throw error;
+      
+      // Actualizar el estado local
+      setFactura(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          numero_factura: facturaNumero,
+          id_externo: facturaNumero
+        };
+      });
+      
+      // Desactivar el modo de edición
+      setEditing(false);
+      
+    } catch (err) {
+      console.error('Error al guardar el número de factura:', err);
+      setError('Error al guardar el número de factura');
+    } finally {
+      setSavingNumero(false);
+    }
+  };
   
   // Función para generar el PDF
   const generatePDF = async () => {
@@ -398,13 +463,53 @@ export default function FacturaPDFPage() {
     <div className="bg-gray-100 p-4 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Botones */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 flex flex-col sm:flex-row items-center justify-between">
           <a 
             href="/facturas" 
-            className="text-indigo-600 hover:text-indigo-800"
+            className="text-indigo-600 hover:text-indigo-800 mb-3 sm:mb-0"
           >
             ← Volver a facturas
           </a>
+          
+          {/* Control para editar el número de factura */}
+          <div className="flex items-center space-x-2 mb-3 sm:mb-0">
+            {editing ? (
+              <>
+                <input
+                  type="text"
+                  value={facturaNumero}
+                  onChange={(e) => setFacturaNumero(e.target.value)}
+                  className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  onClick={handleSaveNumeroFactura}
+                  disabled={savingNumero}
+                  className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {savingNumero ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditing(false);
+                    // Restaurar el número original
+                    if (factura) {
+                      setFacturaNumero(factura.numero_factura || factura.id_externo || `INV${String(factura.id).padStart(4, '0')}`);
+                    }
+                  }}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setEditing(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Editar número
+              </button>
+            )}
+          </div>
           
           <button
             onClick={generatePDF}
@@ -427,7 +532,7 @@ export default function FacturaPDFPage() {
         
         {/* Vista previa */}
         <div className="bg-white shadow-xl mb-8 mx-auto" style={{ maxWidth: '210mm' }}>
-          <FacturaPrintView factura={factura} ref={printRef} />
+          <FacturaPrintView factura={factura} numeroFactura={facturaNumero} ref={printRef} />
         </div>
       </div>
     </div>
