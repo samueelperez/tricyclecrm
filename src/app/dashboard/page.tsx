@@ -267,7 +267,7 @@ export default function Dashboard() {
   const loadPendingTasks = async () => {
     try {
       // Si ya implementamos la sección de organización, podemos usarla aquí
-      let tareasPendientes = [];
+      let tareasPendientes: Task[] = [];
       
       try {
         const { data: tareasDB, error: tareasError } = await supabase
