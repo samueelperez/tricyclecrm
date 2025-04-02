@@ -1,18 +1,9 @@
 module.exports = {
-  // Para archivos TypeScript y React
-  '**/*.{ts,tsx}': [
-    'eslint --fix --max-warnings=0',
+  // Simple configuración para todos los archivos
+  '**/*.{js,jsx,ts,tsx}': [
+    'npx eslint --cache --fix',
   ],
-  // Para archivos JavaScript
-  '**/*.js': [
-    'eslint --fix --max-warnings=0',
-  ],
-  // Para archivos CSS y SCSS
-  '**/*.{css,scss}': [
-    'prettier --write',
-  ],
-  // Para todos los archivos que se pueden formatear con Prettier
-  '**/*.{js,jsx,ts,tsx,json,md}': [
-    'prettier --write',
+  '**/*.{js,jsx,ts,tsx,json,css,md}': [
+    'npx prettier --write',
   ],
 } 

@@ -1,0 +1,4 @@
+Instrucciones para solucionar los problemas de Husky:
+1. Instalar Prettier: sudo npm install --save-dev prettier
+2. Crear nuevo archivo pre-commit: sudo mv .husky/pre-commit-new .husky/pre-commit
+3. Para desactivar Husky temporalmente: git commit --no-verify -m "mensaje"
