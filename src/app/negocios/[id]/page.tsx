@@ -131,15 +131,15 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   // Función para formatear fechas
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'No establecido';
     const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString('es-ES', options);
   };
   
   // Función para formatear moneda
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null) return 'No disponible';
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined) return 'No disponible';
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
   };
   
@@ -244,7 +244,11 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-0.5">Beneficio Neto</p>
-                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_ingresos - negocio?.total_gastos)}</p>
+                    <p className="text-xl font-medium">
+                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && negocio?.total_ingresos !== null && negocio?.total_gastos !== null
+                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
+                        : 'No disponible'}
+                    </p>
                   </div>
                 </div>
               </div>
