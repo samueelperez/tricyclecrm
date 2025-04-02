@@ -68,52 +68,83 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma }>(
     const esProveedor = proforma.notas?.includes('Proveedor:') || false;
 
     return (
-      <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none', fontFamily: 'Arial, sans-serif' }}>
+      <div 
+        ref={ref} 
+        className="bg-white" 
+        style={{ 
+          display: 'none', 
+          fontFamily: 'Arial, sans-serif',
+          width: '210mm',
+          minHeight: '297mm',
+          padding: '10mm',
+          margin: '0 auto',
+          boxSizing: 'border-box',
+          fontSize: '9pt'
+        }}
+      >
         {/* Cabecera con logo y datos de empresa */}
-        <div className="mb-10 flex justify-between">
-          <div className="w-1/2">
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+          <div style={{ width: '50%' }}>
             <img 
               src="/images/logo.png" 
               alt="TRICYCLE PRODUCTS, S.L." 
-              className="h-16 mb-2" 
-              style={{ objectFit: 'contain', objectPosition: 'left' }}
+              style={{ 
+                height: '50px', 
+                marginBottom: '8px', 
+                objectFit: 'contain', 
+                objectPosition: 'left' 
+              }}
             />
-            <h2 className="text-xl font-bold text-[#1b5a7a]">TRICYCLE PRODUCTS, S.L.</h2>
+            <h2 style={{ fontSize: '14pt', fontWeight: 'bold', color: '#1b5a7a', margin: '0' }}>
+              TRICYCLE PRODUCTS, S.L.
+            </h2>
           </div>
-          <div className="w-1/2 text-right">
-            <p className="font-bold">TRICYCLE PRODUCTS, S.L.</p>
-            <p>PEREZ DOLZ, 8, ENTRS. 12003</p>
-            <p>Castellon - SPAIN</p>
-            <p>VAT: B56194830</p>
-            <p>Tel. +34 964 041 556</p>
-            <p>E-mail: info@tricycleproducts.es</p>
+          <div style={{ width: '50%', textAlign: 'right' }}>
+            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>TRICYCLE PRODUCTS, S.L.</p>
+            <p style={{ margin: '0 0 2px 0' }}>PEREZ DOLZ, 8, ENTRS. 12003</p>
+            <p style={{ margin: '0 0 2px 0' }}>Castellon - SPAIN</p>
+            <p style={{ margin: '0 0 2px 0' }}>VAT: B56194830</p>
+            <p style={{ margin: '0 0 2px 0' }}>Tel. +34 964 041 556</p>
+            <p style={{ margin: '0 0 2px 0' }}>E-mail: info@tricycleproducts.es</p>
           </div>
         </div>
 
         {/* Número de proforma y fecha */}
-        <div className="mb-8 flex justify-between">
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
           <div>
-            <p className="font-bold text-lg">Proforma {proforma.id_externo || proforma.numero || proforma.id}</p>
+            <p style={{ fontWeight: 'bold', fontSize: '12pt', margin: '0' }}>
+              Proforma {proforma.id_externo || proforma.numero || proforma.id}
+            </p>
           </div>
           <div>
-            <p className="font-bold">DATE: {formattedDate}</p>
+            <p style={{ fontWeight: 'bold', margin: '0' }}>DATE: {formattedDate}</p>
           </div>
         </div>
 
         {/* Información del cliente */}
-        <div className="mb-6">
-          <p className="font-bold">Name: <span className="font-normal">{proforma.cliente?.nombre || 'Cliente no especificado'}</span></p>
-          <p className="font-bold">Address: <span className="font-normal">{proforma.cliente?.direccion || proforma.notas?.match(/Dirección: (.+?)(\n|$)/)?.[1] || 'Dirección no especificada'}</span></p>
+        <div style={{ marginBottom: '15px' }}>
+          <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
+            Name: <span style={{ fontWeight: 'normal' }}>{proforma.cliente?.nombre || 'Cliente no especificado'}</span>
+          </p>
+          <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
+            Address: <span style={{ fontWeight: 'normal' }}>
+              {proforma.cliente?.direccion || proforma.notas?.match(/Dirección: (.+?)(\n|$)/)?.[1] || 'Dirección no especificada'}
+            </span>
+          </p>
           {proforma.cliente?.codigo_postal && (
-            <p className="font-bold">Postal Code <span className="font-normal">{proforma.cliente.codigo_postal}</span></p>
+            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
+              Postal Code <span style={{ fontWeight: 'normal' }}>{proforma.cliente.codigo_postal}</span>
+            </p>
           )}
-          <p className="font-bold">TAX ID: <span className="font-normal">{proforma.id_fiscal || proforma.cliente?.id_fiscal || 'No especificado'}</span></p>
+          <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
+            TAX ID: <span style={{ fontWeight: 'normal' }}>{proforma.id_fiscal || proforma.cliente?.id_fiscal || 'No especificado'}</span>
+          </p>
         </div>
 
         {/* Detalles de entrega */}
         {(proforma.terminos_entrega || proforma.puerto) && (
-          <div className="mb-6">
-            <p className="font-bold uppercase">
+          <div style={{ marginBottom: '15px' }}>
+            <p style={{ fontWeight: 'bold', margin: '0', textTransform: 'uppercase' }}>
               DELIVERY : {proforma.terminos_entrega || ''} {proforma.puerto || ''} 
               {proforma.notas?.includes('DTHC NOT INCLUDED') ? ' DTHC NOT INCLUDED, ' : ''}
               {proforma.notas?.includes('FREE COMBINED DAYS') ? '14 FREE COMBINED DAYS OF DETENTION AND DEMURRAGE.' : ''}
@@ -123,119 +154,184 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma }>(
 
         {/* Términos de pago */}
         {proforma.terminos_pago && (
-          <div className="mb-6">
-            <p className="font-bold">Payment Terms : {proforma.terminos_pago}</p>
+          <div style={{ marginBottom: '15px' }}>
+            <p style={{ fontWeight: 'bold', margin: '0' }}>Payment Terms : {proforma.terminos_pago}</p>
           </div>
         )}
 
         {/* Tabla de productos */}
-        <div className="mb-6">
-          <table className="w-full border-collapse border border-gray-800">
+        <div style={{ marginBottom: '15px' }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'collapse', 
+            border: '1px solid #333',
+            tableLayout: 'fixed'
+          }}>
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-800 p-2 text-center">Full description of goods</th>
-                <th className="border border-gray-800 p-2 text-center">Quantity</th>
-                <th className="border border-gray-800 p-2 text-center">40ft</th>
-                <th className="border border-gray-800 p-2 text-center">Price</th>
-                <th className="border border-gray-800 p-2 text-center">Total Value</th>
-                <th className="border border-gray-800 p-2 text-center">Packing</th>
+              <tr style={{ backgroundColor: '#f3f4f6' }}>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '27%' }}>Full description of goods</th>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '15%' }}>Quantity</th>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '10%' }}>40ft</th>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '13%' }}>Price</th>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '20%' }}>Total Value</th>
+                <th style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', width: '15%' }}>Packing</th>
               </tr>
             </thead>
             <tbody>
               {proforma.productos && proforma.productos.length > 0 ? (
                 proforma.productos.map((producto, index) => (
                   <tr key={index}>
-                    <td className="border border-gray-800 p-2">{producto.descripcion}</td>
-                    <td className="border border-gray-800 p-2 text-center">{producto.cantidad} {producto.peso ? 'MT' : ''}</td>
-                    <td className="border border-gray-800 p-2 text-center">
+                    <td style={{ border: '1px solid #333', padding: '5px', whiteSpace: 'normal' }}>
+                      {producto.descripcion}
+                    </td>
+                    <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                      {producto.cantidad} {producto.peso ? 'MT' : ''}
+                    </td>
+                    <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
                       {proforma.cantidad_contenedores || '5'}
                     </td>
-                    <td className="border border-gray-800 p-2 text-center">{producto.precio_unitario} EUR</td>
-                    <td className="border border-gray-800 p-2 text-center">
+                    <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                      {producto.precio_unitario} EUR
+                    </td>
+                    <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
                       {(producto.valor_total || (producto.cantidad * producto.precio_unitario)).toFixed(2)} EUR
                     </td>
-                    <td className="border border-gray-800 p-2 text-center">{producto.tipo_empaque || 'BALES'}</td>
+                    <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                      {producto.tipo_empaque || 'BALES'}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="border border-gray-800 p-2">
+                  <td style={{ border: '1px solid #333', padding: '5px' }}>
                     {proforma.notas?.match(/Material: (.+?)(\n|$)/)?.[1] || 'PP JUMBO BAGS C'}
                   </td>
-                  <td className="border border-gray-800 p-2 text-center">{proforma.peso_total || '22'} MT</td>
-                  <td className="border border-gray-800 p-2 text-center">{proforma.cantidad_contenedores || '5'}</td>
-                  <td className="border border-gray-800 p-2 text-center">100 EUR</td>
-                  <td className="border border-gray-800 p-2 text-center">{montoTotal.toFixed(2)} EUR</td>
-                  <td className="border border-gray-800 p-2 text-center">BALES</td>
+                  <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                    {proforma.peso_total || '22'} MT
+                  </td>
+                  <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                    {proforma.cantidad_contenedores || '5'}
+                  </td>
+                  <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                    100 EUR
+                  </td>
+                  <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                    {montoTotal.toFixed(2)} EUR
+                  </td>
+                  <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                    BALES
+                  </td>
                 </tr>
               )}
               {/* Fila de total */}
               <tr>
-                <td className="border border-gray-800 p-2 font-bold">Origin of Goods Spain</td>
-                <td className="border border-gray-800 p-2 text-center">{proforma.peso_total || '110'} MT</td>
-                <td className="border border-gray-800 p-2 text-center">{proforma.cantidad_contenedores || '5'}</td>
-                <td className="border border-gray-800 p-2 text-center font-bold">Total</td>
-                <td className="border border-gray-800 p-2 text-center font-bold">{montoTotal.toFixed(2)} EUR</td>
-                <td className="border border-gray-800 p-2 text-center">BALES</td>
+                <td style={{ border: '1px solid #333', padding: '5px', fontWeight: 'bold' }}>
+                  Origin of Goods Spain
+                </td>
+                <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                  {proforma.peso_total || '110'} MT
+                </td>
+                <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                  {proforma.cantidad_contenedores || '5'}
+                </td>
+                <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', fontWeight: 'bold' }}>
+                  Total
+                </td>
+                <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center', fontWeight: 'bold' }}>
+                  {montoTotal.toFixed(2)} EUR
+                </td>
+                <td style={{ border: '1px solid #333', padding: '5px', textAlign: 'center' }}>
+                  BALES
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Información fiscal */}
-        <div className="mb-6">
-          <p className="font-bold">Exempt VAT. EXPORT Section 21.1 Ley 37/1992</p>
+        <div style={{ marginBottom: '15px' }}>
+          <p style={{ fontWeight: 'bold', margin: '0' }}>Exempt VAT. EXPORT Section 21.1 Ley 37/1992</p>
         </div>
 
         {/* Información bancaria */}
-        <div className="mb-6">
-          <p className="text-red-600 font-bold">Bank Informaiton:</p>
-          <p><span className="font-bold">Bank Name : </span>Banco Santander S.A</p>
-          <p><span className="font-bold">IBAN EURO: </span>ES4000495332142210008708</p>
-          <p><span className="font-bold">SWIFT BIC: </span>BSCHESMM</p>
-          <p><span className="font-bold">Beneficiary: </span>TRICYCLE PRODUCTS S.L.</p>
+        <div style={{ marginBottom: '15px' }}>
+          <p style={{ color: '#e53e3e', fontWeight: 'bold', margin: '0 0 2px 0' }}>Bank Informaiton:</p>
+          <p style={{ margin: '0 0 2px 0' }}><span style={{ fontWeight: 'bold' }}>Bank Name : </span>Banco Santander S.A</p>
+          <p style={{ margin: '0 0 2px 0' }}><span style={{ fontWeight: 'bold' }}>IBAN EURO: </span>ES4000495332142210008708</p>
+          <p style={{ margin: '0 0 2px 0' }}><span style={{ fontWeight: 'bold' }}>SWIFT BIC: </span>BSCHESMM</p>
+          <p style={{ margin: '0 0 2px 0' }}><span style={{ fontWeight: 'bold' }}>Beneficiary: </span>TRICYCLE PRODUCTS S.L.</p>
         </div>
 
         {/* Condiciones de carga */}
-        <div className="mb-10">
-          <p className="font-bold uppercase">LOADING CONDITIONS</p>
-          <table className="w-full mt-2">
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ fontWeight: 'bold', margin: '0 0 5px 0', textTransform: 'uppercase' }}>LOADING CONDITIONS</p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <tbody>
               <tr>
-                <td className="py-1 w-1/3 align-top"><span className="font-bold">SHIPPING INSTRUCTIONS:</span></td>
-                <td className="py-1 align-top">PROVIDED PRIOR SHIPPING INSTRUCTIONS BY BUYER. CONSIGNEE MUST BE A COMPANY OF IMPORTING COUNTRY AS ANNEX VII SHOWING THIS IS OBLIGATORY BE PROVIDED BY CUSTOMS IN EXPORTING COUNTRY</td>
+                <td style={{ padding: '2px 5px 2px 0', width: '30%', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>SHIPPING INSTRUCTIONS:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top', fontSize: '8pt' }}>
+                  PROVIDED PRIOR SHIPPING INSTRUCTIONS BY BUYER. CONSIGNEE MUST BE A COMPANY OF IMPORTING COUNTRY AS ANNEX VII SHOWING THIS IS OBLIGATORY BE PROVIDED BY CUSTOMS IN EXPORTING COUNTRY
+                </td>
               </tr>
               <tr>
-                <td className="py-1 align-top"><span className="font-bold">Loading date:</span></td>
-                <td className="py-1 align-top">AS SOON AS POSSIBLE, MAXIMUM 30 DAYS FROM CONTRACT SIGNING DATE</td>
+                <td style={{ padding: '2px 5px 2px 0', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>Loading date:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
+                  AS SOON AS POSSIBLE, MAXIMUM 30 DAYS FROM CONTRACT SIGNING DATE
+                </td>
               </tr>
               <tr>
-                <td className="py-1 align-top"><span className="font-bold">Type of transport:</span></td>
-                <td className="py-1 align-top">40 FT SEA CONTAINER</td>
+                <td style={{ padding: '2px 5px 2px 0', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>Type of transport:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
+                  40 FT SEA CONTAINER
+                </td>
               </tr>
               <tr>
-                <td className="py-1 align-top"><span className="font-bold">Modifications on BL:</span></td>
-                <td className="py-1 align-top">BL AMENDMENTS CAN BE DONE BEFORE SHIP LEAVES BCN PORT OF ORIGIN, AFTERWARDS AMENDMENTS WILL BE ON BUYER´S ACCOUNT AS SHIPPING LINE CHARGE (100 USD/AMENDMENT APROX)</td>
+                <td style={{ padding: '2px 5px 2px 0', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>Modifications on BL:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top', fontSize: '8pt' }}>
+                  BL AMENDMENTS CAN BE DONE BEFORE SHIP LEAVES BCN PORT OF ORIGIN, AFTERWARDS AMENDMENTS WILL BE ON BUYER´S ACCOUNT AS SHIPPING LINE CHARGE (100 USD/AMENDMENT APROX)
+                </td>
               </tr>
               <tr>
-                <td className="py-1 align-top"><span className="font-bold">Special conditions:</span></td>
-                <td className="py-1 align-top">LOI, AP, PSIC, IMPORT PERMISSIONS UNDER PURCHASER´S ACCOUNT</td>
+                <td style={{ padding: '2px 5px 2px 0', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>Special conditions:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
+                  LOI, AP, PSIC, IMPORT PERMISSIONS UNDER PURCHASER´S ACCOUNT
+                </td>
               </tr>
               <tr>
-                <td className="py-1 align-top"><span className="font-bold">Loading Pictures:</span></td>
-                <td className="py-1 align-top">FULL SET OF LOADING PICTURES WILL BE PROVIDED</td>
+                <td style={{ padding: '2px 5px 2px 0', verticalAlign: 'top' }}>
+                  <span style={{ fontWeight: 'bold' }}>Loading Pictures:</span>
+                </td>
+                <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
+                  FULL SET OF LOADING PICTURES WILL BE PROVIDED
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Firmas */}
-        <div className="flex justify-between mt-8">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          marginTop: '25px',
+          borderTop: '1px solid #ddd',
+          paddingTop: '20px'
+        }}>
           <div>
-            <p className="font-bold mb-16">Buyer Signature :</p>
+            <p style={{ fontWeight: 'bold', marginBottom: '60px' }}>Buyer Signature :</p>
           </div>
           <div>
-            <p className="font-bold mb-16">Seller Signature :</p>
+            <p style={{ fontWeight: 'bold', marginBottom: '60px' }}>Seller Signature :</p>
           </div>
         </div>
       </div>
