@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiClock, FiX, FiUser, FiFileText, FiAnchor, FiGlobe, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiPackage, FiShip, FiMapPin, FiTruck } from "react-icons/fi";
+import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiClock, FiX, FiUser, FiFileText, FiAnchor, FiGlobe, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiPackage, FiMapPin, FiTruck } from "react-icons/fi";
 import { getSupabaseClient, ejecutarMigracionInstruccionesBL } from "@/lib/supabase";
 
 // Definición del tipo para instrucciones BL
@@ -40,7 +40,7 @@ export default function InstruccionesBLPage() {
     { value: "aprobada", label: "Aprobada", color: "bg-green-100 text-green-800", icon: <FiCheckCircle className="mr-1.5 h-3 w-3" /> },
     { value: "enviada", label: "Enviada", color: "bg-blue-100 text-blue-800", icon: <FiRefreshCw className="mr-1.5 h-3 w-3" /> },
     { value: "rechazada", label: "Rechazada", color: "bg-red-100 text-red-800", icon: <FiAlertCircle className="mr-1.5 h-3 w-3" /> },
-    { value: "completada", label: "Completada", color: "bg-indigo-100 text-indigo-800", icon: <FiShip className="mr-1.5 h-3 w-3" /> },
+    { value: "completada", label: "Completada", color: "bg-indigo-100 text-indigo-800", icon: <FiAnchor className="mr-1.5 h-3 w-3" /> },
   ];
 
   // Tipos de carga
