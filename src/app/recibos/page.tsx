@@ -2,43 +2,53 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiClock, FiX, FiDollarSign, FiUser, FiFileText, FiCreditCard, FiCheckCircle, FiAlertCircle, FiRefreshCw } from "react-icons/fi";
+import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiX, FiDollarSign, FiUser, FiCreditCard, FiCheckCircle, FiAlertCircle, FiShoppingBag, FiFileText } from "react-icons/fi";
 import { getSupabaseClient, ejecutarMigracionRecibos } from "@/lib/supabase";
 
-// Definición del tipo para recibos
-type Recibo = {
+// Definición del tipo para gastos
+type Gasto = {
   id: number;
   numero_recibo: string;
   fecha_emision: string;
-  fecha_vencimiento: string;
-  cliente: string;
-  cliente_id: number;
-  factura_id: number | null;
-  numero_factura: string | null;
+  categoria: string;
+  proveedor: string;
+  proveedor_id?: number | null;
+  descripcion: string;
   monto: number;
-  monto_pagado: number;
-  saldo_pendiente: number;
   estado: string;
   metodo_pago: string;
   notas: string | null;
   created_at: string;
+  deducible: boolean;
+  impuesto: number;
+  created_by?: string | null;
 };
 
-export default function RecibosPage() {
-  const [recibos, setRecibos] = useState<Recibo[]>([]);
+export default function GastosPage() {
+  const [gastos, setGastos] = useState<Gasto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState("todos");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("todas");
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para recibos
-  const estadosRecibo = [
-    { value: "pendiente", label: "Pendiente", color: "bg-yellow-100 text-yellow-800", icon: <FiClock className="mr-1.5 h-3 w-3" /> },
+  // Categorías de gastos
+  const categoriasGasto = [
+    { value: "oficina", label: "Material de Oficina", color: "bg-blue-100 text-blue-800" },
+    { value: "viajes", label: "Viajes y Desplazamientos", color: "bg-yellow-100 text-yellow-800" },
+    { value: "servicios", label: "Servicios Externos", color: "bg-purple-100 text-purple-800" },
+    { value: "suministros", label: "Suministros", color: "bg-green-100 text-green-800" },
+    { value: "personal", label: "Gastos de Personal", color: "bg-orange-100 text-orange-800" },
+    { value: "impuestos", label: "Impuestos y Tasas", color: "bg-red-100 text-red-800" },
+    { value: "marketing", label: "Marketing y Publicidad", color: "bg-indigo-100 text-indigo-800" },
+    { value: "otros", label: "Otros Gastos", color: "bg-gray-100 text-gray-800" },
+  ];
+
+  // Estados para gastos
+  const estadosGasto = [
+    { value: "pendiente", label: "Pendiente", color: "bg-yellow-100 text-yellow-800", icon: <FiAlertCircle className="mr-1.5 h-3 w-3" /> },
     { value: "pagado", label: "Pagado", color: "bg-green-100 text-green-800", icon: <FiCheckCircle className="mr-1.5 h-3 w-3" /> },
-    { value: "vencido", label: "Vencido", color: "bg-red-100 text-red-800", icon: <FiAlertCircle className="mr-1.5 h-3 w-3" /> },
     { value: "cancelado", label: "Cancelado", color: "bg-gray-100 text-gray-800", icon: <FiX className="mr-1.5 h-3 w-3" /> },
-    { value: "parcial", label: "Pago Parcial", color: "bg-blue-100 text-blue-800", icon: <FiRefreshCw className="mr-1.5 h-3 w-3" /> },
   ];
 
   // Métodos de pago
@@ -51,25 +61,25 @@ export default function RecibosPage() {
     "Otro"
   ];
 
-  // Cargar datos de recibos
+  // Cargar datos de gastos
   useEffect(() => {
-    cargarRecibos();
+    cargarGastos();
   }, []);
 
-  const cargarRecibos = async () => {
+  const cargarGastos = async () => {
     setLoading(true);
     setError(null);
     try {
       const supabase = getSupabaseClient();
       
       // Primero ejecutamos la migración para asegurarnos de que la tabla existe
-      console.log('Ejecutando migración de recibos...');
+      console.log('Ejecutando migración de gastos...');
       const resultadoMigracion = await ejecutarMigracionRecibos();
       
       if (!resultadoMigracion.success) {
-        console.error('Error en la migración de recibos:', resultadoMigracion.error);
-        setError('Error inicializando la tabla de recibos: ' + resultadoMigracion.message);
-        setRecibos(datosEjemplo);
+        console.error('Error en la migración de gastos:', resultadoMigracion.error);
+        setError('Error inicializando la tabla de gastos: ' + resultadoMigracion.message);
+        setGastos(datosEjemploGastos);
         setLoading(false);
         return;
       }
@@ -81,31 +91,32 @@ export default function RecibosPage() {
         .from("recibos")
         .select(`
           *,
-          clientes(nombre),
-          facturas(numero_factura)
+          proveedores(nombre)
         `)
         .order("fecha_emision", { ascending: false });
 
       if (error) {
-        console.error("Error cargando recibos:", error);
+        console.error("Error cargando gastos:", error);
         setError("Error al cargar datos: " + error.message);
-        setRecibos(datosEjemplo);
+        setGastos(datosEjemploGastos);
       } else if (data && data.length > 0) {
-        // Formatear los datos recibidos
-        const recibosFormateados = data.map(item => ({
+        // Formatear los datos recibidos como gastos
+        const gastosFormateados = data.map(item => ({
           ...item,
-          cliente: item.clientes?.nombre || item.cliente || 'Cliente sin asignar',
-          numero_factura: item.facturas?.numero_factura || 'Sin factura'
+          proveedor: item.proveedores?.nombre || item.proveedor || 'Proveedor sin especificar',
+          categoria: item.categoria || 'otros',
+          deducible: item.deducible || false,
+          impuesto: item.impuesto || 21
         }));
-        setRecibos(recibosFormateados as Recibo[]);
+        setGastos(gastosFormateados as Gasto[]);
       } else {
         // Si no hay datos, usar los de ejemplo
-        setRecibos(datosEjemplo);
+        setGastos(datosEjemploGastos);
       }
     } catch (error: any) {
       console.error("Error:", error);
       setError("Error desconocido al cargar los datos");
-      setRecibos(datosEjemplo);
+      setGastos(datosEjemploGastos);
     } finally {
       setLoading(false);
     }
@@ -113,7 +124,7 @@ export default function RecibosPage() {
 
   // Manejar eliminación
   const handleDelete = async (id: number) => {
-    if (!confirm("¿Está seguro de que desea eliminar este recibo? Esta acción no se puede deshacer.")) 
+    if (!confirm("¿Está seguro de que desea eliminar este gasto? Esta acción no se puede deshacer.")) 
       return;
     
     setDeleteLoading(id);
@@ -129,7 +140,7 @@ export default function RecibosPage() {
       if (error) throw error;
       
       // Actualizar lista después de eliminar
-      setRecibos(prevRecibos => prevRecibos.filter(recibo => recibo.id !== id));
+      setGastos(prevGastos => prevGastos.filter(gasto => gasto.id !== id));
       
     } catch (error: any) {
       console.error("Error al eliminar:", error);
@@ -139,25 +150,35 @@ export default function RecibosPage() {
     }
   };
 
-  // Filtrar recibos
-  const recibosFiltrados = recibos.filter(recibo => {
+  // Filtrar gastos
+  const gastosFiltrados = gastos.filter(gasto => {
     const cumpleFiltroTexto = 
-      recibo.numero_recibo.toLowerCase().includes(filtro.toLowerCase()) ||
-      recibo.cliente.toLowerCase().includes(filtro.toLowerCase()) ||
-      (recibo.numero_factura && recibo.numero_factura.toLowerCase().includes(filtro.toLowerCase()));
+      gasto.numero_recibo.toLowerCase().includes(filtro.toLowerCase()) ||
+      gasto.proveedor.toLowerCase().includes(filtro.toLowerCase()) ||
+      gasto.descripcion.toLowerCase().includes(filtro.toLowerCase());
     
-    const cumpleFiltroEstado = estadoFiltro === "todos" || recibo.estado === estadoFiltro;
+    const cumpleFiltroCategoria = categoriaFiltro === "todas" || gasto.categoria === categoriaFiltro;
     
-    return cumpleFiltroTexto && cumpleFiltroEstado;
+    return cumpleFiltroTexto && cumpleFiltroCategoria;
   });
 
   // Obtener estilos de estado
   const getEstadoStyles = (estado: string) => {
-    const estadoObj = estadosRecibo.find(e => e.value === estado);
+    const estadoObj = estadosGasto.find(e => e.value === estado);
     return {
       bgColor: estadoObj ? estadoObj.color.split(' ')[0] : "bg-gray-100",
       textColor: estadoObj ? estadoObj.color.split(' ')[1] : "text-gray-800",
       icon: estadoObj ? estadoObj.icon : <FiTag className="mr-1.5 h-3 w-3" />
+    };
+  };
+
+  // Obtener estilos de categoría
+  const getCategoriaStyles = (categoria: string) => {
+    const categoriaObj = categoriasGasto.find(c => c.value === categoria);
+    return {
+      bgColor: categoriaObj ? categoriaObj.color.split(' ')[0] : "bg-gray-100",
+      textColor: categoriaObj ? categoriaObj.color.split(' ')[1] : "text-gray-800",
+      label: categoriaObj ? categoriaObj.label : "Otra categoría"
     };
   };
 
@@ -182,13 +203,13 @@ export default function RecibosPage() {
         {/* Cabecera */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
-            Recibos
+            Gastos de Empresa
           </h1>
           <Link 
             href="/recibos/new"
             className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
           >
-            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Recibo
+            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Gasto
           </Link>
         </div>
         
@@ -216,7 +237,7 @@ export default function RecibosPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Buscar por número, cliente o factura relacionada..."
+                  placeholder="Buscar por número, proveedor o descripción..."
                   value={filtro}
                   onChange={(e) => setFiltro(e.target.value)}
                   className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
@@ -230,14 +251,14 @@ export default function RecibosPage() {
                   <FiTag className="text-gray-400 h-5 w-5" />
                 </div>
                 <select
-                  value={estadoFiltro}
-                  onChange={(e) => setEstadoFiltro(e.target.value)}
+                  value={categoriaFiltro}
+                  onChange={(e) => setCategoriaFiltro(e.target.value)}
                   className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                 >
-                  <option value="todos">Todos los estados</option>
-                  {estadosRecibo.map((estado) => (
-                    <option key={estado.value} value={estado.value}>
-                      {estado.label}
+                  <option value="todas">Todas las categorías</option>
+                  {categoriasGasto.map((categoria) => (
+                    <option key={categoria.value} value={categoria.value}>
+                      {categoria.label}
                     </option>
                   ))}
                 </select>
@@ -246,29 +267,29 @@ export default function RecibosPage() {
           </div>
         </div>
 
-        {/* Tabla de recibos */}
+        {/* Tabla de gastos */}
         {loading ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-            <p className="text-gray-500 text-lg">Cargando recibos...</p>
+            <p className="text-gray-500 text-lg">Cargando gastos...</p>
           </div>
-        ) : recibosFiltrados.length === 0 ? (
+        ) : gastosFiltrados.length === 0 ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="flex justify-center mb-4">
-              <FiCreditCard className="h-12 w-12 text-gray-400" />
+              <FiShoppingBag className="h-12 w-12 text-gray-400" />
             </div>
             <p className="text-gray-600 text-lg mb-4">
-              {filtro || estadoFiltro !== 'todos' ? (
-                'No se encontraron recibos con los filtros seleccionados'
+              {filtro || categoriaFiltro !== 'todas' ? (
+                'No se encontraron gastos con los filtros seleccionados'
               ) : (
-                'No hay recibos registrados'
+                'No hay gastos registrados'
               )}
             </p>
-            {(filtro || estadoFiltro !== 'todos') && (
+            {(filtro || categoriaFiltro !== 'todas') && (
               <button 
                 onClick={() => {
                   setFiltro('');
-                  setEstadoFiltro('todos');
+                  setCategoriaFiltro('todas');
                 }}
                 className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none"
               >
@@ -283,43 +304,43 @@ export default function RecibosPage() {
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
-                      <FiCreditCard className="mr-1 text-indigo-500" />
+                      <FiFileText className="mr-1 text-indigo-500" />
                       Nº Recibo
                     </div>
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
                       <FiCalendar className="mr-1 text-indigo-500" />
-                      Fecha Emisión
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiClock className="mr-1 text-indigo-500" />
-                      Vencimiento
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiUser className="mr-1 text-indigo-500" />
-                      Cliente
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiFileText className="mr-1 text-indigo-500" />
-                      Factura
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiDollarSign className="mr-1 text-indigo-500" />
-                      Monto
+                      Fecha
                     </div>
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
                       <FiTag className="mr-1 text-indigo-500" />
+                      Categoría
+                    </div>
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <FiUser className="mr-1 text-indigo-500" />
+                      Proveedor
+                    </div>
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <FiFileText className="mr-1 text-indigo-500" />
+                      Descripción
+                    </div>
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <FiDollarSign className="mr-1 text-indigo-500" />
+                      Importe
+                    </div>
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <FiCreditCard className="mr-1 text-indigo-500" />
                       Estado
                     </div>
                   </th>
@@ -329,84 +350,83 @@ export default function RecibosPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {recibosFiltrados.map((recibo) => {
-                  const { bgColor, textColor } = getEstadoStyles(recibo.estado);
+                {gastosFiltrados.map((gasto) => {
+                  const { bgColor, textColor } = getEstadoStyles(gasto.estado);
+                  const categoria = getCategoriaStyles(gasto.categoria);
                   
                   return (
-                    <tr key={recibo.id} className="hover:bg-gray-50 transition-colors duration-150">
+                    <tr key={gasto.id} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{recibo.numero_recibo}</div>
+                        <div className="text-sm font-medium text-gray-900">{gasto.numero_recibo}</div>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="text-sm text-gray-900 flex items-center">
                           <FiCalendar className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatDate(recibo.fecha_emision)}
+                          {formatDate(gasto.fecha_emision)}
                         </div>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiClock className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatDate(recibo.fecha_vencimiento)}
-                        </div>
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${categoria.bgColor} ${categoria.textColor}`}>
+                          {categoria.label}
+                        </span>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 flex items-center">
                           <FiUser className="mr-1 text-indigo-500 h-4 w-4" />
-                          {recibo.cliente}
+                          {gasto.proveedor}
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiFileText className="mr-1 text-indigo-500 h-4 w-4" />
-                          {recibo.numero_factura || 'Sin factura'}
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-gray-900 max-w-xs truncate">
+                          {gasto.descripcion}
                         </div>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 flex items-center">
                           <FiDollarSign className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatMonto(recibo.monto)}
+                          {formatMonto(gasto.monto)}
                         </div>
-                        {recibo.estado === 'parcial' && (
-                          <div className="text-xs text-gray-500">
-                            Pagado: {formatMonto(recibo.monto_pagado)}
+                        {gasto.deducible && (
+                          <div className="text-xs text-green-600">
+                            Deducible
                           </div>
                         )}
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}`}>
-                          {recibo.estado.charAt(0).toUpperCase() + recibo.estado.slice(1)}
+                          {gasto.estado.charAt(0).toUpperCase() + gasto.estado.slice(1)}
                         </span>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
                           <Link 
-                            href={`/recibos/${recibo.id}`} 
+                            href={`/recibos/${gasto.id}`} 
                             className="text-indigo-600 hover:text-indigo-900 transition-colors duration-150 p-1"
                             title="Ver detalles"
                           >
                             <FiEye className="h-4 w-4" />
                           </Link>
                           <Link 
-                            href={`/recibos/edit/${recibo.id}`} 
+                            href={`/recibos/edit/${gasto.id}`} 
                             className="text-blue-600 hover:text-blue-900 transition-colors duration-150 p-1"
-                            title="Editar recibo"
+                            title="Editar gasto"
                           >
                             <FiEdit className="h-4 w-4" />
                           </Link>
                           <button
-                            onClick={() => handleDelete(recibo.id)}
-                            disabled={deleteLoading === recibo.id}
+                            onClick={() => handleDelete(gasto.id)}
+                            disabled={deleteLoading === gasto.id}
                             className="text-red-600 hover:text-red-900 transition-colors duration-150 p-1 disabled:opacity-50"
-                            title="Eliminar recibo"
+                            title="Eliminar gasto"
                           >
-                            {deleteLoading === recibo.id ? (
+                            {deleteLoading === gasto.id ? (
                               <div className="h-4 w-4 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
                             ) : (
                               <FiTrash2 className="h-4 w-4" />
                             )}
                           </button>
                           <Link
-                            href={`/recibos/${recibo.id}/imprimir`}
+                            href={`/recibos/${gasto.id}/imprimir`}
                             className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
                             title="Imprimir recibo"
                           >
@@ -427,90 +447,80 @@ export default function RecibosPage() {
 }
 
 // Datos de ejemplo para mostrar cuando no hay datos reales
-const datosEjemplo: Recibo[] = [
+const datosEjemploGastos: Gasto[] = [
   {
     id: 1,
-    numero_recibo: "REC-2023-001",
+    numero_recibo: "G-2023-001",
     fecha_emision: "2023-05-10",
-    fecha_vencimiento: "2023-06-10",
-    cliente: "Comercial Acme, S.L.",
-    cliente_id: 1,
-    factura_id: 1,
-    numero_factura: "FAC-2023-001",
-    monto: 1250.75,
-    monto_pagado: 1250.75,
-    saldo_pendiente: 0,
+    categoria: "oficina",
+    proveedor: "Papelería Central, S.L.",
+    descripcion: "Material de oficina y papelería",
+    monto: 125.75,
     estado: "pagado",
-    metodo_pago: "Transferencia",
-    notas: "Pago recibido completo",
-    created_at: "2023-05-10T08:30:00Z"
+    metodo_pago: "Tarjeta",
+    notas: "Compra mensual de material de oficina",
+    created_at: "2023-05-10T08:30:00Z",
+    deducible: true,
+    impuesto: 21
   },
   {
     id: 2,
-    numero_recibo: "REC-2023-002",
+    numero_recibo: "G-2023-002",
     fecha_emision: "2023-05-20",
-    fecha_vencimiento: "2023-06-20",
-    cliente: "Distribuciones García",
-    cliente_id: 2,
-    factura_id: 2,
-    numero_factura: "FAC-2023-002",
-    monto: 2350.00,
-    monto_pagado: 1175.00,
-    saldo_pendiente: 1175.00,
-    estado: "parcial",
-    metodo_pago: "Transferencia",
-    notas: "Pago del 50% recibido",
-    created_at: "2023-05-20T14:15:00Z"
-  },
-  {
-    id: 3,
-    numero_recibo: "REC-2023-003",
-    fecha_emision: "2023-06-01",
-    fecha_vencimiento: "2023-07-01",
-    cliente: "Industrias Martínez, S.A.",
-    cliente_id: 3,
-    factura_id: 3,
-    numero_factura: "FAC-2023-003",
-    monto: 4500.00,
-    monto_pagado: 0,
-    saldo_pendiente: 4500.00,
+    categoria: "servicios",
+    proveedor: "Asesoría García y Asociados",
+    descripcion: "Servicios de asesoría legal mensual",
+    monto: 350.00,
     estado: "pendiente",
     metodo_pago: "Transferencia",
     notas: null,
-    created_at: "2023-06-01T09:45:00Z"
+    created_at: "2023-05-20T14:15:00Z",
+    deducible: true,
+    impuesto: 21
+  },
+  {
+    id: 3,
+    numero_recibo: "G-2023-003",
+    fecha_emision: "2023-06-01",
+    categoria: "viajes",
+    proveedor: "Renfe",
+    descripcion: "Billete de tren Madrid-Barcelona para reunión con cliente",
+    monto: 110.50,
+    estado: "pagado",
+    metodo_pago: "Tarjeta",
+    notas: "Viaje de negocios, deducible de impuestos",
+    created_at: "2023-06-01T09:45:00Z",
+    deducible: true,
+    impuesto: 10
   },
   {
     id: 4,
-    numero_recibo: "REC-2023-004",
-    fecha_emision: "2023-04-15",
-    fecha_vencimiento: "2023-05-15",
-    cliente: "Electrónica Europa",
-    cliente_id: 4,
-    factura_id: 4,
-    numero_factura: "FAC-2023-004",
-    monto: 1800.00,
-    monto_pagado: 0,
-    saldo_pendiente: 1800.00,
-    estado: "vencido",
-    metodo_pago: "Transferencia",
-    notas: "Recordatorio enviado el 20/05/2023",
-    created_at: "2023-04-15T10:30:00Z"
+    numero_recibo: "G-2023-004",
+    fecha_emision: "2023-06-15",
+    categoria: "suministros",
+    proveedor: "Iberdrola",
+    descripcion: "Factura de electricidad oficina (junio)",
+    monto: 187.65,
+    estado: "pagado",
+    metodo_pago: "Domiciliación",
+    notas: null,
+    created_at: "2023-06-15T10:30:00Z",
+    deducible: true,
+    impuesto: 21
   },
   {
     id: 5,
-    numero_recibo: "REC-2023-005",
-    fecha_emision: "2023-06-15",
-    fecha_vencimiento: "2023-07-15",
-    cliente: "Importaciones del Sur",
-    cliente_id: 5,
-    factura_id: 5,
-    numero_factura: "FAC-2023-005",
-    monto: 950.30,
-    monto_pagado: 0,
-    saldo_pendiente: 0,
+    numero_recibo: "G-2023-005",
+    fecha_emision: "2023-06-30",
+    categoria: "marketing",
+    proveedor: "Imprenta Rápida",
+    descripcion: "Impresión de folletos promocionales",
+    monto: 450.30,
     estado: "cancelado",
     metodo_pago: "Transferencia",
-    notas: "Factura cancelada por acuerdo con el cliente",
-    created_at: "2023-06-15T11:10:00Z"
+    notas: "Pedido cancelado por cambio en diseño",
+    created_at: "2023-06-30T11:10:00Z",
+    deducible: false,
+    impuesto: 21
   }
 ]; 
