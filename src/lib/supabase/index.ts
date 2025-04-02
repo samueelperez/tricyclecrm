@@ -581,3 +581,15 @@ export const ejecutarMigracionEnvios = async () => {
 // import { cookies } from 'next/headers';
 //
 // const supabaseServer = createServerComponentClient({ cookies });
+
+// Reexportar todas las funciones de migración para que el sistema de importación de Next.js las reconozca
+export { 
+  ejecutarMigracionAlmacenamiento,
+  ejecutarMigracionListasEmpaque,
+  ejecutarMigracionRecibos,
+  ejecutarMigracionInstruccionesBL,
+  ejecutarMigracionConfiguracion,
+  ejecutarMigracionNegocios,
+  ejecutarMigracionProformas,
+  ejecutarMigracionFacturas
+} from '../supabase';
