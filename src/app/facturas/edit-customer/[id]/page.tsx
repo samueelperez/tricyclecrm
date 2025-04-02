@@ -254,7 +254,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         let taxId = '';
         let paymentTerms = '';
         let notasText = '';
-        let itemsData = [];
+        let itemsData: InvoiceItem[] = [];
         let descripcion = '';
         
         try {
