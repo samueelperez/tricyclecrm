@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
@@ -15,7 +15,8 @@ interface SupplierProforma {
   attachment?: File | null;
 }
 
-export default function NewProformaPage() {
+// Componente interno que usa useSearchParams
+function NewProformaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') === 'supplier' ? 'supplier' : 'customer';
@@ -302,5 +303,26 @@ export default function NewProformaPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// Componente de carga fallback
+function LoadingFallback() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="animate-pulse">
+        <div className="h-8 w-48 bg-gray-200 rounded mb-6"></div>
+        <div className="h-96 bg-gray-100 rounded"></div>
+      </div>
+    </div>
+  );
+}
+
+// Componente principal que envuelve con Suspense
+export default function NewProformaPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <NewProformaContent />
+    </Suspense>
   );
 } 
