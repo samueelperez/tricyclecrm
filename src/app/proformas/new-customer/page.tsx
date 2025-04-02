@@ -241,8 +241,9 @@ export default function NewCustomerProformaPage() {
               <input 
                 type="text" 
                 value={proforma.number}
-                className="w-full p-2 border rounded-md bg-gray-50"
-                readOnly
+                onChange={(e) => setProforma({...proforma, number: e.target.value})}
+                className="w-full p-2 border rounded-md"
+                placeholder="Ej: PRO-CUST-23-001"
               />
             </div>
             <div>

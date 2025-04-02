@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiClock, FiX, FiUser, FiDollarSign, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiFileText } from "react-icons/fi";
 import { getSupabaseClient, ejecutarMigracionFacturas } from "@/lib/supabase";
@@ -22,9 +23,17 @@ type Factura = {
   items: any[];
   notas: string | null;
   created_at: string;
+  tipo: string; // 'cliente' o 'proveedor'
 };
 
-export default function FacturasPage() {
+type FacturaTab = 'customer' | 'supplier';
+
+// Componente interno que usa useSearchParams
+function FacturasContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') as FacturaTab || 'customer';
+  const [activeTab, setActiveTab] = useState<FacturaTab>(initialTab);
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
@@ -42,10 +51,16 @@ export default function FacturasPage() {
     { value: "vencida", label: "Vencida", color: "bg-orange-100 text-orange-800", icon: <FiAlertCircle className="mr-1.5 h-3 w-3" /> },
   ];
 
+  // Función para cambiar de pestaña
+  const handleTabChange = (tab: FacturaTab) => {
+    setActiveTab(tab);
+    router.push(`/facturas?tab=${tab}`);
+  };
+
   // Cargar datos de facturas
   useEffect(() => {
     cargarFacturas();
-  }, []);
+  }, [activeTab]);
 
   const cargarFacturas = async () => {
     setLoading(true);
@@ -60,43 +75,47 @@ export default function FacturasPage() {
       if (!resultadoMigracion.success) {
         console.error('Error en la migración de facturas:', resultadoMigracion.error);
         setError('Error inicializando la tabla de facturas: ' + resultadoMigracion.message);
-        setFacturas(datosEjemplo);
+        setFacturas(activeTab === 'customer' ? datosEjemploCliente : datosEjemploProveedor);
         setLoading(false);
         return;
       }
       
       console.log('Migración completada, cargando datos...');
       
-      // Si la migración fue exitosa, cargar los datos
+      // Si la migración fue exitosa, cargar los datos según la pestaña activa
+      const tableName = activeTab === 'customer' ? 'facturas_cliente' : 'facturas_proveedor';
       const { data, error } = await supabase
-        .from("facturas")
+        .from(tableName)
         .select(`
           *,
           clientes(nombre),
-          proformas(numero_proforma)
+          proformas(id_externo)
         `)
-        .order("fecha_emision", { ascending: false });
+        .order("fecha", { ascending: false });
 
       if (error) {
-        console.error("Error cargando facturas:", error);
+        console.error(`Error cargando facturas de ${activeTab}:`, error);
         setError("Error al cargar datos: " + error.message);
-        setFacturas(datosEjemplo);
+        setFacturas(activeTab === 'customer' ? datosEjemploCliente : datosEjemploProveedor);
       } else if (data && data.length > 0) {
         // Formatear los datos recibidos
         const facturasFormateadas = data.map(item => ({
           ...item,
           cliente: item.clientes?.nombre || item.cliente || 'Cliente sin asignar',
-          ref_proforma: item.proformas?.numero_proforma || null
+          ref_proforma: item.proformas?.id_externo || null,
+          numero_factura: item.id_externo || 'SIN-NUMERO',
+          divisa: item.divisa || 'EUR',
+          tipo: activeTab === 'customer' ? 'cliente' : 'proveedor'
         }));
         setFacturas(facturasFormateadas as Factura[]);
       } else {
         // Si no hay datos, usar los de ejemplo
-        setFacturas(datosEjemplo);
+        setFacturas(activeTab === 'customer' ? datosEjemploCliente : datosEjemploProveedor);
       }
     } catch (error: any) {
       console.error("Error:", error);
       setError("Error desconocido al cargar los datos");
-      setFacturas(datosEjemplo);
+      setFacturas(activeTab === 'customer' ? datosEjemploCliente : datosEjemploProveedor);
     } finally {
       setLoading(false);
     }
@@ -111,9 +130,10 @@ export default function FacturasPage() {
     
     try {
       const supabase = getSupabaseClient();
+      const tableName = activeTab === 'customer' ? 'facturas_cliente' : 'facturas_proveedor';
       
       const { error } = await supabase
-        .from("facturas")
+        .from(tableName)
         .delete()
         .eq("id", id);
         
@@ -176,11 +196,39 @@ export default function FacturasPage() {
             Facturas
           </h1>
           <Link 
-            href="/facturas/new"
+            href={activeTab === 'supplier' ? '/facturas/new-supplier' : '/facturas/new-customer'}
             className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
           >
-            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nueva Factura
+            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nueva Factura {activeTab === 'supplier' ? 'de Proveedor' : 'de Cliente'}
           </Link>
+        </div>
+        
+        {/* Pestañas para cambiar entre facturas de cliente y proveedor */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                onClick={() => handleTabChange('customer')}
+                className={`${
+                  activeTab === 'customer'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Facturas de Clientes
+              </button>
+              <button
+                onClick={() => handleTabChange('supplier')}
+                className={`${
+                  activeTab === 'supplier'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Facturas de Proveedores
+              </button>
+            </nav>
+          </div>
         </div>
         
         {/* Mensaje de error */}
@@ -207,7 +255,7 @@ export default function FacturasPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Buscar por número, cliente o proforma..."
+                  placeholder={`Buscar facturas de ${activeTab === 'customer' ? 'clientes' : 'proveedores'}...`}
                   value={filtro}
                   onChange={(e) => setFiltro(e.target.value)}
                   className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
@@ -241,7 +289,7 @@ export default function FacturasPage() {
         {loading ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-            <p className="text-gray-500 text-lg">Cargando facturas...</p>
+            <p className="text-gray-500 text-lg">Cargando facturas de {activeTab === 'customer' ? 'clientes' : 'proveedores'}...</p>
           </div>
         ) : facturasFiltradas.length === 0 ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
@@ -252,7 +300,7 @@ export default function FacturasPage() {
               {filtro || estadoFiltro !== 'todos' ? (
                 'No se encontraron facturas con los filtros seleccionados'
               ) : (
-                'No hay facturas registradas'
+                `No hay facturas de ${activeTab === 'customer' ? 'clientes' : 'proveedores'} registradas`
               )}
             </p>
             {(filtro || estadoFiltro !== 'todos') && (
@@ -281,13 +329,13 @@ export default function FacturasPage() {
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
                       <FiCalendar className="mr-1 text-indigo-500" />
-                      Fecha Emisión
+                      Fecha
                     </div>
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
                       <FiUser className="mr-1 text-indigo-500" />
-                      Cliente
+                      {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}
                     </div>
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -308,12 +356,14 @@ export default function FacturasPage() {
                       Vencimiento
                     </div>
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiFileText className="mr-1 text-indigo-500" />
-                      Proforma
-                    </div>
-                  </th>
+                  {activeTab === 'customer' && (
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <FiFileText className="mr-1 text-indigo-500" />
+                        Proforma
+                      </div>
+                    </th>
+                  )}
                   <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
@@ -357,32 +407,36 @@ export default function FacturasPage() {
                           {formatDate(factura.fecha_vencimiento)}
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {factura.ref_proforma ? (
-                            <Link 
-                              href={`/proformas/${factura.proforma_id}`}
-                              className="flex items-center text-indigo-600 hover:text-indigo-900"
-                            >
-                              <FiFileText className="mr-1 text-indigo-500 h-4 w-4" />
-                              {factura.ref_proforma}
-                            </Link>
-                          ) : (
-                            <span className="text-gray-500">-</span>
-                          )}
-                        </div>
-                      </td>
+                      {activeTab === 'customer' && (
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {factura.ref_proforma ? (
+                              <Link 
+                                href={`/proformas/${factura.proforma_id}`}
+                                className="flex items-center text-indigo-600 hover:text-indigo-900"
+                              >
+                                <FiFileText className="mr-1 text-indigo-500 h-4 w-4" />
+                                {factura.ref_proforma}
+                              </Link>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
                       <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
                           <Link 
-                            href={`/facturas/${factura.id}`} 
-                            className="text-indigo-600 hover:text-indigo-900 transition-colors duration-150 p-1"
-                            title="Ver detalles"
+                            href={`/facturas/${factura.id}/pdf`} 
+                            className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
+                            title="Descargar PDF"
                           >
-                            <FiEye className="h-4 w-4" />
+                            <FiDownload className="h-4 w-4" />
                           </Link>
                           <Link 
-                            href={`/facturas/edit/${factura.id}`} 
+                            href={activeTab === 'supplier' 
+                              ? `/facturas/edit-supplier/${factura.id}` 
+                              : `/facturas/edit-customer/${factura.id}`} 
                             className="text-blue-600 hover:text-blue-900 transition-colors duration-150 p-1"
                             title="Editar factura"
                           >
@@ -400,13 +454,6 @@ export default function FacturasPage() {
                               <FiTrash2 className="h-4 w-4" />
                             )}
                           </button>
-                          <Link
-                            href={`/facturas/${factura.id}/pdf`}
-                            className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
-                            title="Descargar PDF"
-                          >
-                            <FiDownload className="h-4 w-4" />
-                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -421,105 +468,141 @@ export default function FacturasPage() {
   );
 }
 
-// Datos de ejemplo para mostrar cuando no hay datos reales
-const datosEjemplo: Factura[] = [
+// Componente de carga para Suspense
+function LoadingFallback() {
+  return (
+    <div className="py-8">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-64 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente principal envuelto en Suspense
+export default function FacturasPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <FacturasContent />
+    </Suspense>
+  );
+}
+
+// Datos de ejemplo para facturas de clientes
+const datosEjemploCliente: Factura[] = [
   {
     id: 1,
     numero_factura: "FAC-2023-001",
-    fecha_emision: "2023-05-15",
-    fecha_vencimiento: "2023-06-15",
+    fecha_emision: "2023-05-10",
+    fecha_vencimiento: "2023-06-10",
     cliente: "Comercial Acme, S.L.",
     cliente_id: 1,
-    total: 3025.00,
+    total: 1250.75,
     estado: "pagada",
     divisa: "EUR",
     condiciones_pago: "30 días",
     ref_proforma: "PRO-2023-001",
     proforma_id: 1,
-    items: [
-      { id: 1, descripcion: "Servicio A", cantidad: 2, precio_unitario: 1000.00, subtotal: 2000.00 },
-      { id: 2, descripcion: "Servicio B", cantidad: 1, precio_unitario: 500.00, subtotal: 500.00 },
-      { id: 3, descripcion: "IVA 21%", cantidad: 1, precio_unitario: 525.00, subtotal: 525.00 }
-    ],
-    notas: "Factura pagada por transferencia bancaria.",
-    created_at: "2023-05-15T10:30:00Z"
+    items: [],
+    notas: null,
+    created_at: "2023-05-10T08:30:00Z",
+    tipo: 'cliente'
   },
   {
     id: 2,
     numero_factura: "FAC-2023-002",
-    fecha_emision: "2023-05-25",
-    fecha_vencimiento: "2023-06-25",
+    fecha_emision: "2023-05-20",
+    fecha_vencimiento: "2023-06-20",
     cliente: "Distribuciones García",
     cliente_id: 2,
-    total: 2117.50,
+    total: 2350.00,
+    estado: "pendiente",
+    divisa: "EUR",
+    condiciones_pago: "60 días",
+    ref_proforma: null,
+    proforma_id: null,
+    items: [],
+    notas: null,
+    created_at: "2023-05-20T14:15:00Z",
+    tipo: 'cliente'
+  },
+  {
+    id: 3,
+    numero_factura: "FAC-2023-003",
+    fecha_emision: "2023-06-01",
+    fecha_vencimiento: "2023-07-01",
+    cliente: "Industrias Martínez, S.A.",
+    cliente_id: 3,
+    total: 4500.00,
     estado: "emitida",
     divisa: "EUR",
     condiciones_pago: "30 días",
     ref_proforma: "PRO-2023-002",
     proforma_id: 2,
-    items: [
-      { id: 1, descripcion: "Producto X", cantidad: 5, precio_unitario: 350.00, subtotal: 1750.00 },
-      { id: 2, descripcion: "IVA 21%", cantidad: 1, precio_unitario: 367.50, subtotal: 367.50 }
-    ],
-    notas: "Factura enviada por email.",
-    created_at: "2023-05-25T14:45:00Z"
+    items: [],
+    notas: null,
+    created_at: "2023-06-01T09:45:00Z",
+    tipo: 'cliente'
+  }
+];
+
+// Datos de ejemplo para facturas de proveedores
+const datosEjemploProveedor: Factura[] = [
+  {
+    id: 1,
+    numero_factura: "PROV-2023-001",
+    fecha_emision: "2023-04-15",
+    fecha_vencimiento: "2023-05-15",
+    cliente: "Suministros Industriales López",
+    cliente_id: 101,
+    total: 875.50,
+    estado: "pagada",
+    divisa: "EUR",
+    condiciones_pago: "30 días",
+    ref_proforma: null,
+    proforma_id: null,
+    items: [],
+    notas: "Material de oficina",
+    created_at: "2023-04-15T10:30:00Z",
+    tipo: 'proveedor'
   },
   {
-    id: 3,
-    numero_factura: "FAC-2023-003",
-    fecha_emision: "2023-06-05",
-    fecha_vencimiento: "2023-07-05",
-    cliente: "Industrias Martínez, S.A.",
-    cliente_id: 3,
-    total: 5082.00,
+    id: 2,
+    numero_factura: "PROV-2023-002",
+    fecha_emision: "2023-05-05",
+    fecha_vencimiento: "2023-06-05",
+    cliente: "Materiales Construcción S.A.",
+    cliente_id: 102,
+    total: 3150.25,
     estado: "pendiente",
     divisa: "EUR",
     condiciones_pago: "30 días",
-    ref_proforma: "PRO-2023-003",
-    proforma_id: 3,
-    items: [
-      { id: 1, descripcion: "Consultoría", cantidad: 10, precio_unitario: 420.00, subtotal: 4200.00 },
-      { id: 2, descripcion: "IVA 21%", cantidad: 1, precio_unitario: 882.00, subtotal: 882.00 }
-    ],
-    notas: "Pendiente de cobro.",
-    created_at: "2023-06-05T11:20:00Z"
+    ref_proforma: null,
+    proforma_id: null,
+    items: [],
+    notas: "Cemento y ladrillos",
+    created_at: "2023-05-05T11:20:00Z",
+    tipo: 'proveedor'
   },
   {
-    id: 4,
-    numero_factura: "FAC-2023-004",
-    fecha_emision: "2023-04-20",
-    fecha_vencimiento: "2023-05-20",
-    cliente: "Electrónica Europa",
-    cliente_id: 4,
-    total: 4598.00,
+    id: 3,
+    numero_factura: "PROV-2023-003",
+    fecha_emision: "2023-05-18",
+    fecha_vencimiento: "2023-06-18",
+    cliente: "Recisur",
+    cliente_id: 103,
+    total: 1980.00,
     estado: "vencida",
     divisa: "EUR",
     condiciones_pago: "30 días",
     ref_proforma: null,
     proforma_id: null,
-    items: [
-      { id: 1, descripcion: "Componente A", cantidad: 20, precio_unitario: 90.00, subtotal: 1800.00 },
-      { id: 2, descripcion: "Componente B", cantidad: 10, precio_unitario: 200.00, subtotal: 2000.00 },
-      { id: 3, descripcion: "IVA 21%", cantidad: 1, precio_unitario: 798.00, subtotal: 798.00 }
-    ],
-    notas: "Factura vencida. Recordatorio enviado el 25/05/2023.",
-    created_at: "2023-04-20T09:15:00Z"
-  },
-  {
-    id: 5,
-    numero_factura: "FAC-2023-005",
-    fecha_emision: "2023-06-18",
-    fecha_vencimiento: "2023-07-18",
-    cliente: "Importaciones del Sur",
-    cliente_id: 5,
-    total: 0.00,
-    estado: "anulada",
-    divisa: "EUR",
-    condiciones_pago: "30 días",
-    ref_proforma: "PRO-2023-005",
-    proforma_id: 5,
     items: [],
-    notas: "Factura anulada por cambio en los servicios.",
-    created_at: "2023-06-18T16:40:00Z"
+    notas: "Material plástico",
+    created_at: "2023-05-18T15:45:00Z",
+    tipo: 'proveedor'
   }
 ]; 

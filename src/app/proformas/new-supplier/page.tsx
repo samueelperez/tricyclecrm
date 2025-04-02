@@ -14,6 +14,7 @@ interface SupplierProforma {
   materialName: string;
   currency: string;
   attachment?: File | null;
+  number: string;
 }
 
 export default function NewSupplierProformaPage() {
@@ -26,7 +27,8 @@ export default function NewSupplierProformaPage() {
     totalAmount: 0,
     materialName: '',
     currency: 'EUR',
-    attachment: null
+    attachment: null,
+    number: ''
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -54,7 +56,8 @@ export default function NewSupplierProformaPage() {
       totalAmount: 0,
       materialName: '',
       currency: 'EUR',
-      attachment: null
+      attachment: null,
+      number: ''
     });
   };
 
@@ -250,6 +253,18 @@ export default function NewSupplierProformaPage() {
                 value={proforma.currency}
                 onChange={handleInputChange}
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
+
+            {/* Número de Proforma */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Proforma</label>
+              <input 
+                type="text" 
+                value={proforma.number}
+                onChange={(e) => setProforma({...proforma, number: e.target.value})}
+                className="w-full p-2 border rounded-md"
+                placeholder="Ej: PRO-SUPP-23-001"
               />
             </div>
           </div>

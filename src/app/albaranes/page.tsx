@@ -286,14 +286,19 @@ export default function AlbaranesPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Cabecera */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
-            Albaranes
-          </h1>
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-2">
+              Facturas de Transporte
+            </h1>
+            <p className="text-gray-600 text-sm">
+              Gestión de albaranes y documentación para servicios de transporte y logística
+            </p>
+          </div>
           <Link 
             href="/albaranes/new"
             className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
           >
-            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Albarán
+            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nueva Factura de Transporte
           </Link>
         </div>
         
