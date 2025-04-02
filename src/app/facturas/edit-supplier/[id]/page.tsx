@@ -6,6 +6,13 @@ import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
+interface MaterialData {
+  nombre_material?: string;
+  moneda?: string;
+  attachment_name?: string;
+  notas?: string;
+}
+
 interface SupplierInvoice {
   id: string;
   dealNumber: string;
@@ -56,7 +63,7 @@ export default function EditSupplierInvoicePage() {
         if (!data) throw new Error('No se encontró la factura');
         
         // Extraer información adicional del campo material si existe y es JSON válido
-        let materialData = {};
+        let materialData: MaterialData = {};
         let nombreMaterial = '';
         let moneda = 'EUR';
         let attachmentName = '';
