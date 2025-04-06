@@ -856,7 +856,18 @@ export default function ProformaPDFPage() {
                 >
                   ✕
                 </button>
-                <MultiEntidadList />
+                <MultiEntidadList 
+                  proforma={proforma}
+                  multiClientes={multiClientes}
+                  multiProveedores={multiProveedores}
+                  currentNuevoItem={currentNuevoItem}
+                  setCurrentNuevoItem={setCurrentNuevoItem}
+                  currentPorcentaje={currentPorcentaje}
+                  setCurrentPorcentaje={setCurrentPorcentaje}
+                  handleAddMultiItem={handleAddMultiItem}
+                  handleRemoveMultiItem={handleRemoveMultiItem}
+                  handleSaveMulti={handleSaveMulti}
+                />
               </div>
             </div>
           </div>
@@ -879,9 +890,33 @@ export default function ProformaPDFPage() {
 }
 
 // Componente para mostrar la lista de proveedores/clientes adicionales
-const MultiEntidadList = () => {
-  const items = proforma?.tipo === 'proveedor' ? multiClientes : multiProveedores;
-  const titulo = proforma?.tipo === 'proveedor' ? 'Clientes adicionales' : 'Proveedores adicionales';
+interface MultiEntidadListProps {
+  proforma: Proforma;
+  multiClientes: ProformaCliente[];
+  multiProveedores: ProformaProveedor[];
+  currentNuevoItem: string;
+  setCurrentNuevoItem: (value: string) => void;
+  currentPorcentaje: string;
+  setCurrentPorcentaje: (value: string) => void;
+  handleAddMultiItem: () => void;
+  handleRemoveMultiItem: (id: string) => void;
+  handleSaveMulti: () => void;
+}
+
+const MultiEntidadList = ({
+  proforma,
+  multiClientes,
+  multiProveedores,
+  currentNuevoItem,
+  setCurrentNuevoItem,
+  currentPorcentaje,
+  setCurrentPorcentaje,
+  handleAddMultiItem,
+  handleRemoveMultiItem,
+  handleSaveMulti
+}: MultiEntidadListProps) => {
+  const items = proforma.tipo === 'proveedor' ? multiClientes : multiProveedores;
+  const titulo = proforma.tipo === 'proveedor' ? 'Clientes adicionales' : 'Proveedores adicionales';
   
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
