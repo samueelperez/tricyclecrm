@@ -13,6 +13,23 @@ import {
 
 import { getSupabaseClient } from '@/lib/supabase';
 
+// Definir interfaces para los tipos
+interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  totalValue: number;
+  providerId: string;
+}
+
+interface Provider {
+  id: string;
+  name: string;
+  percentage: number;
+}
+
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -36,16 +53,16 @@ export default function NewCustomerInvoicePage() {
         totalValue: 0,
         providerId: '' // ID del proveedor asignado a este producto
       }
-    ],
+    ] as InvoiceItem[],
     subtotal: 0,
     taxAmount: 0,
     totalAmount: 0,
     // Proveedores adicionales para esta factura
-    additionalProviders: []
+    additionalProviders: [] as Provider[]
   });
 
   // Estado para gestionar la adición de nuevos proveedores
-  const [newProvider, setNewProvider] = useState({
+  const [newProvider, setNewProvider] = useState<Provider>({
     id: '',
     name: '',
     percentage: 0
@@ -152,7 +169,7 @@ export default function NewCustomerInvoicePage() {
     // Añadir información de proveedores adicionales si existen
     if (invoice.additionalProviders.length > 0) {
       notes += (notes ? '\n\n' : '') + 'Proveedores adicionales:\n';
-      notes += invoice.additionalProviders.map(provider => 
+      notes += invoice.additionalProviders.map((provider: Provider) => 
         `${provider.name}${provider.percentage ? `: ${provider.percentage}%` : ''}`
       ).join('\n');
     }
@@ -260,7 +277,7 @@ export default function NewCustomerInvoicePage() {
   };
   
   // Eliminar un proveedor
-  const removeProvider = (id) => {
+  const removeProvider = (id: string) => {
     setInvoice({
       ...invoice,
       additionalProviders: invoice.additionalProviders.filter(provider => provider.id !== id)
@@ -268,7 +285,7 @@ export default function NewCustomerInvoicePage() {
   };
   
   // Asignar un proveedor a un producto específico
-  const assignProviderToItem = (itemIndex, providerId) => {
+  const assignProviderToItem = (itemIndex: number, providerId: string) => {
     const updatedItems = [...invoice.items];
     updatedItems[itemIndex] = {
       ...updatedItems[itemIndex],
