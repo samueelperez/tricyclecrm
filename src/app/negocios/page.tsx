@@ -84,13 +84,34 @@ export default function NegociosPage() {
             `)
             .eq("negocio_id", negocio.id);
             
-          // Extraer nombres y formatear
-          const proveedores = proveedoresData?.map(p => p.proveedores) || [];
-          const materiales = materialesData?.map(m => m.materiales) || [];
+          // Extraer nombres y formatear correctamente, asegurando tipos adecuados
+          const proveedores = proveedoresData
+            ? proveedoresData.map(p => {
+                if (p.proveedores && typeof p.proveedores === 'object') {
+                  return {
+                    id: p.proveedores.id,
+                    nombre: p.proveedores.nombre
+                  };
+                }
+                return null;
+              }).filter(Boolean)
+            : [];
+            
+          const materiales = materialesData
+            ? materialesData.map(m => {
+                if (m.materiales && typeof m.materiales === 'object') {
+                  return {
+                    id: m.materiales.id,
+                    nombre: m.materiales.nombre
+                  };
+                }
+                return null;
+              }).filter(Boolean)
+            : [];
           
           // Determinar proveedor y material principal (el primero de la lista)
-          const proveedor_principal = proveedores.length > 0 && proveedores[0] ? proveedores[0].nombre : 'Sin proveedor';
-          const material_principal = materiales.length > 0 && materiales[0] ? materiales[0].nombre : 'Sin material definido';
+          const proveedor_principal = proveedores.length > 0 ? proveedores[0].nombre : 'Sin proveedor';
+          const material_principal = materiales.length > 0 ? materiales[0].nombre : 'Sin material definido';
           
           return {
             ...negocio,
