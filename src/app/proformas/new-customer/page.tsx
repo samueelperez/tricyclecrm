@@ -12,13 +12,49 @@ import {
 } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase';
 
+// Interfaces para tipar correctamente los objetos
+interface ProformaItem {
+  id: string;
+  description: string;
+  quantity: number;
+  weight: number;
+  unitPrice: number;
+  packaging: string;
+  totalValue: number;
+  providerId: string;
+}
+
+interface AdditionalProvider {
+  id: string;
+  name: string;
+  percentage: number;
+}
+
+interface ProformaState {
+  number: string;
+  date: string;
+  customerName: string;
+  taxId: string;
+  ports: string;
+  deliveryTerms: string;
+  paymentTerms: string;
+  bankAccount: string;
+  shippingNotes: string;
+  items: ProformaItem[];
+  origin: string;
+  containers: number;
+  totalWeight: number;
+  totalAmount: number;
+  additionalProviders: AdditionalProvider[];
+}
+
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [proveedoresList, setProveedoresList] = useState<{id: string, nombre: string}[]>([]);
   
   // Datos iniciales para la proforma
-  const [proforma, setProforma] = useState({
+  const [proforma, setProforma] = useState<ProformaState>({
     number: `PRO-CUST-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     date: new Date().toISOString().split('T')[0],
     customerName: '',
@@ -49,7 +85,7 @@ export default function NewCustomerProformaPage() {
   });
 
   // Estado para gestionar la adición de nuevos proveedores
-  const [newProvider, setNewProvider] = useState({
+  const [newProvider, setNewProvider] = useState<AdditionalProvider>({
     id: '',
     name: '',
     percentage: 0
@@ -173,7 +209,7 @@ export default function NewCustomerProformaPage() {
     // Añadir información de proveedores adicionales si existen
     if (proforma.additionalProviders.length > 0) {
       notes += '\n\nProveedores adicionales:\n';
-      notes += proforma.additionalProviders.map(provider => 
+      notes += proforma.additionalProviders.map((provider: AdditionalProvider) => 
         `${provider.name}${provider.percentage ? `: ${provider.percentage}%` : ''}`
       ).join('\n');
     }
@@ -281,7 +317,7 @@ export default function NewCustomerProformaPage() {
   };
   
   // Eliminar un proveedor
-  const removeProvider = (id) => {
+  const removeProvider = (id: string) => {
     setProforma({
       ...proforma,
       additionalProviders: proforma.additionalProviders.filter(provider => provider.id !== id)
@@ -289,7 +325,7 @@ export default function NewCustomerProformaPage() {
   };
   
   // Asignar un proveedor a un producto específico
-  const assignProviderToItem = (itemIndex, providerId) => {
+  const assignProviderToItem = (itemIndex: number, providerId: string) => {
     const updatedItems = [...proforma.items];
     updatedItems[itemIndex] = {
       ...updatedItems[itemIndex],
