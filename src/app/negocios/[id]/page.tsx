@@ -81,38 +81,64 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
     
     try {
       // Cargar el negocio
-      const { data: negocioData, error: negocioError } = await supabase
+      const { data: negociosData, error: negociosError } = await supabase
         .from('negocios')
-        .select('*')
-        .eq('id', params.id)
-        .single();
+        .select('*, clientes:cliente_id(nombre)')
+        .eq('id', params.id);
       
-      if (negocioError) throw negocioError;
-      if (!negocioData) throw new Error('Negocio no encontrado');
+      if (negociosError) throw negociosError;
       
-      setNegocio(negocioData);
+      // Verificamos si obtuvimos algún resultado
+      if (!negociosData || negociosData.length === 0) {
+        throw new Error('Negocio no encontrado');
+      }
+      
+      // Tomamos el primer resultado (debería ser el único)
+      const negocioData = negociosData[0];
+      
+      // Formatear los datos del negocio
+      const negocioFormateado = {
+        ...negocioData,
+        cliente_nombre: negocioData.clientes?.nombre || 'Cliente sin asignar'
+      };
+      
+      setNegocio(negocioFormateado);
       
       // Cargar proveedores relacionados
       const { data: proveedoresData, error: proveedoresError } = await supabase
         .from('negocios_proveedores')
-        .select('proveedor_nombre')
+        .select('*, proveedores:proveedor_id(id, nombre)')
         .eq('negocio_id', params.id);
       
       if (proveedoresError) throw proveedoresError;
-      setProveedores(proveedoresData || []);
+      
+      // Extraer y formatear información de proveedores
+      const proveedoresFormateados = proveedoresData?.map(item => ({
+        id: item.proveedores?.id,
+        proveedor_nombre: item.proveedores?.nombre || 'Proveedor desconocido'
+      })) || [];
+      
+      setProveedores(proveedoresFormateados);
       
       // Cargar materiales relacionados
       const { data: materialesData, error: materialesError } = await supabase
         .from('negocios_materiales')
-        .select('material_nombre')
+        .select('*, materiales:material_id(id, nombre)')
         .eq('negocio_id', params.id);
       
       if (materialesError) throw materialesError;
-      setMateriales(materialesData || []);
       
-    } catch (err) {
+      // Extraer y formatear información de materiales
+      const materialesFormateados = materialesData?.map(item => ({
+        id: item.materiales?.id,
+        material_nombre: item.materiales?.nombre || 'Material desconocido'
+      })) || [];
+      
+      setMateriales(materialesFormateados);
+      
+    } catch (err: any) {
       console.error('Error cargando datos del negocio:', err);
-      setError('Error al cargar los datos del negocio. Por favor, intente nuevamente.');
+      setError('Error al cargar los datos del negocio: ' + (err.message || 'Error desconocido'));
     } finally {
       setLoading(false);
     }
@@ -411,9 +437,12 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
               <button className="px-4 py-2 border border-red-500 text-red-500 rounded flex items-center">
                 <FiTrash2 className="mr-2" /> Eliminar
               </button>
-              <button className="px-4 py-2 border border-gray-500 text-gray-700 rounded flex items-center">
+              <Link 
+                href={`/negocios/edit/${params.id}`}
+                className="px-4 py-2 border border-gray-500 text-gray-700 rounded flex items-center hover:bg-gray-50"
+              >
                 <FiEdit className="mr-2" /> Editar
-              </button>
+              </Link>
             </div>
           </>
         );

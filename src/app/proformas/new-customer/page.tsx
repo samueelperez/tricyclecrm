@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   FiArrowLeft, 
@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [proveedoresList, setProveedoresList] = useState<{id: string, nombre: string}[]>([]);
   
   // Datos iniciales para la proforma
   const [proforma, setProforma] = useState({
@@ -35,14 +36,48 @@ export default function NewCustomerProformaPage() {
         weight: 0,
         unitPrice: 0,
         packaging: 'Type',
-        totalValue: 0
+        totalValue: 0,
+        providerId: '' // ID del proveedor asignado a este producto
       }
     ],
     origin: 'Spain',
     containers: 0,
     totalWeight: 0,
-    totalAmount: 0
+    totalAmount: 0,
+    // Proveedores adicionales para esta proforma
+    additionalProviders: []
   });
+
+  // Estado para gestionar la adición de nuevos proveedores
+  const [newProvider, setNewProvider] = useState({
+    id: '',
+    name: '',
+    percentage: 0
+  });
+
+  // Cargar lista de proveedores al iniciar
+  useEffect(() => {
+    const cargarProveedores = async () => {
+      try {
+        const supabaseClient = supabase;
+        const { data, error } = await supabaseClient
+          .from('proveedores')
+          .select('id, nombre')
+          .order('nombre');
+          
+        if (error) {
+          console.error('Error cargando proveedores:', error);
+          return;
+        }
+        
+        setProveedoresList(data || []);
+      } catch (err) {
+        console.error('Error al cargar los proveedores:', err);
+      }
+    };
+    
+    cargarProveedores();
+  }, []);
 
   const handleCancel = () => {
     router.push(`/proformas?tab=customer`);
@@ -77,11 +112,7 @@ export default function NewCustomerProformaPage() {
         terminos_entrega: proforma.deliveryTerms,
         terminos_pago: proforma.paymentTerms,
         cuenta_bancaria: proforma.bankAccount,
-        notas: proforma.shippingNotes 
-          ? proforma.shippingNotes + '\nCliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '') 
-          : 'Cliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || ''),
-        peso_total: proforma.totalWeight,
-        cantidad_contenedores: proforma.containers
+        notas: prepareNotes()
       };
       
       console.log('Guardando proforma:', proformaData);
@@ -106,7 +137,8 @@ export default function NewCustomerProformaPage() {
         cantidad: item.quantity,
         precio_unitario: item.unitPrice,
         peso: item.weight,
-        tipo_empaque: item.packaging
+        tipo_empaque: item.packaging,
+        proveedor_id: item.providerId
       }));
       
       // Insertar productos de la proforma
@@ -130,6 +162,23 @@ export default function NewCustomerProformaPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Preparar notas con la información de proveedores adicionales
+  const prepareNotes = () => {
+    let notes = proforma.shippingNotes 
+      ? proforma.shippingNotes + '\nCliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '') 
+      : 'Cliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '');
+    
+    // Añadir información de proveedores adicionales si existen
+    if (proforma.additionalProviders.length > 0) {
+      notes += '\n\nProveedores adicionales:\n';
+      notes += proforma.additionalProviders.map(provider => 
+        `${provider.name}${provider.percentage ? `: ${provider.percentage}%` : ''}`
+      ).join('\n');
+    }
+    
+    return notes;
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {
@@ -170,7 +219,8 @@ export default function NewCustomerProformaPage() {
           weight: 0,
           unitPrice: 0,
           packaging: 'Type',
-          totalValue: 0
+          totalValue: 0,
+          providerId: ''
         }
       ]
     });
@@ -190,6 +240,65 @@ export default function NewCustomerProformaPage() {
       totalAmount,
       totalWeight,
       containers: Math.ceil(totalWeight / 20)
+    });
+  };
+
+  // Añadir un nuevo proveedor
+  const addProvider = () => {
+    if (!newProvider.id) {
+      alert('Por favor, seleccione un proveedor');
+      return;
+    }
+    
+    // Verificar si el proveedor ya existe en la lista
+    if (proforma.additionalProviders.some(p => p.id === newProvider.id)) {
+      alert('Este proveedor ya ha sido añadido');
+      return;
+    }
+    
+    // Buscar el nombre del proveedor seleccionado
+    const proveedorSeleccionado = proveedoresList.find(p => p.id === newProvider.id);
+    if (!proveedorSeleccionado) return;
+    
+    setProforma({
+      ...proforma,
+      additionalProviders: [
+        ...proforma.additionalProviders,
+        {
+          id: newProvider.id,
+          name: proveedorSeleccionado.nombre,
+          percentage: newProvider.percentage || 0
+        }
+      ]
+    });
+    
+    // Limpiar el formulario de nuevo proveedor
+    setNewProvider({
+      id: '',
+      name: '',
+      percentage: 0
+    });
+  };
+  
+  // Eliminar un proveedor
+  const removeProvider = (id) => {
+    setProforma({
+      ...proforma,
+      additionalProviders: proforma.additionalProviders.filter(provider => provider.id !== id)
+    });
+  };
+  
+  // Asignar un proveedor a un producto específico
+  const assignProviderToItem = (itemIndex, providerId) => {
+    const updatedItems = [...proforma.items];
+    updatedItems[itemIndex] = {
+      ...updatedItems[itemIndex],
+      providerId
+    };
+    
+    setProforma({
+      ...proforma,
+      items: updatedItems
     });
   };
 
@@ -348,15 +457,101 @@ export default function NewCustomerProformaPage() {
                 onChange={(e) => setProforma({...proforma, paymentTerms: e.target.value})}
               >
                 <option value="">Seleccionar términos de pago</option>
-                <option>30% CASH IN ADVANCE 70% CASH AGAINST DOCUMENTS</option>
-                <option>100% CASH IN ADVANCE</option>
-                <option>50% CASH IN ADVANCE 50% BEFORE SHIPMENT</option>
+                <option>30% PAGO POR ADELANTADO 70% PAGO CONTRA DOCUMENTOS</option>
+                <option>100% PAGO POR ADELANTADO</option>
+                <option>50% PAGO POR ADELANTADO 50% ANTES DEL ENVÍO</option>
               </select>
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
             </div>
           </div>
+        </div>
+        
+        {/* Proveedores Adicionales */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Proveedores Adicionales</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor</label>
+              <div className="relative">
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  value={newProvider.id}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const selectedProvider = proveedoresList.find(p => p.id === selectedId);
+                    setNewProvider({
+                      ...newProvider,
+                      id: selectedId,
+                      name: selectedProvider?.nombre || ''
+                    });
+                  }}
+                >
+                  <option value="">Seleccionar proveedor</option>
+                  {proveedoresList.map(proveedor => (
+                    <option key={proveedor.id} value={proveedor.id}>
+                      {proveedor.nombre}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <FiChevronDown className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje (%)</label>
+              <input 
+                type="number" 
+                placeholder="ej. 40"
+                value={newProvider.percentage || ''}
+                onChange={(e) => setNewProvider({...newProvider, percentage: parseFloat(e.target.value) || 0})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <button 
+              onClick={addProvider}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            >
+              Añadir Proveedor
+            </button>
+          </div>
+          
+          {/* Lista de proveedores añadidos */}
+          {proforma.additionalProviders.length > 0 && (
+            <div className="mt-4 border rounded-md overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Porcentaje</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {proforma.additionalProviders.map((provider) => (
+                    <tr key={provider.id}>
+                      <td className="px-4 py-2 whitespace-nowrap">{provider.name}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">{provider.percentage}%</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-right">
+                        <button 
+                          onClick={() => removeProvider(provider.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
         
         {/* Good Descriptions */}
@@ -415,9 +610,9 @@ export default function NewCustomerProformaPage() {
                       value={item.packaging}
                       onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
                     >
-                      <option>Type</option>
-                      <option>Bales</option>
-                      <option>Boxes</option>
+                      <option>Tipo</option>
+                      <option>Balas</option>
+                      <option>Cajas</option>
                       <option>Pallets</option>
                     </select>
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -434,6 +629,29 @@ export default function NewCustomerProformaPage() {
                     readOnly
                   />
                 </div>
+                {/* Añadir selector de proveedor si hay proveedores adicionales */}
+                {proforma.additionalProviders.length > 0 && (
+                  <div className="col-span-6 md:col-span-1">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+                    <div className="relative">
+                      <select 
+                        className="w-full p-2 border rounded-md appearance-none"
+                        value={item.providerId}
+                        onChange={(e) => assignProviderToItem(index, e.target.value)}
+                      >
+                        <option value="">Sin proveedor específico</option>
+                        {proforma.additionalProviders.map(provider => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                        <FiChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end border-t p-2 bg-white">
                 {index === 0 && proforma.items.length === 1 ? (

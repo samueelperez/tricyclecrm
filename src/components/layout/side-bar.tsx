@@ -38,7 +38,7 @@ const menuItems = [
     submenu: [
       { name: "Albaranes", href: "/albaranes", icon: <FiClipboard className="w-4 h-4" /> },
       { name: "Envíos", href: "/envios", icon: <FiTruck className="w-4 h-4" /> },
-      { name: "Listas de Empaque", href: "/listas-empaque", icon: <FiList className="w-4 h-4" /> },
+      { name: "Listas de Empaque", href: "/packing-lists", icon: <FiList className="w-4 h-4" /> },
     ]
   },
   { name: "Recibos", href: "/recibos", icon: <FiCreditCard className="w-5 h-5" /> },

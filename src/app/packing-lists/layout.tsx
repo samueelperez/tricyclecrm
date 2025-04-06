@@ -1,7 +1,11 @@
 import { ReactNode } from 'react';
 import SideBar from '@/components/layout/side-bar';
 
-export default function ListasEmpaqueLayout({ children }: { children: ReactNode }) {
+export default function PackingListsLayout({
+  children,
+}: {
+  children: ReactNode
+}) {
   return (
     <div className="flex h-screen bg-gray-50">
       <SideBar />

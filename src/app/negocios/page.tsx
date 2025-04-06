@@ -2,44 +2,31 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FiPlus, FiEdit, FiEye, FiTrash2, FiDownload, FiSearch, FiTag, FiCalendar, FiClock, FiX, FiUser, FiDollarSign, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiFileText } from "react-icons/fi";
+import { FiPlus, FiEdit, FiEye, FiTrash2, FiSearch, FiTag, FiUser, FiPackage, FiTruck } from "react-icons/fi";
 import { getSupabaseClient, ejecutarMigracionNegocios } from "@/lib/supabase";
 
 // Definición del tipo para negocios
 type Negocio = {
   id: number;
-  numero_negocio: string;
-  fecha_creacion: string;
-  fecha_estimada_cierre: string;
-  cliente: string;
+  nombre: string;
   cliente_id: number;
-  valor: number;
-  estado: string;
-  etapa: string;
-  probabilidad: number;
-  asignado_a: string;
-  productos: string[];
-  notas: string | null;
+  cliente_nombre?: string;
+  material_principal?: string;
+  proveedor_principal?: string;
+  fecha_inicio?: string;
+  descripcion?: string;
+  valor_total?: number;
   created_at: string;
+  proveedores?: Array<{id: number, nombre: string}>;
+  materiales?: Array<{id: number, nombre: string}>;
 };
 
 export default function NegociosPage() {
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Estados para negocios
-  const estadosNegocio = [
-    { value: "prospecto", label: "Prospecto", color: "bg-purple-100 text-purple-800", icon: <FiTag className="mr-1.5 h-3 w-3" /> },
-    { value: "calificado", label: "Calificado", color: "bg-blue-100 text-blue-800", icon: <FiCheckCircle className="mr-1.5 h-3 w-3" /> },
-    { value: "propuesta", label: "Propuesta", color: "bg-yellow-100 text-yellow-800", icon: <FiFileText className="mr-1.5 h-3 w-3" /> },
-    { value: "negociacion", label: "Negociación", color: "bg-orange-100 text-orange-800", icon: <FiRefreshCw className="mr-1.5 h-3 w-3" /> },
-    { value: "ganado", label: "Ganado", color: "bg-green-100 text-green-800", icon: <FiCheckCircle className="mr-1.5 h-3 w-3" /> },
-    { value: "perdido", label: "Perdido", color: "bg-red-100 text-red-800", icon: <FiX className="mr-1.5 h-3 w-3" /> },
-  ];
 
   // Cargar datos de negocios
   useEffect(() => {
@@ -71,21 +58,51 @@ export default function NegociosPage() {
         .from("negocios")
         .select(`
           *,
-          clientes(nombre)
-        `)
-        .order("fecha_creacion", { ascending: false });
+          clientes:cliente_id(nombre)
+        `);
 
       if (error) {
         console.error("Error cargando negocios:", error);
         setError("Error al cargar datos: " + error.message);
         setNegocios(datosEjemplo);
       } else if (data && data.length > 0) {
-        // Formatear los datos recibidos
-        const negociosFormateados = data.map(item => ({
-          ...item,
-          cliente: item.clientes?.nombre || item.cliente || 'Cliente sin asignar'
+        // Obtener datos adicionales de proveedores y materiales para cada negocio
+        const negociosConDetalles = await Promise.all(data.map(async (negocio) => {
+          // Buscar proveedores relacionados
+          const { data: proveedoresData } = await supabase
+            .from("negocios_proveedores")
+            .select(`
+              proveedores:proveedor_id(id, nombre)
+            `)
+            .eq("negocio_id", negocio.id);
+            
+          // Buscar materiales relacionados
+          const { data: materialesData } = await supabase
+            .from("negocios_materiales")
+            .select(`
+              materiales:material_id(id, nombre)
+            `)
+            .eq("negocio_id", negocio.id);
+            
+          // Extraer nombres y formatear
+          const proveedores = proveedoresData?.map(p => p.proveedores) || [];
+          const materiales = materialesData?.map(m => m.materiales) || [];
+          
+          // Determinar proveedor y material principal (el primero de la lista)
+          const proveedor_principal = proveedores.length > 0 ? proveedores[0]?.nombre : 'Sin proveedor';
+          const material_principal = materiales.length > 0 ? materiales[0]?.nombre : 'Sin material definido';
+          
+          return {
+            ...negocio,
+            cliente_nombre: negocio.clientes?.nombre || 'Cliente sin asignar',
+            proveedor_principal,
+            material_principal,
+            proveedores,
+            materiales
+          };
         }));
-        setNegocios(negociosFormateados as Negocio[]);
+        
+        setNegocios(negociosConDetalles as Negocio[]);
       } else {
         // Si no hay datos, usar los de ejemplo
         setNegocios(datosEjemplo);
@@ -101,7 +118,7 @@ export default function NegociosPage() {
 
   // Manejar eliminación
   const handleDelete = async (id: number) => {
-    if (!confirm("¿Está seguro de que desea eliminar este negocio? Esta acción no se puede deshacer.")) 
+    if (!confirm("¿Está seguro de que desea eliminar este contrato? Esta acción no se puede deshacer.")) 
       return;
     
     setDeleteLoading(id);
@@ -130,33 +147,24 @@ export default function NegociosPage() {
   // Filtrar negocios
   const negociosFiltrados = negocios.filter(negocio => {
     const cumpleFiltroTexto = 
-      (negocio.numero_negocio?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
-      (negocio.cliente?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
-      (negocio.asignado_a?.toLowerCase() || '').includes(filtro.toLowerCase());
+      (negocio.nombre?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
+      (negocio.cliente_nombre?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
+      (negocio.material_principal?.toLowerCase() || '').includes(filtro.toLowerCase()) ||
+      (negocio.proveedor_principal?.toLowerCase() || '').includes(filtro.toLowerCase());
     
-    const cumpleFiltroEstado = estadoFiltro === "todos" || negocio.estado === estadoFiltro;
-    
-    return cumpleFiltroTexto && cumpleFiltroEstado;
+    return cumpleFiltroTexto;
   });
-
-  // Obtener estilos de estado
-  const getEstadoStyles = (estado: string) => {
-    const estadoObj = estadosNegocio.find(e => e.value === estado);
-    return {
-      bgColor: estadoObj ? estadoObj.color.split(' ')[0] : "bg-gray-100",
-      textColor: estadoObj ? estadoObj.color.split(' ')[1] : "text-gray-800",
-      icon: estadoObj ? estadoObj.icon : <FiTag className="mr-1.5 h-3 w-3" />
-    };
-  };
 
   // Formatear fecha
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'Fecha no disponible';
     const date = new Date(dateStr);
     return date.toLocaleDateString('es-ES');
   };
 
   // Formatear montos
-  const formatMonto = (monto: number) => {
+  const formatMonto = (monto?: number) => {
+    if (monto === undefined || monto === null) return '-';
     return new Intl.NumberFormat('es-ES', { 
       style: 'currency', 
       currency: 'EUR',
@@ -170,13 +178,13 @@ export default function NegociosPage() {
         {/* Cabecera */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
-            Negocios
+            Contratos
           </h1>
           <Link 
             href="/negocios/new"
             className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
           >
-            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Negocio
+            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Contrato
           </Link>
         </div>
         
@@ -185,7 +193,9 @@ export default function NegociosPage() {
           <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm animate-fadeIn">
             <div className="flex">
               <div className="flex-shrink-0 text-red-500">
-                <FiX className="h-5 w-5" />
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-700">{error}</p>
@@ -196,41 +206,17 @@ export default function NegociosPage() {
         
         {/* Filtros y búsqueda */}
         <div className="bg-white shadow-md rounded-lg p-5 mb-8 transition-all duration-300 ease-in-out transform hover:shadow-lg">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiSearch className="text-gray-400 h-5 w-5" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Buscar por número, cliente o responsable..."
-                  value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
-                  className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                />
-              </div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FiSearch className="text-gray-400 h-5 w-5" />
             </div>
-            
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiTag className="text-gray-400 h-5 w-5" />
-                </div>
-                <select
-                  value={estadoFiltro}
-                  onChange={(e) => setEstadoFiltro(e.target.value)}
-                  className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                >
-                  <option value="todos">Todos los estados</option>
-                  {estadosNegocio.map((estado) => (
-                    <option key={estado.value} value={estado.value}>
-                      {estado.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <input
+              type="text"
+              placeholder="Buscar por número de contrato, cliente, material o proveedor..."
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+            />
           </div>
         </div>
 
@@ -238,7 +224,7 @@ export default function NegociosPage() {
         {loading ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-            <p className="text-gray-500 text-lg">Cargando negocios...</p>
+            <p className="text-gray-500 text-lg">Cargando contratos...</p>
           </div>
         ) : negociosFiltrados.length === 0 ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
@@ -246,18 +232,15 @@ export default function NegociosPage() {
               <FiTag className="h-12 w-12 text-gray-400" />
             </div>
             <p className="text-gray-600 text-lg mb-4">
-              {filtro || estadoFiltro !== 'todos' ? (
-                'No se encontraron negocios con los filtros seleccionados'
+              {filtro ? (
+                'No se encontraron contratos con los filtros seleccionados'
               ) : (
-                'No hay negocios registrados'
+                'No hay contratos registrados'
               )}
             </p>
-            {(filtro || estadoFiltro !== 'todos') && (
+            {filtro && (
               <button 
-                onClick={() => {
-                  setFiltro('');
-                  setEstadoFiltro('todos');
-                }}
+                onClick={() => setFiltro('')}
                 className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none"
               >
                 Limpiar filtros
@@ -265,102 +248,66 @@ export default function NegociosPage() {
             )}
           </div>
         ) : (
-          <div className="bg-white shadow-md rounded-lg transition-all duration-300 ease-in-out">
-            <table className="w-full divide-y divide-gray-200">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiTag className="mr-1 text-indigo-500" />
-                      Nº Negocio
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiCalendar className="mr-1 text-indigo-500" />
-                      Fecha Creación
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiUser className="mr-1 text-indigo-500" />
-                      Cliente
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiDollarSign className="mr-1 text-indigo-500" />
-                      Valor
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiTag className="mr-1 text-indigo-500" />
-                      Estado
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiClock className="mr-1 text-indigo-500" />
-                      Estimación Cierre
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiUser className="mr-1 text-indigo-500" />
-                      Asignado a
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {negociosFiltrados.map((negocio) => {
-                  const { bgColor, textColor } = getEstadoStyles(negocio.estado);
-                  
-                  return (
+          <div className="bg-white shadow-md rounded-lg transition-all duration-300 ease-in-out overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full divide-y divide-gray-200">
+                <thead>
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <FiTag className="mr-1 text-indigo-500" />
+                        Contrato
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <FiPackage className="mr-1 text-indigo-500" />
+                        Material
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <FiUser className="mr-1 text-indigo-500" />
+                        Cliente
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <FiTruck className="mr-1 text-indigo-500" />
+                        Proveedor
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {negociosFiltrados.map((negocio) => (
                     <tr key={negocio.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{negocio.numero_negocio}</div>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">Contrato Nº{negocio.id}</div>
+                        <div className="text-xs text-gray-500">{negocio.nombre}</div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiCalendar className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatDate(negocio.fecha_creacion)}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FiPackage className="mr-1 text-indigo-500 h-4 w-4" />
+                          <span className="text-sm text-gray-900">{negocio.material_principal}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 flex items-center">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
                           <FiUser className="mr-1 text-indigo-500 h-4 w-4" />
-                          {negocio.cliente}
+                          <span className="text-sm text-gray-900">{negocio.cliente_nombre}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 flex items-center">
-                          <FiDollarSign className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatMonto(negocio.valor)}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FiTruck className="mr-1 text-indigo-500 h-4 w-4" />
+                          <span className="text-sm text-gray-900">{negocio.proveedor_principal}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}`}>
-                          {negocio.estado.charAt(0).toUpperCase() + negocio.estado.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiClock className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatDate(negocio.fecha_estimada_cierre)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiUser className="mr-1 text-indigo-500 h-4 w-4" />
-                          {negocio.asignado_a}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
                           <Link 
                             href={`/negocios/${negocio.id}`} 
@@ -372,7 +319,7 @@ export default function NegociosPage() {
                           <Link 
                             href={`/negocios/edit/${negocio.id}`} 
                             className="text-blue-600 hover:text-blue-900 transition-colors duration-150 p-1"
-                            title="Editar negocio"
+                            title="Editar contrato"
                           >
                             <FiEdit className="h-4 w-4" />
                           </Link>
@@ -380,7 +327,7 @@ export default function NegociosPage() {
                             onClick={() => handleDelete(negocio.id)}
                             disabled={deleteLoading === negocio.id}
                             className="text-red-600 hover:text-red-900 transition-colors duration-150 p-1 disabled:opacity-50"
-                            title="Eliminar negocio"
+                            title="Eliminar contrato"
                           >
                             {deleteLoading === negocio.id ? (
                               <div className="h-4 w-4 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
@@ -388,20 +335,13 @@ export default function NegociosPage() {
                               <FiTrash2 className="h-4 w-4" />
                             )}
                           </button>
-                          <Link
-                            href={`/negocios/${negocio.id}/documento`}
-                            className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
-                            title="Generar propuesta"
-                          >
-                            <FiDownload className="h-4 w-4" />
-                          </Link>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -413,82 +353,35 @@ export default function NegociosPage() {
 const datosEjemplo: Negocio[] = [
   {
     id: 1,
-    numero_negocio: "NEG-2023-001",
-    fecha_creacion: "2023-05-10",
-    fecha_estimada_cierre: "2023-06-30",
-    cliente: "Comercial Acme, S.L.",
+    nombre: "Contrato de suministro",
     cliente_id: 1,
-    valor: 25000.75,
-    estado: "propuesta",
-    etapa: "presentacion",
-    probabilidad: 60,
-    asignado_a: "Juan Pérez",
-    productos: ["Producto A", "Producto B"],
-    notas: "Cliente muy interesado en nuestra solución.",
+    cliente_nombre: "Comercial Acme, S.L.",
+    material_principal: "Plástico reciclado",
+    proveedor_principal: "Plastisur, S.A.",
+    fecha_inicio: "2023-05-10",
+    valor_total: 25000.75,
     created_at: "2023-05-10T08:30:00Z"
   },
   {
     id: 2,
-    numero_negocio: "NEG-2023-002",
-    fecha_creacion: "2023-05-20",
-    fecha_estimada_cierre: "2023-07-15",
-    cliente: "Distribuciones García",
+    nombre: "Contrato de distribución",
     cliente_id: 2,
-    valor: 15750.00,
-    estado: "negociacion",
-    etapa: "descuento",
-    probabilidad: 75,
-    asignado_a: "María López",
-    productos: ["Servicio Premium"],
-    notas: "Negociando términos de precio y entrega.",
+    cliente_nombre: "Distribuciones García",
+    material_principal: "Cartón",
+    proveedor_principal: "Cartonajes Europa",
+    fecha_inicio: "2023-05-20",
+    valor_total: 15750.00,
     created_at: "2023-05-20T14:15:00Z"
   },
   {
     id: 3,
-    numero_negocio: "NEG-2023-003",
-    fecha_creacion: "2023-06-01",
-    fecha_estimada_cierre: "2023-07-30",
-    cliente: "Industrias Martínez, S.A.",
+    nombre: "Contrato de servicios",
     cliente_id: 3,
-    valor: 42000.00,
-    estado: "ganado",
-    etapa: "cerrado",
-    probabilidad: 100,
-    asignado_a: "Carlos Rodríguez",
-    productos: ["Producto X", "Producto Y", "Mantenimiento"],
-    notas: "Contrato firmado. Esperando pago inicial.",
+    cliente_nombre: "Industrias Martínez, S.A.",
+    material_principal: "Papel",
+    proveedor_principal: "Papelera del Norte",
+    fecha_inicio: "2023-06-01",
+    valor_total: 42000.00,
     created_at: "2023-06-01T09:45:00Z"
-  },
-  {
-    id: 4,
-    numero_negocio: "NEG-2023-004",
-    fecha_creacion: "2023-06-10",
-    fecha_estimada_cierre: "2023-08-20",
-    cliente: "Electrónica Europa",
-    cliente_id: 4,
-    valor: 8900.00,
-    estado: "prospecto",
-    etapa: "contacto_inicial",
-    probabilidad: 25,
-    asignado_a: "Ana Martínez",
-    productos: ["Solución Basic"],
-    notas: "Contacto inicial realizado. Esperando feedback.",
-    created_at: "2023-06-10T16:20:00Z"
-  },
-  {
-    id: 5,
-    numero_negocio: "NEG-2023-005",
-    fecha_creacion: "2023-06-15",
-    fecha_estimada_cierre: "2023-07-05",
-    cliente: "Importaciones del Sur",
-    cliente_id: 5,
-    valor: 12300.00,
-    estado: "perdido",
-    etapa: "abandonado",
-    probabilidad: 0,
-    asignado_a: "Juan Pérez",
-    productos: ["Producto C"],
-    notas: "Cliente eligió otra solución por menor precio.",
-    created_at: "2023-06-15T11:10:00Z"
   }
 ]; 

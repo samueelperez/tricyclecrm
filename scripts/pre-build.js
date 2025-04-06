@@ -23,9 +23,9 @@ async function main() {
     if (esEntornoLocal) {
       console.log('ℹ️ Entorno local detectado.');
       console.log('✅ Para sincronizar la base de datos manualmente, ejecuta: npm run db:sync');
-    }
-    
-    console.log('🎉 Verificación pre-build completada.');
+      }
+      
+      console.log('🎉 Verificación pre-build completada.');
     process.exit(0); // Salir con éxito
     
   } catch (error) {

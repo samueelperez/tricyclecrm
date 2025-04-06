@@ -191,24 +191,18 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
             <div>
               <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
                 Deal Number
+                <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
               </label>
               <div className="relative">
-                <select
+                <input
+                  type="text"
                   id="dealNumber"
                   name="dealNumber"
                   value={proforma.dealNumber}
                   onChange={handleInputChange}
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="INV001">INV001</option>
-                  <option value="INV002">INV002</option>
-                  <option value="INV003">INV003</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                  placeholder="Ej: PRO-2023-001"
+                  className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                />
               </div>
             </div>
 

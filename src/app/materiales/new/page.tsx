@@ -18,11 +18,9 @@ import { getSupabaseClient } from '@/lib/supabase';
 
 interface MaterialFormData {
   nombre: string;
-  codigo: string;
   descripcion: string;
   precio_unitario: number;
   unidad_medida: string;
-  stock_actual: number;
 }
 
 export default function NewMaterialPage() {
@@ -33,11 +31,9 @@ export default function NewMaterialPage() {
   // Estado inicial del formulario
   const [formData, setFormData] = useState<MaterialFormData>({
     nombre: '',
-    codigo: '',
     descripcion: '',
     precio_unitario: 0,
-    unidad_medida: 'kg', // Valor por defecto
-    stock_actual: 0
+    unidad_medida: 'kg' // Valor por defecto
   });
 
   // Manejar cambios en los campos del formulario
@@ -45,7 +41,7 @@ export default function NewMaterialPage() {
     const { name, value } = e.target;
     
     // Convertir a número para campos numéricos
-    if (name === 'precio_unitario' || name === 'stock_actual') {
+    if (name === 'precio_unitario') {
       setFormData({
         ...formData,
         [name]: value === '' ? 0 : parseFloat(value)
@@ -72,27 +68,18 @@ export default function NewMaterialPage() {
       
       const supabase = getSupabaseClient();
       
-      // Generar código automático si no se ha proporcionado
-      let codigo = formData.codigo;
-      if (!codigo) {
-        codigo = `MAT-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-      }
-      
-      // Insertar material en Supabase
-      const { data, error: insertError } = await supabase
+      // Método más básico posible, sin arrays ni .select()
+      const { error } = await supabase
         .from('materiales')
-        .insert([{
+        .insert({
           nombre: formData.nombre,
-          codigo: codigo,
-          descripcion: formData.descripcion || null,
+          descripcion: formData.descripcion,
           precio_unitario: formData.precio_unitario,
-          unidad_medida: formData.unidad_medida,
-          stock_actual: formData.stock_actual
-        }])
-        .select();
-        
-      if (insertError) {
-        throw new Error(`Error al guardar el material: ${insertError.message}`);
+          unidad_medida: formData.unidad_medida
+        });
+          
+      if (error) {
+        throw new Error(`Error al guardar el material: ${error.message}`);
       }
       
       // Redirigir a la página de materiales
@@ -237,7 +224,7 @@ export default function NewMaterialPage() {
             </div>
             
             <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
-              <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-1">
                 {/* Nombre */}
                 <div className="relative group">
                   {renderLabel('Nombre del Material', true, <FiPackage />)}
@@ -249,20 +236,6 @@ export default function NewMaterialPage() {
                     value: formData.nombre,
                     onChange: handleInputChange,
                     placeholder: "Nombre del material"
-                  })}
-                  <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
-                </div>
-                
-                {/* Código */}
-                <div className="relative group">
-                  {renderLabel('Código', false, <FiTag />)}
-                  {renderInput({
-                    type: "text",
-                    name: "codigo",
-                    id: "codigo",
-                    value: formData.codigo,
-                    onChange: handleInputChange,
-                    placeholder: "Dejar vacío para generar automáticamente"
                   })}
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>
@@ -299,7 +272,7 @@ export default function NewMaterialPage() {
             </div>
             
             <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
-              <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-y-6 gap-x-6 sm:grid-cols-2">
                 {/* Precio Unitario */}
                 <div className="relative group">
                   {renderLabel('Precio Unitario', false, <FiDollarSign />)}
@@ -340,22 +313,6 @@ export default function NewMaterialPage() {
                       { value: 'pack', label: 'Paquete (pack)' },
                       { value: 'ton', label: 'Tonelada (ton)' }
                     ]
-                  })}
-                  <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
-                </div>
-                
-                {/* Stock Actual */}
-                <div className="relative group">
-                  {renderLabel('Stock Actual', false, <FiBox />)}
-                  {renderInput({
-                    type: "number",
-                    name: "stock_actual",
-                    id: "stock_actual",
-                    value: formData.stock_actual,
-                    onChange: handleInputChange,
-                    placeholder: "0",
-                    min: "0",
-                    step: "1"
                   })}
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>

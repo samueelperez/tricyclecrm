@@ -29,6 +29,9 @@ interface Factura {
   notas?: string;
   tipo?: 'cliente' | 'proveedor';
   items?: FacturaItem[];
+  proveedores_adicionales?: FacturaProveedor[];
+  clientes_adicionales?: FacturaCliente[];
+  cuenta_bancaria?: string;
 }
 
 interface FacturaItem {
@@ -40,11 +43,26 @@ interface FacturaItem {
   precio_unitario: number;
   total: number;
   codigo?: string;
+  proveedor_id?: string;
+}
+
+interface FacturaProveedor {
+  id: string;
+  nombre: string;
+  porcentaje?: number;
+  productos?: string[];
+}
+
+interface FacturaCliente {
+  id: string;
+  nombre: string;
+  porcentaje?: number;
+  productos?: string[];
 }
 
 // Componente para la vista de impresión de factura
-const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string, nombreDestinatario: string }>((props, ref) => {
-  const { factura, numeroFactura, nombreDestinatario } = props;
+const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string, nombreDestinatario: string, multiProveedores: FacturaProveedor[], multiClientes: FacturaCliente[] }>((props, ref) => {
+  const { factura, numeroFactura, nombreDestinatario, multiProveedores, multiClientes } = props;
   
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
@@ -150,6 +168,29 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         <div><span style={{ fontWeight: 'bold' }}>TAX ID:</span> {getTaxIDDestinatario()}</div>
       </div>
       
+      {/* Información de múltiples proveedores/clientes */}
+      {factura.tipo === 'proveedor' && multiClientes.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>CLIENTES ADICIONALES:</div>
+          <ul>
+            {multiClientes.map((cliente, index) => (
+              <li key={index}>{cliente.nombre} {cliente.porcentaje && `(${cliente.porcentaje}%)`}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {factura.tipo !== 'proveedor' && multiProveedores.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PROVEEDORES ADICIONALES:</div>
+          <ul>
+            {multiProveedores.map((proveedor, index) => (
+              <li key={index}>{proveedor.nombre} {proveedor.porcentaje && `(${proveedor.porcentaje}%)`}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
       {/* Tabla de productos */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
         <thead>
@@ -219,12 +260,22 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         Exempt VAT. EXPORT Section 21.1 Ley 37/1992
       </div>
       
-      {/* Notas */}
+      {/* Notas con formato específico para consignatario */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>NOTES:</div>
-        <div style={{ whiteSpace: 'pre-wrap', fontSize: '8pt' }}>
-          {extractConsigneeInfo() || factura.notas}
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: '9pt', marginLeft: '0' }}>
+          {factura.id_externo ? `${factura.id_externo} ` : ''}{factura.notas?.includes('PP PLASTICS') ? factura.notas : 'PP PLASTICS - ' + (factura.notas || '')}
         </div>
+        {extractConsigneeInfo() && (
+          <div style={{ marginTop: '5px', fontSize: '9pt' }}>
+            <div>CONSIGNEE: {extractConsigneeInfo().replace('CONSIGNEE:', '').trim().split('\n')[0]}</div>
+            <div style={{ marginLeft: '75px' }}>
+              {extractConsigneeInfo().replace('CONSIGNEE:', '').trim().split('\n').slice(1).map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Datos bancarios */}
@@ -253,9 +304,16 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       </div>
       
       {/* Firma */}
-      <div style={{ position: 'absolute', bottom: '30px', right: '50px', textAlign: 'center' }}>
-        <div style={{ borderBottom: '1px solid #000', width: '200px', marginBottom: '5px' }}></div>
-        <div style={{ fontSize: '8pt' }}>Autorizado / Authorized</div>
+      <div style={{ position: 'absolute', bottom: '60px', right: '60px', width: '200px' }}>
+        <Image 
+          src="/images/firma.png" 
+          alt="Firma autorizada"
+          width={200}
+          height={100}
+          style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+          priority
+          unoptimized
+        />
       </div>
     </div>
   );
@@ -281,6 +339,12 @@ export default function FacturaPDFPage() {
   const [editingNombre, setEditingNombre] = useState(false);
   const [savingNombre, setSavingNombre] = useState(false);
   
+  const [multiProveedores, setMultiProveedores] = useState<FacturaProveedor[]>([]);
+  const [multiClientes, setMultiClientes] = useState<FacturaCliente[]>([]);
+  const [showMultiDialog, setShowMultiDialog] = useState(false);
+  const [currentNuevoItem, setCurrentNuevoItem] = useState('');
+  const [currentPorcentaje, setCurrentPorcentaje] = useState('');
+  
   const printRef = useRef<HTMLDivElement>(null);
   
   // Cargar los datos de la factura
@@ -297,11 +361,20 @@ export default function FacturaPDFPage() {
           .single();
         
         if (clienteData) {
-          // Obtener los items en una consulta separada si es necesario
-          // const { data: itemsData } = await supabase
-          //   .from('facturas_items')
-          //   .select('*')
-          //   .eq('factura_id', id);
+          // Extraer proveedores adicionales de las notas
+          const proveedoresMatch = clienteData.notas?.match(/Proveedores adicionales:([\s\S]*?)(?=\n\n|\n$|$)/);
+          if (proveedoresMatch && proveedoresMatch[1]) {
+            const proveedoresTexto = proveedoresMatch[1].trim();
+            const proveedoresArray = proveedoresTexto.split('\n').map((linea: string) => {
+              const [nombre, porcentaje] = linea.split(':').map((s: string) => s.trim());
+              return {
+                id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+                nombre,
+                porcentaje: porcentaje ? parseInt(porcentaje) : undefined
+              };
+            });
+            setMultiProveedores(proveedoresArray);
+          }
           
           const facturaData = {
             ...clienteData,
@@ -324,11 +397,20 @@ export default function FacturaPDFPage() {
           .single();
         
         if (proveedorData) {
-          // Obtener los items en una consulta separada si es necesario
-          // const { data: itemsData } = await supabase
-          //   .from('facturas_items')
-          //   .select('*')
-          //   .eq('factura_id', id);
+          // Extraer clientes adicionales de las notas
+          const clientesMatch = proveedorData.notas?.match(/Clientes adicionales:([\s\S]*?)(?=\n\n|\n$|$)/);
+          if (clientesMatch && clientesMatch[1]) {
+            const clientesTexto = clientesMatch[1].trim();
+            const clientesArray = clientesTexto.split('\n').map((linea: string) => {
+              const [nombre, porcentaje] = linea.split(':').map((s: string) => s.trim());
+              return {
+                id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+                nombre,
+                porcentaje: porcentaje ? parseInt(porcentaje) : undefined
+              };
+            });
+            setMultiClientes(clientesArray);
+          }
           
           const facturaData = {
             ...proveedorData,
@@ -365,12 +447,17 @@ export default function FacturaPDFPage() {
       const supabase = getSupabaseClient();
       const tableName = factura.tipo === 'cliente' ? 'facturas_cliente' : 'facturas_proveedor';
       
+      // Validar que el número no esté vacío
+      if (!facturaNumero.trim()) {
+        throw new Error('El número de factura no puede estar vacío');
+      }
+      
       // Actualizar el número de factura
       const { error } = await supabase
         .from(tableName)
         .update({ 
           numero_factura: facturaNumero,
-          // También podemos actualizar id_externo si es necesario
+          // También actualizar id_externo si es necesario
           id_externo: facturaNumero 
         })
         .eq('id', factura.id);
@@ -387,12 +474,41 @@ export default function FacturaPDFPage() {
         };
       });
       
+      // Mostrar mensaje de éxito
+      setError(null);
+      
       // Desactivar el modo de edición
       setEditing(false);
       
-    } catch (err) {
+      // Feedback visual temporal
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md z-50';
+      successMessage.innerHTML = 'Número de factura actualizado correctamente';
+      document.body.appendChild(successMessage);
+      
+      // Remover el mensaje después de 3 segundos
+      setTimeout(() => {
+        if (document.body.contains(successMessage)) {
+          document.body.removeChild(successMessage);
+        }
+      }, 3000);
+      
+    } catch (err: any) {
       console.error('Error al guardar el número de factura:', err);
-      setError('Error al guardar el número de factura');
+      setError(`Error al guardar el número de factura: ${err.message || 'Ocurrió un error desconocido'}`);
+      
+      // Mostrar alerta de error
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'fixed top-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md z-50';
+      errorMessage.innerHTML = `Error: ${err.message || 'Ocurrió un error al guardar'}`;
+      document.body.appendChild(errorMessage);
+      
+      // Remover el mensaje después de 5 segundos
+      setTimeout(() => {
+        if (document.body.contains(errorMessage)) {
+          document.body.removeChild(errorMessage);
+        }
+      }, 5000);
     } finally {
       setSavingNumero(false);
     }
@@ -453,6 +569,178 @@ export default function FacturaPDFPage() {
     } finally {
       setSavingNombre(false);
     }
+  };
+  
+  // Guardar proveedores o clientes adicionales
+  const handleSaveMulti = async () => {
+    if (!factura) return;
+    
+    try {
+      const supabase = getSupabaseClient();
+      const tableName = factura.tipo === 'cliente' ? 'facturas_cliente' : 'facturas_proveedor';
+      
+      // Actualizar las notas con la información de proveedores o clientes
+      let nuevasNotas = factura.notas || '';
+      
+      if (factura.tipo === 'proveedor') {
+        // Actualizar clientes adicionales
+        if (multiClientes.length > 0) {
+          // Eliminar sección de clientes adicionales existente si la hay
+          nuevasNotas = nuevasNotas.replace(/Clientes adicionales:[\s\S]*?(?=\n\n|\n$|$)/, '');
+          
+          // Añadir nuevos clientes
+          const clientesTexto = multiClientes.map(c => 
+            `${c.nombre}${c.porcentaje ? `: ${c.porcentaje}%` : ''}`
+          ).join('\n');
+          
+          if (clientesTexto) {
+            nuevasNotas = nuevasNotas.trim() + `\n\nClientes adicionales:\n${clientesTexto}`;
+          }
+        }
+      } else {
+        // Actualizar proveedores adicionales
+        if (multiProveedores.length > 0) {
+          // Eliminar sección de proveedores adicionales existente si la hay
+          nuevasNotas = nuevasNotas.replace(/Proveedores adicionales:[\s\S]*?(?=\n\n|\n$|$)/, '');
+          
+          // Añadir nuevos proveedores
+          const proveedoresTexto = multiProveedores.map(p => 
+            `${p.nombre}${p.porcentaje ? `: ${p.porcentaje}%` : ''}`
+          ).join('\n');
+          
+          if (proveedoresTexto) {
+            nuevasNotas = nuevasNotas.trim() + `\n\nProveedores adicionales:\n${proveedoresTexto}`;
+          }
+        }
+      }
+      
+      // Guardar notas actualizadas
+      const { error } = await supabase
+        .from(tableName)
+        .update({ notas: nuevasNotas })
+        .eq('id', factura.id);
+      
+      if (error) throw error;
+      
+      // Actualizar el estado local
+      setFactura(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          notas: nuevasNotas
+        };
+      });
+      
+      setShowMultiDialog(false);
+      
+    } catch (err) {
+      console.error('Error al guardar:', err);
+      setError('Error al guardar la información adicional');
+    }
+  };
+  
+  // Añadir nuevo proveedor o cliente
+  const handleAddMultiItem = () => {
+    if (!currentNuevoItem.trim()) return;
+    
+    if (factura?.tipo === 'proveedor') {
+      // Añadir cliente adicional
+      setMultiClientes([
+        ...multiClientes,
+        {
+          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+          nombre: currentNuevoItem,
+          porcentaje: currentPorcentaje ? parseInt(currentPorcentaje) : undefined
+        }
+      ]);
+    } else {
+      // Añadir proveedor adicional
+      setMultiProveedores([
+        ...multiProveedores,
+        {
+          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
+          nombre: currentNuevoItem,
+          porcentaje: currentPorcentaje ? parseInt(currentPorcentaje) : undefined
+        }
+      ]);
+    }
+    
+    // Limpiar el formulario
+    setCurrentNuevoItem('');
+    setCurrentPorcentaje('');
+  };
+  
+  // Eliminar proveedor o cliente
+  const handleRemoveMultiItem = (id: string) => {
+    if (factura?.tipo === 'proveedor') {
+      setMultiClientes(multiClientes.filter(c => c.id !== id));
+    } else {
+      setMultiProveedores(multiProveedores.filter(p => p.id !== id));
+    }
+  };
+  
+  // Componente para mostrar la lista de proveedores/clientes adicionales
+  const MultiEntidadList = () => {
+    const items = factura?.tipo === 'proveedor' ? multiClientes : multiProveedores;
+    const titulo = factura?.tipo === 'proveedor' ? 'Clientes adicionales' : 'Proveedores adicionales';
+    
+    return (
+      <div className="bg-white p-4 rounded-lg shadow-md">
+        <h3 className="text-lg font-medium mb-3">{titulo}</h3>
+        
+        {items.length === 0 ? (
+          <p className="text-gray-500 text-sm">No hay {titulo.toLowerCase()} configurados.</p>
+        ) : (
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li key={item.id} className="flex justify-between items-center border-b pb-2">
+                <span>{item.nombre} {item.porcentaje && `(${item.porcentaje}%)`}</span>
+                <button 
+                  onClick={() => handleRemoveMultiItem(item.id)} 
+                  className="text-red-500 hover:text-red-700"
+                >
+                  Eliminar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        
+        <div className="mt-4 space-y-3">
+          <input
+            type="text"
+            value={currentNuevoItem}
+            onChange={(e) => setCurrentNuevoItem(e.target.value)}
+            placeholder={`Nombre del ${factura?.tipo === 'proveedor' ? 'cliente' : 'proveedor'}`}
+            className="w-full border rounded-md px-3 py-2"
+          />
+          
+          <input
+            type="number"
+            value={currentPorcentaje}
+            onChange={(e) => setCurrentPorcentaje(e.target.value)}
+            placeholder="Porcentaje (opcional)"
+            className="w-full border rounded-md px-3 py-2"
+          />
+          
+          <div className="flex justify-between">
+            <button
+              onClick={handleAddMultiItem}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Añadir
+            </button>
+            
+            <button
+              onClick={handleSaveMulti}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            >
+              Guardar cambios
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
   
   // Función para generar el PDF
@@ -534,15 +822,18 @@ export default function FacturaPDFPage() {
           </a>
           
           <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-3 sm:mb-0">
-            {/* Control para editar el número de factura */}
-            <div className="flex items-center space-x-2">
+            {/* Control para editar el número de factura - Mejorado */}
+            <div className="flex items-center space-x-2 border rounded-md p-2 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors">
+              <div className="font-medium text-gray-700">Número de factura:</div>
               {editing ? (
                 <>
                   <input
                     type="text"
                     value={facturaNumero}
                     onChange={(e) => setFacturaNumero(e.target.value)}
-                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-40"
+                    placeholder="Ej: INV-2023-001"
+                    autoFocus
                   />
                   <button
                     onClick={handleSaveNumeroFactura}
@@ -565,12 +856,19 @@ export default function FacturaPDFPage() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  Editar número
-                </button>
+                <>
+                  <span className="text-gray-900 font-bold">{facturaNumero}</span>
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
+                    title="Haz clic para editar el número de factura"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Editar
+                  </button>
+                </>
               )}
             </div>
             
@@ -617,6 +915,16 @@ export default function FacturaPDFPage() {
                 </button>
               )}
             </div>
+            
+            {/* Botón para gestionar múltiples proveedores/clientes */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowMultiDialog(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {factura.tipo === 'proveedor' ? 'Gestionar clientes' : 'Gestionar proveedores'}
+              </button>
+            </div>
           </div>
           
           <button
@@ -638,9 +946,33 @@ export default function FacturaPDFPage() {
           </button>
         </div>
         
+        {/* Modal para gestionar múltiples proveedores/clientes */}
+        {showMultiDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md">
+              <div className="relative">
+                <button
+                  onClick={() => setShowMultiDialog(false)}
+                  className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+                <MultiEntidadList />
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Vista previa */}
         <div className="bg-white shadow-xl mb-8 mx-auto" style={{ maxWidth: '210mm' }}>
-          <FacturaPrintView factura={factura} numeroFactura={facturaNumero} nombreDestinatario={nombreDestinatario} ref={printRef} />
+          <FacturaPrintView 
+            factura={factura} 
+            numeroFactura={facturaNumero} 
+            nombreDestinatario={nombreDestinatario}
+            multiProveedores={multiProveedores}
+            multiClientes={multiClientes}
+            ref={printRef} 
+          />
         </div>
       </div>
     </div>

@@ -262,27 +262,19 @@ export default function EditSupplierInvoicePage() {
               <div>
                 <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
                   Número de Operación <span className="text-red-500">*</span>
+                  <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
                 </label>
                 <div className="relative">
-                  <select
+                  <input
+                    type="text"
                     id="dealNumber"
                     name="dealNumber"
                     value={invoice.dealNumber}
                     onChange={handleInputChange}
                     required
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                  >
-                    <option value="">Selecciona un número de operación</option>
-                    <option value="OP-2023-001">OP-2023-001</option>
-                    <option value="OP-2023-010">OP-2023-010</option>
-                    <option value="OP-2023-015">OP-2023-015</option>
-                    <option value="OP-2023-022">OP-2023-022</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                    </svg>
-                  </div>
+                    placeholder="Ej: OP-2023-001"
+                    className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  />
                 </div>
               </div>
 

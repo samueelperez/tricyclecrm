@@ -289,7 +289,7 @@ export default function AlbaranesPage() {
           <div>
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-2">
               Facturas de Transporte
-            </h1>
+          </h1>
             <p className="text-gray-600 text-sm">
               Gestión de albaranes y documentación para servicios de transporte y logística
             </p>

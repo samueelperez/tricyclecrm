@@ -552,12 +552,16 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Factura</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Número de Factura 
+                <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
+              </label>
               <input 
                 type="text" 
                 value={invoice.number}
-                className="w-full p-2 border rounded-md"
-                readOnly
+                onChange={(e) => setInvoice({...invoice, number: e.target.value})}
+                className="w-full p-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: INV-2023-001"
               />
             </div>
             <div>
