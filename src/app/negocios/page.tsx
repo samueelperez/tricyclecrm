@@ -84,30 +84,60 @@ export default function NegociosPage() {
             `)
             .eq("negocio_id", negocio.id);
             
-          // Extraer nombres y formatear correctamente, asegurando tipos adecuados
-          const proveedores = proveedoresData
-            ? proveedoresData.map(p => {
-                if (p.proveedores && typeof p.proveedores === 'object') {
-                  return {
+          // Extraer nombres y formatear - manejar diferentes estructuras de datos
+          const proveedores = [];
+          if (proveedoresData && Array.isArray(proveedoresData)) {
+            for (const p of proveedoresData) {
+              // Verificar la estructura: p.proveedores puede ser un objeto o un array
+              if (p.proveedores) {
+                if (Array.isArray(p.proveedores)) {
+                  // Si es un array, tomamos el primer elemento
+                  if (p.proveedores.length > 0) {
+                    const item = p.proveedores[0];
+                    if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
+                      proveedores.push({
+                        id: item.id,
+                        nombre: item.nombre
+                      });
+                    }
+                  }
+                } else if (p.proveedores && typeof p.proveedores === 'object' && 'id' in p.proveedores && 'nombre' in p.proveedores) {
+                  // Si es un objeto lo añadimos directamente
+                  proveedores.push({
                     id: p.proveedores.id,
                     nombre: p.proveedores.nombre
-                  };
+                  });
                 }
-                return null;
-              }).filter(Boolean)
-            : [];
-            
-          const materiales = materialesData
-            ? materialesData.map(m => {
-                if (m.materiales && typeof m.materiales === 'object') {
-                  return {
+              }
+            }
+          }
+          
+          const materiales = [];
+          if (materialesData && Array.isArray(materialesData)) {
+            for (const m of materialesData) {
+              // Verificar la estructura: m.materiales puede ser un objeto o un array
+              if (m.materiales) {
+                if (Array.isArray(m.materiales)) {
+                  // Si es un array, tomamos el primer elemento
+                  if (m.materiales.length > 0) {
+                    const item = m.materiales[0];
+                    if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
+                      materiales.push({
+                        id: item.id,
+                        nombre: item.nombre
+                      });
+                    }
+                  }
+                } else if (m.materiales && typeof m.materiales === 'object' && 'id' in m.materiales && 'nombre' in m.materiales) {
+                  // Si es un objeto lo añadimos directamente
+                  materiales.push({
                     id: m.materiales.id,
                     nombre: m.materiales.nombre
-                  };
+                  });
                 }
-                return null;
-              }).filter(Boolean)
-            : [];
+              }
+            }
+          }
           
           // Determinar proveedor y material principal (el primero de la lista)
           const proveedor_principal = proveedores.length > 0 ? proveedores[0].nombre : 'Sin proveedor';
