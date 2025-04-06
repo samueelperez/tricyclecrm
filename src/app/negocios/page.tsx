@@ -21,6 +21,26 @@ type Negocio = {
   materiales?: Array<{id: number; nombre: string}>;
 };
 
+// Interfaces para los datos de las relaciones
+interface IProveedor {
+  id: number;
+  nombre: string;
+}
+
+interface IMaterial {
+  id: number;
+  nombre: string;
+}
+
+// Interfaces para los resultados de Supabase
+interface ProveedorResult {
+  proveedores: IProveedor | Array<IProveedor> | any;
+}
+
+interface MaterialResult {
+  materiales: IMaterial | Array<IMaterial> | any;
+}
+
 export default function NegociosPage() {
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,56 +105,64 @@ export default function NegociosPage() {
             .eq("negocio_id", negocio.id);
             
           // Extraer nombres y formatear - manejar diferentes estructuras de datos
-          const proveedores = [];
+          const proveedores: Array<IProveedor> = [];
+          
           if (proveedoresData && Array.isArray(proveedoresData)) {
             for (const p of proveedoresData) {
-              // Verificar la estructura: p.proveedores puede ser un objeto o un array
-              if (p.proveedores) {
-                if (Array.isArray(p.proveedores)) {
-                  // Si es un array, tomamos el primer elemento
-                  if (p.proveedores.length > 0) {
-                    const item = p.proveedores[0];
-                    if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
-                      proveedores.push({
-                        id: item.id,
-                        nombre: item.nombre
-                      });
-                    }
+              // Convertir de manera segura usando type guards y aserciones
+              const proveedorData = p as unknown as ProveedorResult;
+              
+              if (!proveedorData.proveedores) continue;
+              
+              // Manejar caso de array
+              if (Array.isArray(proveedorData.proveedores)) {
+                if (proveedorData.proveedores.length > 0) {
+                  const item = proveedorData.proveedores[0];
+                  if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
+                    proveedores.push({
+                      id: Number(item.id),
+                      nombre: String(item.nombre)
+                    });
                   }
-                } else if (p.proveedores && typeof p.proveedores === 'object' && 'id' in p.proveedores && 'nombre' in p.proveedores) {
-                  // Si es un objeto lo añadimos directamente
-                  proveedores.push({
-                    id: p.proveedores.id,
-                    nombre: p.proveedores.nombre
-                  });
                 }
+              } 
+              // Manejar caso de objeto
+              else if (typeof proveedorData.proveedores === 'object' && 'id' in proveedorData.proveedores && 'nombre' in proveedorData.proveedores) {
+                proveedores.push({
+                  id: Number(proveedorData.proveedores.id),
+                  nombre: String(proveedorData.proveedores.nombre)
+                });
               }
             }
           }
           
-          const materiales = [];
+          const materiales: Array<IMaterial> = [];
+          
           if (materialesData && Array.isArray(materialesData)) {
             for (const m of materialesData) {
-              // Verificar la estructura: m.materiales puede ser un objeto o un array
-              if (m.materiales) {
-                if (Array.isArray(m.materiales)) {
-                  // Si es un array, tomamos el primer elemento
-                  if (m.materiales.length > 0) {
-                    const item = m.materiales[0];
-                    if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
-                      materiales.push({
-                        id: item.id,
-                        nombre: item.nombre
-                      });
-                    }
+              // Convertir de manera segura usando type guards y aserciones
+              const materialData = m as unknown as MaterialResult;
+              
+              if (!materialData.materiales) continue;
+              
+              // Manejar caso de array
+              if (Array.isArray(materialData.materiales)) {
+                if (materialData.materiales.length > 0) {
+                  const item = materialData.materiales[0];
+                  if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
+                    materiales.push({
+                      id: Number(item.id),
+                      nombre: String(item.nombre)
+                    });
                   }
-                } else if (m.materiales && typeof m.materiales === 'object' && 'id' in m.materiales && 'nombre' in m.materiales) {
-                  // Si es un objeto lo añadimos directamente
-                  materiales.push({
-                    id: m.materiales.id,
-                    nombre: m.materiales.nombre
-                  });
                 }
+              } 
+              // Manejar caso de objeto
+              else if (typeof materialData.materiales === 'object' && 'id' in materialData.materiales && 'nombre' in materialData.materiales) {
+                materiales.push({
+                  id: Number(materialData.materiales.id),
+                  nombre: String(materialData.materiales.nombre)
+                });
               }
             }
           }
