@@ -122,6 +122,15 @@ END$$;
 -- Modificar la tabla de proformas_productos para que coincida con la implementación del frontend
 DO $$
 BEGIN
+    -- Verificar si la columna proveedor_id existe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                  WHERE table_schema = 'public' 
+                  AND table_name = 'proformas_productos' 
+                  AND column_name = 'proveedor_id') THEN
+        -- Añadir columna proveedor_id
+        ALTER TABLE public.proformas_productos ADD COLUMN proveedor_id integer;
+    END IF;
+    
     -- Verificar si la columna peso existe
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                   WHERE table_schema = 'public' 
@@ -186,4 +195,22 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_proformas_negocio_id') THEN
         CREATE INDEX idx_proformas_negocio_id ON public.proformas (negocio_id);
     END IF;
-END$$; 
+
+    -- Crear índice para proveedor_id si no existe y la columna existe
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+              WHERE table_schema = 'public' 
+              AND table_name = 'proformas_productos' 
+              AND column_name = 'proveedor_id')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE tablename = 'proformas_productos' 
+        AND indexname = 'idx_proformas_productos_proveedor_id'
+      ) THEN
+        CREATE INDEX idx_proformas_productos_proveedor_id ON public.proformas_productos (proveedor_id);
+    END IF;
+END$$;
+
+-- Registrar esta migración
+INSERT INTO public.migrations (name) 
+VALUES ('20250507153000_fix_proformas_table') 
+ON CONFLICT (name) DO NOTHING; 

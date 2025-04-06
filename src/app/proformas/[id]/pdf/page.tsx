@@ -27,7 +27,6 @@ interface Proforma {
   productos?: ProformaProducto[];
   peso_total?: number;
   cantidad_contenedores?: number;
-  proveedores?: ProformaProveedor[];
   clientes_adicionales?: ProformaCliente[];
 }
 
@@ -42,13 +41,6 @@ interface ProformaProducto {
   proveedor_id?: string;
 }
 
-interface ProformaProveedor {
-  id: string;
-  nombre: string;
-  porcentaje?: number;
-  productos?: string[];
-}
-
 interface ProformaCliente {
   id: string;
   nombre: string;
@@ -57,8 +49,8 @@ interface ProformaCliente {
 }
 
 // Componente para la vista de impresión de proforma
-const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numeroProforma: string; nombreDestinatario: string; multiProveedores: ProformaProveedor[]; multiClientes: ProformaCliente[] }>((props, ref) => {
-  const { proforma, numeroProforma, nombreDestinatario, multiProveedores, multiClientes } = props;
+const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numeroProforma: string; nombreDestinatario: string; multiClientes: ProformaCliente[] }>((props, ref) => {
+  const { proforma, numeroProforma, nombreDestinatario, multiClientes } = props;
   
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
@@ -156,24 +148,13 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
         </div>
       )}
       
-      {/* Información de múltiples proveedores/clientes */}
+      {/* Información de múltiples clientes */}
       {proforma.tipo === 'proveedor' && multiClientes.length > 0 && (
         <div style={{ marginBottom: '20px' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>CLIENTES ADICIONALES:</div>
           <ul>
             {multiClientes.map((cliente, index) => (
               <li key={index}>{cliente.nombre} {cliente.porcentaje && `(${cliente.porcentaje}%)`}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
-      {proforma.tipo !== 'proveedor' && multiProveedores.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PROVEEDORES ADICIONALES:</div>
-          <ul>
-            {multiProveedores.map((proveedor, index) => (
-              <li key={index}>{proveedor.nombre} {proveedor.porcentaje && `(${proveedor.porcentaje}%)`}</li>
             ))}
           </ul>
         </div>
@@ -332,7 +313,6 @@ export default function ProformaPDFPage() {
   const [nombreDestinatario, setNombreDestinatario] = useState('');
   const [savingNombre, setSavingNombre] = useState(false);
   
-  const [multiProveedores, setMultiProveedores] = useState<ProformaProveedor[]>([]);
   const [multiClientes, setMultiClientes] = useState<ProformaCliente[]>([]);
   const [showMultiDialog, setShowMultiDialog] = useState(false);
   const [currentNuevoItem, setCurrentNuevoItem] = useState('');
@@ -400,21 +380,6 @@ export default function ProformaPDFPage() {
                 };
               });
               setMultiClientes(clientesArray);
-            }
-          } else {
-            // Extraer proveedores adicionales de las notas o cargar desde tabla relacionada
-            const proveedoresMatch = proformaData.notas?.match(/Proveedores adicionales:([\s\S]*?)(?=\n\n|\n$|$)/);
-            if (proveedoresMatch && proveedoresMatch[1]) {
-              const proveedoresTexto = proveedoresMatch[1].trim();
-              const proveedoresArray = proveedoresTexto.split('\n').map(linea => {
-                const [nombre, porcentaje] = linea.split(':').map(s => s.trim());
-                return {
-                  id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-                  nombre,
-                  porcentaje: porcentaje ? parseInt(porcentaje) : undefined
-                };
-              });
-              setMultiProveedores(proveedoresArray);
             }
           }
           
@@ -569,21 +534,6 @@ export default function ProformaPDFPage() {
             nuevasNotas = nuevasNotas.trim() + `\n\nClientes adicionales:\n${clientesTexto}`;
           }
         }
-      } else {
-        // Actualizar proveedores adicionales
-        if (multiProveedores.length > 0) {
-          // Eliminar sección de proveedores adicionales existente si la hay
-          nuevasNotas = nuevasNotas.replace(/Proveedores adicionales:[\s\S]*?(?=\n\n|\n$|$)/, '');
-          
-          // Añadir nuevos proveedores
-          const proveedoresTexto = multiProveedores.map(p => 
-            `${p.nombre}${p.porcentaje ? `: ${p.porcentaje}%` : ''}`
-          ).join('\n');
-          
-          if (proveedoresTexto) {
-            nuevasNotas = nuevasNotas.trim() + `\n\nProveedores adicionales:\n${proveedoresTexto}`;
-          }
-        }
       }
       
       // Guardar notas actualizadas
@@ -625,16 +575,6 @@ export default function ProformaPDFPage() {
           porcentaje: currentPorcentaje ? parseInt(currentPorcentaje) : undefined
         }
       ]);
-    } else {
-      // Añadir proveedor adicional
-      setMultiProveedores([
-        ...multiProveedores,
-        {
-          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-          nombre: currentNuevoItem,
-          porcentaje: currentPorcentaje ? parseInt(currentPorcentaje) : undefined
-        }
-      ]);
     }
     
     // Limpiar el formulario
@@ -646,8 +586,6 @@ export default function ProformaPDFPage() {
   const handleRemoveMultiItem = (id: string) => {
     if (proforma?.tipo === 'proveedor') {
       setMultiClientes(multiClientes.filter(c => c.id !== id));
-    } else {
-      setMultiProveedores(multiProveedores.filter(p => p.id !== id));
     }
   };
   
@@ -859,7 +797,6 @@ export default function ProformaPDFPage() {
                 <MultiEntidadList 
                   proforma={proforma}
                   multiClientes={multiClientes}
-                  multiProveedores={multiProveedores}
                   currentNuevoItem={currentNuevoItem}
                   setCurrentNuevoItem={setCurrentNuevoItem}
                   currentPorcentaje={currentPorcentaje}
@@ -879,7 +816,6 @@ export default function ProformaPDFPage() {
             proforma={proforma} 
             numeroProforma={proformaNumero} 
             nombreDestinatario={nombreDestinatario} 
-            multiProveedores={multiProveedores}
             multiClientes={multiClientes}
             ref={printRef} 
           />
@@ -893,7 +829,6 @@ export default function ProformaPDFPage() {
 interface MultiEntidadListProps {
   proforma: Proforma;
   multiClientes: ProformaCliente[];
-  multiProveedores: ProformaProveedor[];
   currentNuevoItem: string;
   setCurrentNuevoItem: (value: string) => void;
   currentPorcentaje: string;
@@ -906,7 +841,6 @@ interface MultiEntidadListProps {
 const MultiEntidadList = ({
   proforma,
   multiClientes,
-  multiProveedores,
   currentNuevoItem,
   setCurrentNuevoItem,
   currentPorcentaje,
@@ -915,8 +849,8 @@ const MultiEntidadList = ({
   handleRemoveMultiItem,
   handleSaveMulti
 }: MultiEntidadListProps) => {
-  const items = proforma.tipo === 'proveedor' ? multiClientes : multiProveedores;
-  const titulo = proforma.tipo === 'proveedor' ? 'Clientes adicionales' : 'Proveedores adicionales';
+  const items = multiClientes;
+  const titulo = 'Clientes adicionales';
   
   return (
     <div className="bg-white p-4 rounded-lg shadow-md">
@@ -945,7 +879,7 @@ const MultiEntidadList = ({
           type="text"
           value={currentNuevoItem}
           onChange={(e) => setCurrentNuevoItem(e.target.value)}
-          placeholder={`Nombre del ${proforma?.tipo === 'proveedor' ? 'cliente' : 'proveedor'}`}
+          placeholder={`Nombre del cliente`}
           className="w-full border rounded-md px-3 py-2"
         />
         

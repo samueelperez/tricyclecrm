@@ -21,13 +21,6 @@ interface InvoiceItem {
   unitPrice: number;
   taxRate: number;
   totalValue: number;
-  providerId: string;
-}
-
-interface Provider {
-  id: string;
-  name: string;
-  percentage: number;
 }
 
 export default function NewCustomerInvoicePage() {
@@ -50,22 +43,12 @@ export default function NewCustomerInvoicePage() {
         quantity: 0,
         unitPrice: 0,
         taxRate: 21,
-        totalValue: 0,
-        providerId: '' // ID del proveedor asignado a este producto
+        totalValue: 0
       }
     ] as InvoiceItem[],
     subtotal: 0,
     taxAmount: 0,
-    totalAmount: 0,
-    // Proveedores adicionales para esta factura
-    additionalProviders: [] as Provider[]
-  });
-
-  // Estado para gestionar la adición de nuevos proveedores
-  const [newProvider, setNewProvider] = useState<Provider>({
-    id: '',
-    name: '',
-    percentage: 0
+    totalAmount: 0
   });
 
   // Cargar lista de proveedores al iniciar
@@ -166,14 +149,6 @@ export default function NewCustomerInvoicePage() {
   const prepareNotes = () => {
     let notes = invoice.invoiceNotes || '';
     
-    // Añadir información de proveedores adicionales si existen
-    if (invoice.additionalProviders.length > 0) {
-      notes += (notes ? '\n\n' : '') + 'Proveedores adicionales:\n';
-      notes += invoice.additionalProviders.map((provider: Provider) => 
-        `${provider.name}${provider.percentage ? `: ${provider.percentage}%` : ''}`
-      ).join('\n');
-    }
-    
     return notes;
   };
 
@@ -215,8 +190,7 @@ export default function NewCustomerInvoicePage() {
           quantity: 0,
           unitPrice: 0,
           taxRate: 21,
-          totalValue: 0,
-          providerId: ''
+          totalValue: 0
         }
       ]
     });
@@ -236,65 +210,6 @@ export default function NewCustomerInvoicePage() {
       subtotal,
       taxAmount,
       totalAmount: subtotal + taxAmount
-    });
-  };
-
-  // Añadir un nuevo proveedor
-  const addProvider = () => {
-    if (!newProvider.id) {
-      alert('Por favor, seleccione un proveedor');
-      return;
-    }
-    
-    // Verificar si el proveedor ya existe en la lista
-    if (invoice.additionalProviders.some(p => p.id === newProvider.id)) {
-      alert('Este proveedor ya ha sido añadido');
-      return;
-    }
-    
-    // Buscar el nombre del proveedor seleccionado
-    const proveedorSeleccionado = proveedoresList.find(p => p.id === newProvider.id);
-    if (!proveedorSeleccionado) return;
-    
-    setInvoice({
-      ...invoice,
-      additionalProviders: [
-        ...invoice.additionalProviders,
-        {
-          id: newProvider.id,
-          name: proveedorSeleccionado.nombre,
-          percentage: newProvider.percentage || 0
-        }
-      ]
-    });
-    
-    // Limpiar el formulario de nuevo proveedor
-    setNewProvider({
-      id: '',
-      name: '',
-      percentage: 0
-    });
-  };
-  
-  // Eliminar un proveedor
-  const removeProvider = (id: string) => {
-    setInvoice({
-      ...invoice,
-      additionalProviders: invoice.additionalProviders.filter(provider => provider.id !== id)
-    });
-  };
-  
-  // Asignar un proveedor a un producto específico
-  const assignProviderToItem = (itemIndex: number, providerId: string) => {
-    const updatedItems = [...invoice.items];
-    updatedItems[itemIndex] = {
-      ...updatedItems[itemIndex],
-      providerId
-    };
-    
-    setInvoice({
-      ...invoice,
-      items: updatedItems
     });
   };
 
@@ -426,92 +341,6 @@ export default function NewCustomerInvoicePage() {
           </div>
         </div>
         
-        {/* Proveedores Adicionales */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Proveedores Adicionales</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor</label>
-              <div className="relative">
-                <select 
-                  className="w-full p-2 border rounded-md appearance-none"
-                  value={newProvider.id}
-                  onChange={(e) => {
-                    const selectedId = e.target.value;
-                    const selectedProvider = proveedoresList.find(p => p.id === selectedId);
-                    setNewProvider({
-                      ...newProvider,
-                      id: selectedId,
-                      name: selectedProvider?.nombre || ''
-                    });
-                  }}
-                >
-                  <option value="">Seleccionar proveedor</option>
-                  {proveedoresList.map(proveedor => (
-                    <option key={proveedor.id} value={proveedor.id}>
-                      {proveedor.nombre}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <FiChevronDown className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje (%)</label>
-              <input 
-                type="number" 
-                placeholder="ej. 40"
-                value={newProvider.percentage || ''}
-                onChange={(e) => setNewProvider({...newProvider, percentage: parseFloat(e.target.value) || 0})}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-          </div>
-          
-          <div className="mb-4">
-            <button 
-              onClick={addProvider}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-            >
-              Añadir Proveedor
-            </button>
-          </div>
-          
-          {/* Lista de proveedores añadidos */}
-          {invoice.additionalProviders.length > 0 && (
-            <div className="mt-4 border rounded-md overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Porcentaje</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {invoice.additionalProviders.map((provider) => (
-                    <tr key={provider.id}>
-                      <td className="px-4 py-2 whitespace-nowrap">{provider.name}</td>
-                      <td className="px-4 py-2 whitespace-nowrap">{provider.percentage}%</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-right">
-                        <button 
-                          onClick={() => removeProvider(provider.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        
         {/* Invoice Items */}
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Líneas de Factura</h3>
@@ -568,29 +397,6 @@ export default function NewCustomerInvoicePage() {
                     readOnly
                   />
                 </div>
-                {/* Añadir selector de proveedor si hay proveedores adicionales */}
-                {invoice.additionalProviders.length > 0 && (
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
-                    <div className="relative">
-                      <select 
-                        className="w-full p-2 border rounded-md appearance-none"
-                        value={item.providerId}
-                        onChange={(e) => assignProviderToItem(index, e.target.value)}
-                      >
-                        <option value="">Sin proveedor</option>
-                        {invoice.additionalProviders.map(provider => (
-                          <option key={provider.id} value={provider.id}>
-                            {provider.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                        <FiChevronDown className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex justify-end border-t p-2 bg-white">
                 {index === 0 && invoice.items.length === 1 ? (

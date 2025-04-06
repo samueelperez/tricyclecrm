@@ -11,7 +11,6 @@ import {
   FiSave
 } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase';
-import { verifyProformasProductosTable } from '@/lib/db-migrations';
 
 // Interfaces para tipar correctamente los objetos
 interface ProformaItem {
@@ -81,9 +80,6 @@ export default function NewCustomerProformaPage() {
     setLoading(true);
     
     try {
-      // Verificar la estructura de la tabla antes de guardar
-      await verifyProformasProductosTable();
-      
       // Validar datos básicos
       if (!proforma.customerName) {
         alert('Por favor, seleccione un cliente');
