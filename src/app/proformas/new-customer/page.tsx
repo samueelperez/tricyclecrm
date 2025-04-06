@@ -81,7 +81,7 @@ export default function NewCustomerProformaPage() {
     totalWeight: 0,
     totalAmount: 0,
     // Proveedores adicionales para esta proforma
-    additionalProviders: []
+    additionalProviders: [] as AdditionalProvider[]
   });
 
   // Estado para gestionar la adición de nuevos proveedores
@@ -207,11 +207,16 @@ export default function NewCustomerProformaPage() {
       : 'Cliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '');
     
     // Añadir información de proveedores adicionales si existen
-    if (proforma.additionalProviders.length > 0) {
+    if (proforma.additionalProviders && proforma.additionalProviders.length > 0) {
       notes += '\n\nProveedores adicionales:\n';
-      notes += proforma.additionalProviders.map((provider: AdditionalProvider) => 
-        `${provider.name}${provider.percentage ? `: ${provider.percentage}%` : ''}`
-      ).join('\n');
+      
+      // Usar un enfoque más defensivo con forEach en lugar de map
+      const proveedorLines: string[] = [];
+      proforma.additionalProviders.forEach((p: AdditionalProvider) => {
+        proveedorLines.push(`${p.name}${p.percentage ? `: ${p.percentage}%` : ''}`);
+      });
+      
+      notes += proveedorLines.join('\n');
     }
     
     return notes;
