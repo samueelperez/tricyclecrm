@@ -17,8 +17,8 @@ type Negocio = {
   descripcion?: string;
   valor_total?: number;
   created_at: string;
-  proveedores?: Array<{id: number, nombre: string}>;
-  materiales?: Array<{id: number, nombre: string}>;
+  proveedores?: Array<{id: number; nombre: string}>;
+  materiales?: Array<{id: number; nombre: string}>;
 };
 
 export default function NegociosPage() {
@@ -89,8 +89,8 @@ export default function NegociosPage() {
           const materiales = materialesData?.map(m => m.materiales) || [];
           
           // Determinar proveedor y material principal (el primero de la lista)
-          const proveedor_principal = proveedores.length > 0 ? proveedores[0]?.nombre : 'Sin proveedor';
-          const material_principal = materiales.length > 0 ? materiales[0]?.nombre : 'Sin material definido';
+          const proveedor_principal = proveedores.length > 0 && proveedores[0] ? proveedores[0].nombre : 'Sin proveedor';
+          const material_principal = materiales.length > 0 && materiales[0] ? materiales[0].nombre : 'Sin material definido';
           
           return {
             ...negocio,
