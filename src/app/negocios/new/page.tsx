@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle } from 'react-icons/fi';
+import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiHash } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
 interface Cliente {
@@ -36,6 +36,7 @@ export default function CrearNegocioPage() {
   const [formData, setFormData] = useState({
     nombre: '',
     cliente_id: '',
+    cliente_nombre: '',
     fecha_inicio: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
     descripcion: '',
     proveedor_ids: [] as number[],
@@ -92,6 +93,17 @@ export default function CrearNegocioPage() {
       ...prev,
       [name]: value
     }));
+
+    // Si cambia el cliente_id, actualizar también el cliente_nombre
+    if (name === 'cliente_id' && value) {
+      const clienteSeleccionado = clientes.find(cliente => cliente.id === parseInt(value));
+      if (clienteSeleccionado) {
+        setFormData(prev => ({
+          ...prev,
+          cliente_nombre: clienteSeleccionado.nombre
+        }));
+      }
+    }
   };
 
   // Manejar selección múltiple de proveedores
@@ -126,13 +138,24 @@ export default function CrearNegocioPage() {
 
       const supabase = getSupabaseClient();
       
+      // Generar ID externo automáticamente
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const idExterno = `CON-${year}${month}${day}-${randomSuffix}`;
+      
       // Preparar datos para enviar
       const negocioData = {
         nombre: formData.nombre,
+        id_externo: idExterno, // ID externo generado automáticamente
         cliente_id: parseInt(formData.cliente_id),
+        cliente_nombre: formData.cliente_nombre,
         fecha_inicio: formData.fecha_inicio,
         descripcion: formData.descripcion,
-        valor_total: parseFloat(formData.valor_total) || 0
+        valor_total: parseFloat(formData.valor_total) || 0,
+        fecha_creacion: new Date().toISOString() // Añadir fecha de creación automáticamente
       };
 
       // Insertar en la tabla negocios
@@ -146,45 +169,57 @@ export default function CrearNegocioPage() {
       
       const negocioId = data[0].id;
       
-      // Si se seleccionaron proveedores, crear relaciones en negocios_proveedores
-      if (formData.proveedor_ids.length > 0) {
-        const proveedoresInsert = formData.proveedor_ids.map(proveedor_id => ({
-          negocio_id: negocioId,
-          proveedor_id,
-          monto_estimado: parseFloat(formData.valor_total) / formData.proveedor_ids.length || 0
-        }));
+      // Si se creó el negocio, crear las relaciones con proveedores y materiales
+      if (data && data[0]?.id) {
+        const negocioId = data[0].id;
         
-        const { error: proveedorError } = await supabase
-          .from('negocios_proveedores')
-          .insert(proveedoresInsert);
+        // Si se seleccionaron proveedores, crear relaciones en negocios_proveedores
+        if (formData.proveedor_ids.length > 0) {
+          const proveedoresInsert = formData.proveedor_ids.map(proveedor_id => {
+            // Buscar el nombre del proveedor
+            const proveedorSeleccionado = proveedores.find(p => p.id === proveedor_id);
+            return {
+              negocio_id: negocioId,
+              proveedor_id,
+              proveedor_nombre: proveedorSeleccionado?.nombre || 'Proveedor sin nombre', // Añadir nombre del proveedor
+              monto_estimado: parseFloat(formData.valor_total) / formData.proveedor_ids.length || 0
+            };
+          });
           
-        if (proveedorError) throw proveedorError;
-      }
-      
-      // Si se seleccionaron materiales, crear relaciones en negocios_materiales
-      if (formData.material_ids.length > 0) {
-        const materialesInsert = formData.material_ids.map(material_id => ({
-          negocio_id: negocioId,
-          material_id,
-          cantidad: 1,
-          precio_unitario: parseFloat(formData.valor_total) / formData.material_ids.length || 0,
-          subtotal: parseFloat(formData.valor_total) / formData.material_ids.length || 0
-        }));
+          const { error: proveedorError } = await supabase
+            .from('negocios_proveedores')
+            .insert(proveedoresInsert);
+          
+          if (proveedorError) {
+            console.error('Error al crear relaciones con proveedores:', proveedorError);
+          }
+        }
         
-        const { error: materialError } = await supabase
-          .from('negocios_materiales')
-          .insert(materialesInsert);
+        // Si se seleccionaron materiales, crear relaciones en negocios_materiales
+        if (formData.material_ids.length > 0) {
+          const materialesInsert = formData.material_ids.map(material_id => ({
+            negocio_id: negocioId,
+            material_id,
+            cantidad: 1,
+            precio_unitario: parseFloat(formData.valor_total) / formData.material_ids.length || 0,
+            subtotal: parseFloat(formData.valor_total) / formData.material_ids.length || 0
+          }));
           
-        if (materialError) throw materialError;
+          const { error: materialError } = await supabase
+            .from('negocios_materiales')
+            .insert(materialesInsert);
+          
+          if (materialError) throw materialError;
+        }
+        
+        setSuccess(true);
+        setCreatedNegocioId(negocioId);
+        
+        // Opcional: redireccionar automáticamente después de un tiempo
+        setTimeout(() => {
+          router.push(`/negocios/${negocioId}`);
+        }, 1500);
       }
-      
-      setSuccess(true);
-      setCreatedNegocioId(negocioId);
-      
-      // Opcional: redireccionar automáticamente después de un tiempo
-      setTimeout(() => {
-        router.push(`/negocios/${negocioId}`);
-      }, 1500);
       
     } catch (error: any) {
       console.error('Error al crear contrato:', error);
@@ -326,7 +361,9 @@ export default function CrearNegocioPage() {
                 />
               </div>
             </div>
-
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Valor */}
             <div>
               <label htmlFor="valor_total" className="block text-sm font-medium text-gray-700 mb-1">

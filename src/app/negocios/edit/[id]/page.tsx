@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiLoader } from 'react-icons/fi';
+import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiLoader, FiHash } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
 interface Cliente {
@@ -56,11 +56,14 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
   const [formData, setFormData] = useState({
     nombre: '',
     cliente_id: '',
+    cliente_nombre: '',
     fecha_inicio: '',
     descripcion: '',
     valor_total: '',
     proveedor_ids: [] as number[], // Almacena múltiples proveedores
-    material_ids: [] as number[]   // Almacena múltiples materiales
+    material_ids: [] as number[],   // Almacena múltiples materiales
+    id_externo: '', // Mantenemos este campo en el estado pero no lo mostramos en la UI
+    fecha_creacion: '' // Mantenemos la fecha de creación original
   });
 
   // Cargar datos iniciales: clientes, proveedores, materiales y datos del negocio
@@ -90,11 +93,14 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
         setFormData({
           nombre: negocioData.nombre || '',
           cliente_id: negocioData.cliente_id ? String(negocioData.cliente_id) : '',
+          cliente_nombre: negocioData.cliente_nombre || '',
           fecha_inicio: negocioData.fecha_inicio || new Date().toISOString().split('T')[0],
           descripcion: negocioData.descripcion || '',
           valor_total: negocioData.valor_total ? String(negocioData.valor_total) : '',
           proveedor_ids: [], // Se cargará a continuación
-          material_ids: []   // Se cargará a continuación
+          material_ids: [],   // Se cargará a continuación
+          id_externo: negocioData.id_externo || '', // Guardamos el ID externo existente
+          fecha_creacion: negocioData.fecha_creacion || new Date().toISOString() // Guardamos la fecha de creación original
         });
         
         // Cargar proveedores relacionados
@@ -172,6 +178,17 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
       ...prev,
       [name]: value
     }));
+
+    // Si cambia el cliente_id, actualizar también el cliente_nombre
+    if (name === 'cliente_id' && value) {
+      const clienteSeleccionado = clientes.find(cliente => cliente.id === parseInt(value));
+      if (clienteSeleccionado) {
+        setFormData(prev => ({
+          ...prev,
+          cliente_nombre: clienteSeleccionado.nombre
+        }));
+      }
+    }
   };
 
   // Manejar selección múltiple de proveedores
@@ -209,10 +226,13 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
       // Preparar datos para actualizar
       const negocioData = {
         nombre: formData.nombre,
+        id_externo: formData.id_externo, // Mantener el ID externo existente
         cliente_id: parseInt(formData.cliente_id),
+        cliente_nombre: formData.cliente_nombre,
         fecha_inicio: formData.fecha_inicio,
         descripcion: formData.descripcion,
         valor_total: parseFloat(formData.valor_total) || 0,
+        fecha_creacion: formData.fecha_creacion // Mantener la fecha de creación original
       };
 
       // Actualizar el negocio
@@ -224,27 +244,32 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
       if (error) throw error;
 
       // Actualizar relaciones con proveedores
-      // 1. Eliminar todas las relaciones existentes
-      const { error: deleteProveedoresError } = await supabase
-        .from('negocios_proveedores')
-        .delete()
-        .eq('negocio_id', params.id);
-        
-      if (deleteProveedoresError) throw deleteProveedoresError;
-      
-      // 2. Crear nuevas relaciones con los proveedores seleccionados
       if (formData.proveedor_ids.length > 0) {
-        const proveedoresInsert = formData.proveedor_ids.map(proveedor_id => ({
-          negocio_id: parseInt(params.id),
-          proveedor_id,
-          monto_estimado: parseFloat(formData.valor_total) / formData.proveedor_ids.length || 0
-        }));
+        // Primero eliminar relaciones existentes
+        await supabase
+          .from('negocios_proveedores')
+          .delete()
+          .eq('negocio_id', params.id);
         
-        const { error: insertProveedoresError } = await supabase
+        // Luego crear nuevas relaciones
+        const proveedoresInsert = formData.proveedor_ids.map(proveedor_id => {
+          // Buscar el nombre del proveedor
+          const proveedorSeleccionado = proveedores.find(p => p.id === proveedor_id);
+          return {
+            negocio_id: parseInt(params.id),
+            proveedor_id,
+            proveedor_nombre: proveedorSeleccionado?.nombre || 'Proveedor sin nombre', // Añadir nombre del proveedor
+            monto_estimado: parseFloat(formData.valor_total) / formData.proveedor_ids.length || 0
+          };
+        });
+        
+        const { error: proveedorError } = await supabase
           .from('negocios_proveedores')
           .insert(proveedoresInsert);
-          
-        if (insertProveedoresError) throw insertProveedoresError;
+        
+        if (proveedorError) {
+          console.error('Error al actualizar relaciones con proveedores:', proveedorError);
+        }
       }
       
       // Actualizar relaciones con materiales
@@ -421,7 +446,9 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
                 />
               </div>
             </div>
-            
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Valor */}
             <div>
               <label htmlFor="valor_total" className="block text-sm font-medium text-gray-700 mb-1">

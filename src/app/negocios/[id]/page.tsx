@@ -26,16 +26,20 @@ import { useRouter } from 'next/navigation';
 interface Negocio {
   id: number;
   id_externo: string;
+  nombre: string;
   cliente_id: number | null;
   cliente_nombre: string;
   fecha_creacion: string;
+  fecha_inicio: string | null;
   fecha_entrega: string | null;
   fecha_envio: string | null;
   fecha_estimada_finalizacion: string | null;
   fecha_estimada_llegada: string | null;
   estado: string | null;
+  descripcion: string | null;
   notas: string | null;
   progreso: number | null;
+  valor_total: number | null;
   total_ingresos: number | null;
   total_gastos: number | null;
 }
@@ -227,224 +231,167 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
     switch (activeTab) {
       case 'overview':
         return (
-          <>
-            {/* Tarjetas de métricas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {/* Total Revenue */}
-              <div className="bg-green-50 p-4 rounded-lg">
-                <div className="flex items-start">
-                  <div className="mr-3">
-                    <span className="text-green-600 text-2xl">$</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-0.5">Ingresos Totales</p>
-                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_ingresos)}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Total Expense */}
-              <div className="bg-red-50 p-4 rounded-lg">
-                <div className="flex items-start">
-                  <div className="mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
-                      <polyline points="16 7 22 7 22 13"></polyline>
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-0.5">Gastos Totales</p>
-                    <p className="text-xl font-medium">{formatCurrency(negocio?.total_gastos)}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Net Profit */}
-              <div className="bg-green-50 p-4 rounded-lg">
-                <div className="flex items-start">
-                  <div className="mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="22 17 13.5 8.5 8.5 13.5 2 7"></polyline>
-                      <polyline points="16 17 22 17 22 11"></polyline>
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-0.5">Beneficio Neto</p>
-                    <p className="text-xl font-medium">
-                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && negocio?.total_ingresos !== null && negocio?.total_gastos !== null
-                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
-                        : 'No disponible'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* ID del negocio */}
-            <div className="border-t border-b py-6 mb-6 text-center">
-              <h2 className="text-xl font-medium text-gray-800">{negocio?.id_externo}</h2>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Panel izquierdo */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Progreso y fechas clave */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Progreso y Fechas</h2>
             
             {/* Barra de progreso */}
-            <div className="mb-8">
-              <div className="text-sm text-gray-400 mb-2">progreso: {negocio?.progreso}%</div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className="bg-blue-500 h-2.5 rounded-full"
-                  style={{ width: `${negocio?.progreso}%` }}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Progreso general</span>
+                    <span>{negocio?.progreso || 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{ width: `${negocio?.progreso || 0}%` }}
                 ></div>
               </div>
             </div>
             
-            {/* Información detallada del negocio - Estimated Completion */}
-            <div className="mb-8">
-              <div className="flex items-center mb-1.5">
-                <div className="text-gray-400 mr-2">
-                  <FiClock className="w-4 h-4" />
+                {/* Fechas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Fecha de creación</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_creacion)}</p>
                 </div>
-                <span className="text-sm text-gray-400">Fecha Estimada de Finalización</span>
-              </div>
-              <p className="text-gray-700 ml-6">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
-            </div>
-            
-            {/* Información detallada - Segunda fila */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-              {/* Customer */}
               <div>
-                <div className="flex items-center mb-1.5">
-                  <div className="text-gray-400 mr-2">
-                    <FiUser className="w-4 h-4" />
+                    <p className="text-xs text-gray-500 mb-1">Fecha de inicio</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_inicio)}</p>
                   </div>
-                  <span className="text-sm text-gray-400">Cliente</span>
-                </div>
-                <p className="text-gray-700 ml-6 font-medium leading-relaxed">{negocio?.cliente_nombre}</p>
-              </div>
-              
-              {/* Suppliers */}
               <div>
-                <div className="flex items-center mb-1.5">
-                  <div className="text-gray-400 mr-2">
-                    <FiTruck className="w-4 h-4" />
+                    <p className="text-xs text-gray-500 mb-1">Fecha estimada de finalización</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
                   </div>
-                  <span className="text-sm text-gray-400">Proveedores</span>
-                </div>
-                <p className="text-gray-700 ml-6 leading-relaxed">{proveedores.map(p => p.proveedor_nombre).join(', ')}</p>
-              </div>
-              
-              {/* Materials */}
               <div>
-                <div className="flex items-center mb-1.5">
-                  <div className="text-gray-400 mr-2">
-                    <FiPackage className="w-4 h-4" />
+                    <p className="text-xs text-gray-500 mb-1">Fecha de entrega</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_entrega)}</p>
                   </div>
-                  <span className="text-sm text-gray-400">Materiales</span>
-                </div>
-                <p className="text-gray-700 ml-6 leading-relaxed">{materiales.map(m => m.material_nombre).join(', ')}</p>
               </div>
             </div>
             
-            {/* Status y Creation Date */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {/* Status */}
-              <div>
-                <div className="flex items-center mb-1.5">
-                  <div className="mr-2">
-                    <div className="bg-yellow-400 w-4 h-4 rounded-full"></div>
-                  </div>
-                  <span className="text-sm text-gray-400">Estado</span>
-                </div>
-                <p className="text-yellow-500 ml-6 font-medium">{negocio?.estado}</p>
+              {/* Descripción */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Descripción</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {negocio?.descripcion || 'Sin descripción disponible.'}
+                </p>
               </div>
               
-              {/* Creation Date */}
-              <div>
-                <div className="flex items-center mb-1.5">
-                  <div className="text-gray-400 mr-2">
-                    <FiCalendar className="w-4 h-4" />
+              {/* Notas */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Notas</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {negocio?.notas || 'Sin notas adicionales.'}
+                </p>
                   </div>
-                  <span className="text-sm text-gray-400">Fecha de Creación</span>
-                </div>
-                <p className="text-gray-700 ml-6 font-medium">{formatDate(negocio?.fecha_creacion)}</p>
               </div>
               
-              {/* Columna vacía para mantener alineación */}
-              <div></div>
+            {/* Panel derecho */}
+            <div className="space-y-6">
+              {/* Métricas financieras */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Información Financiera</h2>
+                
+                <dl className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <dt className="text-sm text-gray-500">Valor Total</dt>
+                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.valor_total)}</dd>
+                </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <dt className="text-sm text-gray-500">Gastos Totales</dt>
+                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.total_gastos)}</dd>
+              </div>
+                  <div className="flex items-center justify-between py-2">
+                    <dt className="text-sm text-gray-500">Beneficio Estimado</dt>
+                    <dd className="font-medium text-green-600">
+                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && 
+                       negocio?.total_ingresos !== null && negocio?.total_gastos !== null
+                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
+                        : 'No disponible'}
+                    </dd>
+              </div>
+                </dl>
             </div>
             
-            {/* Notes */}
-            <div className="mb-10">
-              <div className="flex items-center mb-2">
-                <div className="text-gray-400 mr-2">
-                  <FiFileText className="w-4 h-4" />
-                </div>
-                <span className="text-sm text-gray-400">Notas sobre el Negocio</span>
+              {/* Entidades relacionadas */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Entidades Relacionadas</h2>
+                
+                {/* Cliente */}
+                <div className="mb-4">
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiUser className="mr-1.5 h-3.5 w-3.5" /> Cliente
+                  </h3>
+                  <p className="text-gray-800 font-medium">{negocio?.cliente_nombre}</p>
               </div>
-              <div className="border rounded-lg p-4 text-gray-600 ml-6">
-                {negocio?.notas}
-              </div>
-            </div>
-            
-            {/* Fechas de envío */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 pt-6 border-t">
-              {/* Shipping Date */}
+              
+                {/* Proveedores */}
+                <div className="mb-4">
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiTruck className="mr-1.5 h-3.5 w-3.5" /> Proveedores
+                  </h3>
               <div>
-                <p className="mb-2 text-gray-600 font-medium">Fecha de Envío</p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="ej. dd/mm/aaaa"
-                    className="w-full p-2 border rounded pl-3 pr-10 text-gray-600"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <FiCalendar className="w-5 h-5 text-gray-400" />
+                    {proveedores.length > 0 ? (
+                      proveedores.map((p, index) => (
+                        <div key={index} className="text-gray-800">
+                          {p.proveedor_nombre}
                   </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic text-sm">Sin proveedores asignados</p>
+                    )}
                 </div>
               </div>
               
-              {/* ETA */}
+                {/* Materiales */}
               <div>
-                <p className="mb-2 text-gray-600 font-medium">Fecha Estimada de Llegada</p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="ej. dd/mm/aaaa"
-                    className="w-full p-2 border rounded pl-3 pr-10 text-gray-600"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <FiCalendar className="w-5 h-5 text-gray-400" />
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiPackage className="mr-1.5 h-3.5 w-3.5" /> Materiales
+                  </h3>
+                  <div>
+                    {materiales.length > 0 ? (
+                      materiales.map((m, index) => (
+                        <div key={index} className="text-gray-800">
+                          {m.material_nombre}
                   </div>
-                </div>
-              </div>
-              
-              {/* Delivery Date */}
-              <div>
-                <p className="mb-2 text-gray-600 font-medium">Fecha de Entrega</p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="ej. dd/mm/aaaa"
-                    className="w-full p-2 border rounded pl-3 pr-10 text-gray-600"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <FiCalendar className="w-5 h-5 text-gray-400" />
-                  </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic text-sm">Sin materiales asignados</p>
+                    )}
                 </div>
               </div>
             </div>
             
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-3 mt-8">
-              <button className="px-4 py-2 border border-red-500 text-red-500 rounded flex items-center">
-                <FiTrash2 className="mr-2" /> Eliminar
-              </button>
-              <Link 
-                href={`/negocios/edit/${params.id}`}
-                className="px-4 py-2 border border-gray-500 text-gray-700 rounded flex items-center hover:bg-gray-50"
-              >
-                <FiEdit className="mr-2" /> Editar
-              </Link>
+              {/* Documentos */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Documentos</h2>
+                <div className="flex flex-col space-y-2">
+                  <Link 
+                    href={`/negocios/${params.id}/proformas`}
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver proformas
+                  </Link>
+                  <Link 
+                    href="?tab=invoices"
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver facturas
+                  </Link>
+                  <Link 
+                    href="?tab=shipping"
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver albaranes
+                  </Link>
             </div>
-          </>
+              </div>
+            </div>
+          </div>
         );
       case 'bills':
         return (
@@ -508,16 +455,95 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
           </div>
         );
       case 'proformas':
-        useEffect(() => {
-          // Redirigir a la página específica de proformas manteniendo el historial de navegación
-          router.push(`/negocios/${params.id}/proformas`);
-        }, [params.id]);
-        
         return (
-          <div className="py-4 flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-              <p className="text-gray-500">Cargando proformas...</p>
+          <div className="py-4">
+            {/* Título y controles superiores */}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-medium text-gray-800">Proformas</h2>
+              <Link 
+                href={`/negocios/${params.id}/proformas/new`}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
+              >
+                <FiPlus className="mr-2" />
+                Nueva Proforma
+              </Link>
+            </div>
+            
+            {/* Lista de proformas */}
+            <div className="bg-white rounded-lg shadow-sm border mb-6">
+              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
+                <div className="w-1/6">ID</div>
+                <div className="w-1/6">Fecha</div>
+                <div className="w-1/6">Cliente</div>
+                <div className="w-1/6">Total</div>
+                <div className="w-1/6">Estado</div>
+                <div className="w-1/6 text-right">Acciones</div>
+              </div>
+              
+              {/* Estado vacío cuando no hay proformas */}
+              {true ? (
+                <div className="py-16 flex flex-col items-center justify-center">
+                  <div className="bg-blue-100 rounded-full p-8 mb-4">
+                    <FiFileText className="w-12 h-12 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">No hay proformas</h3>
+                  <p className="text-gray-500 mb-6 text-center max-w-md">
+                    No se han encontrado proformas para este negocio. Puedes añadir una nueva proforma usando el botón superior.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Ejemplo de proforma para demostración */}
+                  <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
+                    <div className="w-1/6 text-gray-800 font-medium">PRO-{negocio?.id_externo}</div>
+                    <div className="w-1/6 text-gray-600">{formatDate(new Date().toISOString())}</div>
+                    <div className="w-1/6 text-gray-600">{negocio?.cliente_nombre}</div>
+                    <div className="w-1/6 text-gray-800 font-medium">{formatCurrency(negocio?.valor_total || 0)}</div>
+                    <div className="w-1/6">
+                      <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                        Pendiente
+                      </span>
+                    </div>
+                    <div className="w-1/6 flex justify-end space-x-2">
+                      <Link 
+                        href={`/negocios/${params.id}/proformas/edit/PRO-${negocio?.id_externo}`}
+                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
+                        title="Editar"
+                      >
+                        <FiEdit className="w-5 h-5" />
+                      </Link>
+                      <Link 
+                        href={`/negocios/${params.id}/proformas/PRO-${negocio?.id_externo}/pdf`}
+                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                        title="Ver PDF"
+                      >
+                        <FiFileText className="w-5 h-5" />
+                      </Link>
+                      <button 
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                        title="Eliminar"
+                      >
+                        <FiTrash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Controles inferiores */}
+            <div className="flex justify-end items-center mt-6">
+              <div className="flex items-center text-gray-500">
+                <span className="mr-4">Página 1 de 1</span>
+                <div className="flex">
+                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
+                    anterior
+                  </button>
+                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
+                    siguiente
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -749,43 +775,249 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="h-full bg-white">
-      {/* Botón de retorno */}
-      <div className="pt-6 px-6 mb-2">
-        <Link href="/negocios" className="inline-flex items-center text-gray-600 hover:text-gray-800">
-          <FiArrowLeft className="w-5 h-5 mr-2" />
-          <span>Volver a negocios</span>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header con información clave y acciones */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            {/* Navegación y título */}
+            <div className="mb-4 md:mb-0">
+              <Link href="/negocios" className="inline-flex items-center text-gray-600 hover:text-gray-800 mb-2">
+                <FiArrowLeft className="w-4 h-4 mr-1" />
+                <span className="text-sm">Volver a negocios</span>
         </Link>
+              <div className="flex items-center">
+                <h1 className="text-2xl font-bold text-gray-800">{negocio?.nombre || 'Contrato sin nombre'}</h1>
+                <span className="ml-3 px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  {negocio?.id_externo}
+                </span>
+              </div>
       </div>
       
-      {/* Tabs de navegación */}
-      <div className="border-b">
-        <nav className="flex">
-          {[
-            { id: 'overview', label: 'Resumen' },
-            { id: 'bills', label: 'Recibos' },
-            { id: 'proformas', label: 'Proformas' },
-            { id: 'invoices', label: 'Facturas C/P' },
-            { id: 'shipping', label: 'Albaranes' }
-          ].map((tab) => (
+            {/* Estado y acciones rápidas */}
+            <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-3">
+              <div className="flex items-center">
+                <div className={`h-3 w-3 rounded-full mr-2 ${negocio?.estado === 'Completado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-sm font-medium">{negocio?.estado || 'En progreso'}</span>
+              </div>
+              <div className="flex space-x-2">
+                <Link
+                  href={`/negocios/edit/${params.id}`}
+                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 inline-flex items-center"
+                >
+                  <FiEdit className="mr-1.5 h-4 w-4" /> Editar
+                </Link>
+                <button
+                  className="px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 inline-flex items-center"
+                >
+                  <FiTrash2 className="mr-1.5 h-4 w-4" /> Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Navegación por pestañas */}
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="container mx-auto">
+          <nav className="flex overflow-x-auto">
+            {[
+              { id: 'overview', label: 'Resumen', icon: FiFileText },
+              { id: 'bills', label: 'Recibos', icon: FiFileText },
+              { id: 'proformas', label: 'Proformas', icon: FiFileText },
+              { id: 'invoices', label: 'Facturas C/P', icon: FiFileText },
+              { id: 'shipping', label: 'Albaranes', icon: FiFileText }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-4 px-6 font-medium ${
+                  className={`py-3 px-4 font-medium whitespace-nowrap flex items-center border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
+                  <Icon className="mr-1.5 h-4 w-4" />
               {tab.label}
             </button>
-          ))}
+              );
+            })}
         </nav>
+        </div>
       </div>
       
-      {/* Contenido de la pestaña activa */}
-      <div className="p-6">
+      {/* Contenido principal */}
+      <div className="container mx-auto px-4 py-6">
+        {activeTab === 'overview' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Panel izquierdo */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Progreso y fechas clave */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Progreso y Fechas</h2>
+                
+                {/* Barra de progreso */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Progreso general</span>
+                    <span>{negocio?.progreso || 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{ width: `${negocio?.progreso || 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                {/* Fechas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Fecha de creación</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_creacion)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Fecha de inicio</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_inicio)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Fecha estimada de finalización</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Fecha de entrega</p>
+                    <p className="font-medium">{formatDate(negocio?.fecha_entrega)}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Descripción */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Descripción</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {negocio?.descripcion || 'Sin descripción disponible.'}
+                </p>
+              </div>
+              
+              {/* Notas */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Notas</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {negocio?.notas || 'Sin notas adicionales.'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Panel derecho */}
+            <div className="space-y-6">
+              {/* Métricas financieras */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Información Financiera</h2>
+                
+                <dl className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <dt className="text-sm text-gray-500">Valor Total</dt>
+                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.valor_total)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <dt className="text-sm text-gray-500">Gastos Totales</dt>
+                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.total_gastos)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <dt className="text-sm text-gray-500">Beneficio Estimado</dt>
+                    <dd className="font-medium text-green-600">
+                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && 
+                       negocio?.total_ingresos !== null && negocio?.total_gastos !== null
+                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
+                        : 'No disponible'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              
+              {/* Entidades relacionadas */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Entidades Relacionadas</h2>
+                
+                {/* Cliente */}
+                <div className="mb-4">
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiUser className="mr-1.5 h-3.5 w-3.5" /> Cliente
+                  </h3>
+                  <p className="text-gray-800 font-medium">{negocio?.cliente_nombre}</p>
+                </div>
+                
+                {/* Proveedores */}
+                <div className="mb-4">
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiTruck className="mr-1.5 h-3.5 w-3.5" /> Proveedores
+                  </h3>
+                  <div>
+                    {proveedores.length > 0 ? (
+                      proveedores.map((p, index) => (
+                        <div key={index} className="text-gray-800">
+                          {p.proveedor_nombre}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic text-sm">Sin proveedores asignados</p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Materiales */}
+                <div>
+                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
+                    <FiPackage className="mr-1.5 h-3.5 w-3.5" /> Materiales
+                  </h3>
+                  <div>
+                    {materiales.length > 0 ? (
+                      materiales.map((m, index) => (
+                        <div key={index} className="text-gray-800">
+                          {m.material_nombre}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic text-sm">Sin materiales asignados</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Documentos */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-800 mb-4">Documentos</h2>
+                <div className="flex flex-col space-y-2">
+                  <Link 
+                    href={`/negocios/${params.id}/proformas`}
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver proformas
+                  </Link>
+                  <Link 
+                    href="?tab=invoices"
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver facturas
+                  </Link>
+                  <Link 
+                    href="?tab=shipping"
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <FiFileText className="mr-2 h-4 w-4" /> Ver albaranes
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow p-5">
         {renderTabContent()}
+          </div>
+        )}
       </div>
     </div>
   );

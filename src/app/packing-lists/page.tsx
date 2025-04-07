@@ -10,7 +10,13 @@ import {
   FiDownload,
   FiSearch,
   FiCalendar,
-  FiPackage
+  FiPackage,
+  FiBox,
+  FiUser,
+  FiTag,
+  FiRefreshCw,
+  FiX,
+  FiFilter
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
@@ -47,31 +53,32 @@ export default function PackingListsPage() {
 
   // Cargar listas de empaque
   useEffect(() => {
-    async function loadPackingLists() {
-      setLoading(true);
-      try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-          .from('packing_lists')
-          .select(`
-            *,
-            items:packing_list_items(*)
-          `)
-          .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        setPackingLists(data || []);
-      } catch (error) {
-        console.error('Error al cargar listas de empaque:', error);
-        setError('Error al cargar listas de empaque. Por favor, intente de nuevo.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    
     loadPackingLists();
   }, []);
+
+  const loadPackingLists = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('packing_lists')
+        .select(`
+          *,
+          items:packing_list_items(*)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      setPackingLists(data || []);
+    } catch (error) {
+      console.error('Error al cargar listas de empaque:', error);
+      setError('Error al cargar listas de empaque. Por favor, intente de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Eliminar lista de empaque
   const handleDelete = async (id: string) => {
@@ -102,7 +109,7 @@ export default function PackingListsPage() {
       
     } catch (error) {
       console.error('Error al eliminar lista de empaque:', error);
-      alert('Error al eliminar la lista de empaque.');
+      setError('Error al eliminar la lista de empaque. Por favor, intente nuevamente.');
     } finally {
       setDeleteLoading(null);
     }
@@ -126,165 +133,181 @@ export default function PackingListsPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4 md:mb-0">Listas de Empaque</h1>
-        
-        <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 w-full md:w-auto">
-          {/* Buscador */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar lista de empaque..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full md:w-64 pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-              <FiSearch className="w-4 h-4" />
-            </div>
-          </div>
-          
-          {/* Botón para nueva lista de empaque */}
+    <div>
+      <div className="max-w-full mx-auto">
+        {/* Cabecera */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
+            Listas de Empaque
+          </h1>
           <Link 
             href="/packing-lists/new" 
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
           >
-            <FiPlus className="w-5 h-5 mr-2" />
-            Nueva Lista de Empaque
+            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nueva Lista de Empaque
           </Link>
         </div>
-      </div>
-      
-      {/* Mensaje de error */}
-      {error && (
-        <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
+        
+        {/* Mensaje de error */}
+        {error && (
+          <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm animate-fadeIn">
+            <div className="flex">
+              <div className="flex-shrink-0 text-red-500">
+                <FiX className="h-5 w-5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+              <div className="ml-auto pl-3">
+                <div className="-mx-1.5 -my-1.5">
+                  <button
+                    onClick={() => setError(null)}
+                    className="inline-flex rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    <span className="sr-only">Descartar</span>
+                    <FiX className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+        
+        {/* Filtros y búsqueda */}
+        <div className="bg-white shadow-md rounded-lg p-5 mb-8 transition-all duration-300 ease-in-out transform hover:shadow-lg">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FiSearch className="text-gray-400 h-5 w-5" />
             </div>
+            <input
+              type="text"
+              placeholder="Buscar por número o cliente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+            />
           </div>
         </div>
-      )}
-      
-      {/* Tabla de listas de empaque */}
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+
+        {/* Tabla de listas de empaque */}
         {loading ? (
-          <div className="p-6 flex justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <div className="bg-white shadow-md rounded-lg p-10 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+            <p className="text-gray-500 text-lg">Cargando listas de empaque...</p>
           </div>
-        ) : filteredLists.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        ) : filteredLists.length === 0 ? (
+          <div className="bg-white shadow-md rounded-lg p-10 text-center">
+            <div className="flex justify-center mb-4">
+              <FiBox className="h-12 w-12 text-gray-400" />
+            </div>
+            <p className="text-gray-600 text-lg mb-4">
+              {searchTerm ? (
+                'No se encontraron listas de empaque con los filtros seleccionados'
+              ) : (
+                'No hay listas de empaque registradas'
+              )}
+            </p>
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white shadow-md rounded-lg transition-all duration-300 ease-in-out">
+            <table className="w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Número
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Cliente
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contenedores
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Peso Total
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200">
                 {filteredLists.map((list) => (
-                  <tr key={list.id} className="hover:bg-gray-50">
+                  <tr key={list.id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{list.id_externo || `PL-${list.id.slice(0, 8)}`}</div>
+                      <div className="font-medium text-indigo-600">
+                        {list.id_externo || `PL-${list.id.slice(0, 8)}`}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 flex items-center">
-                        <FiCalendar className="mr-1 text-gray-500 h-4 w-4" />
+                      <div className="flex items-center text-sm text-gray-700">
+                        <FiCalendar className="mr-2 h-4 w-4 text-gray-400" />
                         {formatDate(list.fecha)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{list.cliente_nombre}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 flex items-center">
-                        <FiPackage className="mr-1 text-blue-500 h-4 w-4" />
-                        {list.items?.length || 0}
+                      <div className="flex items-center text-sm">
+                        <FiUser className="mr-2 h-4 w-4 text-gray-400" />
+                        <span className="font-medium text-gray-800">{list.cliente_nombre}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{list.peso_total?.toLocaleString('es-ES')} kg</div>
+                      <div className="flex items-center">
+                        <FiPackage className="mr-2 h-4 w-4 text-indigo-500" />
+                        <span className="text-sm text-gray-700">{list.items?.length || 0}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-800">
+                        {new Intl.NumberFormat('es-ES').format(list.peso_total || 0)} kg
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-3">
+                      <div className="flex justify-end space-x-2">
                         <Link 
                           href={`/packing-lists/${list.id}/pdf`} 
-                          className="text-indigo-600 hover:text-indigo-900 transition-colors duration-150 p-1"
+                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors duration-150"
                           title="Ver PDF"
                         >
-                          <FiEye className="h-4 w-4" />
+                          <FiEye className="h-5 w-5" />
                         </Link>
                         <Link 
                           href={`/packing-lists/edit/${list.id}`} 
-                          className="text-blue-600 hover:text-blue-900 transition-colors duration-150 p-1"
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-150"
                           title="Editar lista"
                         >
-                          <FiEdit className="h-4 w-4" />
+                          <FiEdit className="h-5 w-5" />
                         </Link>
                         <button
                           onClick={() => handleDelete(list.id)}
                           disabled={deleteLoading === list.id}
-                          className="text-red-600 hover:text-red-900 transition-colors duration-150 p-1 disabled:opacity-50"
+                          className={`p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors duration-150 ${
+                            deleteLoading === list.id ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
                           title="Eliminar lista"
                         >
                           {deleteLoading === list.id ? (
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
+                            <FiRefreshCw className="h-5 w-5 animate-spin" />
                           ) : (
-                            <FiTrash2 className="h-4 w-4" />
+                            <FiTrash2 className="h-5 w-5" />
                           )}
                         </button>
-                        <Link
-                          href={`/packing-lists/${list.id}/pdf`}
-                          className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
-                          title="Descargar PDF"
-                        >
-                          <FiDownload className="h-4 w-4" />
-                        </Link>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        ) : (
-          <div className="p-6 text-center">
-            <FiPackage className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay listas de empaque</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Comience por crear una nueva lista de empaque.
-            </p>
-            <div className="mt-6">
-              <Link
-                href="/packing-lists/new"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <FiPlus className="-ml-1 mr-2 h-5 w-5" />
-                Nueva Lista de Empaque
-              </Link>
-            </div>
           </div>
         )}
       </div>
