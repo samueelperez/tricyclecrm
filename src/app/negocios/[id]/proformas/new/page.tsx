@@ -638,12 +638,6 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
         
         {/* Pie con botones */}
         <div className="flex justify-end space-x-3 mt-6">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50">
-            Exportar
-          </button>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50">
-            Vista Previa PDF
-          </button>
           <button 
             onClick={handleSave}
             className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}

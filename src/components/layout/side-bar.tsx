@@ -101,7 +101,7 @@ export default function SideBar() {
                   >
                     <div className="flex items-center">
                       {item.icon}
-                      <span>{item.name}</span>
+                      <span className="ml-3">{item.name}</span>
                     </div>
                     {isSubmenuOpen ? (
                       <FiChevronDown className="w-4 h-4" />
@@ -124,7 +124,7 @@ export default function SideBar() {
                             }`}
                           >
                             {subItem.icon}
-                            <span>{subItem.name}</span>
+                            <span className="ml-3">{subItem.name}</span>
                           </Link>
                         );
                       })}
@@ -137,7 +137,7 @@ export default function SideBar() {
                   className={isActive ? "sidebar-item-active" : "sidebar-item"}
                 >
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span className="ml-3">{item.name}</span>
                 </Link>
               )}
             </div>

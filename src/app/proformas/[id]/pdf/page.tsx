@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from 'next/image';
-import { FiDownload, FiLoader } from 'react-icons/fi';
+import { FiDownload, FiLoader, FiArrowLeft } from 'react-icons/fi';
 
 // Interfaz para la proforma
 interface Proforma {
@@ -77,7 +77,13 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
   
   // Obtener material desde notas
   const getMaterial = () => {
-    return proforma.notas?.match(/Material: (.+?)(\n|$)/)?.[1] || '';
+    if (proforma.notas) {
+      const match = proforma.notas.match(/Material: (.+?)(\n|$)/);
+      if (match) {
+        return match[1]; // Devuelve solo el valor, sin la etiqueta "Material:"
+      }
+    }
+    return proforma.productos && proforma.productos.length > 0 ? proforma.productos[0].descripcion : '';
   };
   
   // Extraer información de consignatario
@@ -248,9 +254,27 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
       {proforma.notas && !extractConsigneeInfo() && (
         <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>NOTES:</div>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{proforma.notas}</div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>
+            {proforma.notas
+              .split('\n')
+              .filter(line => !line.startsWith('Cliente:') && !line.startsWith('Material:'))
+              .join('\n')}
+          </div>
         </div>
       )}
+      
+      {/* Texto fijo de instrucciones de envío - Siempre visible */}
+      <div style={{ marginBottom: '20px', fontSize: '8pt', lineHeight: '1.3' }}>
+        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>SHIPPING INSTRUCTIONS:</div>
+        <p>PROVIDED PRIOR SHIPPING INSTRUCTIONS BY BUYER. CONSIGNEE MUST BE A COMPANY OF IMPORTING COUNTRY</p>
+        <p>AS ANNEX VII SHOWING THIS IS OBLIGATORY BE PROVIDED BY SELLER TO CUSTOMS IN EXPORTING COUNTRY</p>
+        <p>Loading date: Type of transport: Modifications on BL: AS SOON AS POSSIBLE, MAXIMUM 30 DAYS FROM CONTRACT SIGNING DATE</p>
+        <p>40 FT SEA CONTAINER</p>
+        <p>BL AMENDMENTS CAN BE DONE BEFORE SHIP LEAVES BCN PORT OF ORIGIN, AFTERWARDS AMENDMENTS WILL BE ON</p>
+        <p>BUYER´S ACCOUNT AS SHIPPING LINE CHARGE (100 USD/AMENDMENT APROX)</p>
+        <p>Special conditions: Loading Pictures: LOI, AP, PSIC, IMPORT PERMISSIONS UNDER PURCHASER´S ACCOUNT</p>
+        <p>FULL SET OF LOADING PICTURES WILL BE PROVI DED</p>
+      </div>
       
       {/* Datos bancarios */}
       <div style={{ marginTop: '30px', marginBottom: '20px' }}>
@@ -362,7 +386,11 @@ export default function ProformaPDFPage() {
             const nombreProveedor = proformaData.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] || 'Proveedor sin especificar';
             setNombreDestinatario(nombreProveedor);
           } else {
-            setNombreDestinatario(proformaData.cliente?.nombre || 'Cliente sin especificar');
+            // Intentar obtener el nombre del cliente desde varias fuentes
+            const nombreCliente = proformaData.cliente?.nombre || 
+                                 (proformaData.notas?.match(/Cliente: (.+?)(\n|$)/)?.[1]) || 
+                                 'Cliente sin especificar';
+            setNombreDestinatario(nombreCliente);
           }
           
           // Cargar proveedores o clientes adicionales si existen
@@ -658,157 +686,40 @@ export default function ProformaPDFPage() {
   return (
     <div className="bg-gray-100 p-4 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        {/* Botones */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 flex flex-col sm:flex-row items-center justify-between">
-          <a 
-            href="/proformas" 
-            className="text-indigo-600 hover:text-indigo-800 mb-3 sm:mb-0"
-          >
-            ← Volver a proformas
-          </a>
-          
-          <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-3 sm:mb-0">
-            {/* Control para editar el número de proforma */}
-            <div className="flex items-center space-x-2">
-              {editing ? (
-                <>
-                  <input
-                    type="text"
-                    value={proformaNumero}
-                    onChange={(e) => setProformaNumero(e.target.value)}
-                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={handleSaveNumeroProforma}
-                    disabled={savingNumero}
-                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {savingNumero ? 'Guardando...' : 'Guardar'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditing(false);
-                      // Restaurar el número original
-                      if (proforma) {
-                        setProformaNumero(proforma.id_externo || `PRO${String(proforma.id).padStart(4, '0')}`);
-                      }
-                    }}
-                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  >
-                    Cancelar
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        {/* Cabecera */}
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="py-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <a 
+                  href="/proformas" 
+                  className="mr-3 text-gray-600 hover:text-gray-800"
                 >
-                  Editar número
-                </button>
-              )}
-            </div>
-            
-            {/* Control para editar el nombre del cliente/proveedor */}
-            <div className="flex items-center space-x-2">
-              {editingNombre ? (
-                <>
-                  <input
-                    type="text"
-                    value={nombreDestinatario}
-                    onChange={(e) => setNombreDestinatario(e.target.value)}
-                    className="border rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={handleSaveNombre}
-                    disabled={savingNombre}
-                    className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                  >
-                    {savingNombre ? 'Guardando...' : 'Guardar'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingNombre(false);
-                      // Restaurar el nombre original
-                      if (proforma) {
-                        if (proforma.tipo === 'proveedor') {
-                          const nombreProveedor = proforma.notas?.match(/Proveedor: (.+?)(\n|$)/)?.[1] || 'Proveedor sin especificar';
-                          setNombreDestinatario(nombreProveedor);
-                        } else {
-                          setNombreDestinatario(proforma.cliente?.nombre || 'Cliente sin especificar');
-                        }
-                      }
-                    }}
-                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  >
-                    Cancelar
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setEditingNombre(true)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  Editar nombre
-                </button>
-              )}
-            </div>
-            
-            {/* Botón para gestionar múltiples proveedores/clientes */}
-            <div className="flex items-center space-x-2">
+                  <FiArrowLeft className="w-5 h-5" />
+                </a>
+                <h1 className="text-xl font-medium text-gray-800">Vista PDF Proforma</h1>
+              </div>
+              
               <button
-                onClick={() => setShowMultiDialog(true)}
-                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onClick={generatePDF}
+                disabled={generating}
+                className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                {proforma.tipo === 'proveedor' ? 'Gestionar clientes' : 'Gestionar proveedores'}
+                {generating ? (
+                  <>
+                    <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                    Generando PDF...
+                  </>
+                ) : (
+                  <>
+                    <FiDownload className="mr-2 h-5 w-5" />
+                    Descargar PDF
+                  </>
+                )}
               </button>
             </div>
           </div>
-          
-          <button
-            onClick={generatePDF}
-            disabled={generating}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-          >
-            {generating ? (
-              <>
-                <FiLoader className="animate-spin mr-2 h-4 w-4" />
-                Generando PDF...
-              </>
-            ) : (
-              <>
-                <FiDownload className="mr-2 h-4 w-4" />
-                Descargar PDF
-              </>
-            )}
-          </button>
         </div>
-        
-        {/* Modal para gestionar múltiples proveedores/clientes */}
-        {showMultiDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-md">
-              <div className="relative">
-                <button
-                  onClick={() => setShowMultiDialog(false)}
-                  className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-                <MultiEntidadList 
-                  proforma={proforma}
-                  multiClientes={multiClientes}
-                  currentNuevoItem={currentNuevoItem}
-                  setCurrentNuevoItem={setCurrentNuevoItem}
-                  currentPorcentaje={currentPorcentaje}
-                  setCurrentPorcentaje={setCurrentPorcentaje}
-                  handleAddMultiItem={handleAddMultiItem}
-                  handleRemoveMultiItem={handleRemoveMultiItem}
-                  handleSaveMulti={handleSaveMulti}
-                />
-              </div>
-            </div>
-          </div>
-        )}
         
         {/* Vista previa */}
         <div className="bg-white shadow-xl mb-8 mx-auto" style={{ maxWidth: '210mm' }}>

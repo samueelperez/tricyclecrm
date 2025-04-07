@@ -36,11 +36,11 @@ export default function CrearNegocioPage() {
   const [formData, setFormData] = useState({
     nombre: '',
     cliente_id: '',
+    fecha_inicio: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
+    descripcion: '',
     proveedor_ids: [] as number[],
     material_ids: [] as number[],
-    fecha_inicio: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
-    valor_total: '',
-    descripcion: ''
+    valor_total: ''
   });
 
   // Cargar datos iniciales
@@ -131,8 +131,8 @@ export default function CrearNegocioPage() {
         nombre: formData.nombre,
         cliente_id: parseInt(formData.cliente_id),
         fecha_inicio: formData.fecha_inicio,
-        valor_total: parseFloat(formData.valor_total) || 0,
-        descripcion: formData.descripcion
+        descripcion: formData.descripcion,
+        valor_total: parseFloat(formData.valor_total) || 0
       };
 
       // Insertar en la tabla negocios
@@ -306,6 +306,51 @@ export default function CrearNegocioPage() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Fecha de Inicio */}
+            <div>
+              <label htmlFor="fecha_inicio" className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de Inicio <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FiCalendar className="text-gray-400 h-5 w-5" />
+                </div>
+                <input
+                  type="date"
+                  id="fecha_inicio"
+                  name="fecha_inicio"
+                  value={formData.fecha_inicio}
+                  onChange={handleChange}
+                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Valor */}
+            <div>
+              <label htmlFor="valor_total" className="block text-sm font-medium text-gray-700 mb-1">
+                Valor Total
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FiDollarSign className="text-gray-400 h-5 w-5" />
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  id="valor_total"
+                  name="valor_total"
+                  value={formData.valor_total}
+                  onChange={handleChange}
+                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Materiales (selección múltiple) */}
             <div>
               <label htmlFor="material_ids" className="block text-sm font-medium text-gray-700 mb-1">
@@ -358,51 +403,6 @@ export default function CrearNegocioPage() {
                 </select>
               </div>
               <p className="mt-1 text-xs text-gray-500">Proveedores seleccionados: {formData.proveedor_ids.length}</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Fecha de Inicio */}
-            <div>
-              <label htmlFor="fecha_inicio" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de Inicio <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiCalendar className="text-gray-400 h-5 w-5" />
-                </div>
-                <input
-                  type="date"
-                  id="fecha_inicio"
-                  name="fecha_inicio"
-                  value={formData.fecha_inicio}
-                  onChange={handleChange}
-                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-              </div>
-            </div>
-            
-            {/* Valor */}
-            <div>
-              <label htmlFor="valor_total" className="block text-sm font-medium text-gray-700 mb-1">
-                Valor Total
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiDollarSign className="text-gray-400 h-5 w-5" />
-                </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  id="valor_total"
-                  name="valor_total"
-                  value={formData.valor_total}
-                  onChange={handleChange}
-                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="0.00"
-                />
-              </div>
             </div>
           </div>
           

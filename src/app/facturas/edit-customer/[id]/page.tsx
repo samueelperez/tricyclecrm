@@ -204,6 +204,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const printComponentRef = useRef<HTMLDivElement>(null);
+  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   
   // Estado para la factura
   const [invoice, setInvoice] = useState<Invoice>({
@@ -230,6 +231,30 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     totalAmount: 0,
     bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD'
   });
+
+  // Cargar lista de clientes al iniciar
+  useEffect(() => {
+    const cargarClientes = async () => {
+      try {
+        const supabaseClient = getSupabaseClient();
+        const { data, error } = await supabaseClient
+          .from('clientes')
+          .select('id, nombre')
+          .order('nombre');
+          
+        if (error) {
+          console.error('Error cargando clientes:', error);
+          return;
+        }
+        
+        setClientesList(data || []);
+      } catch (err) {
+        console.error('Error al cargar los clientes:', err);
+      }
+    };
+    
+    cargarClientes();
+  }, []);
 
   // Cargar datos reales de Supabase
   useEffect(() => {
@@ -329,6 +354,13 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       
       const supabase = getSupabaseClient();
       
+      // Obtener el ID del cliente seleccionado
+      let cliente_id = null;
+      const clienteSeleccionado = clientesList.find(c => c.nombre === invoice.customerName);
+      if (clienteSeleccionado) {
+        cliente_id = clienteSeleccionado.id;
+      }
+      
       // Recalcular totales
       const subtotal = invoice.items.reduce((sum, item) => sum + item.totalValue, 0);
       const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
@@ -339,6 +371,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         id_externo: invoice.number,
         fecha: invoice.date,
         monto: totalAmount,
+        cliente_id: cliente_id, // Incluir el ID del cliente
         material: JSON.stringify({
           cliente_nombre: invoice.customerName,
           taxId: invoice.taxId,
@@ -592,11 +625,38 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 <select 
                   className="w-full p-2 border rounded-md appearance-none"
                   value={invoice.customerName}
-                  onChange={(e) => setInvoice({...invoice, customerName: e.target.value})}
+                  onChange={(e) => {
+                    const nombreCliente = e.target.value;
+                    setInvoice({...invoice, customerName: nombreCliente});
+                    
+                    // Buscar el ID fiscal del cliente seleccionado
+                    const clienteSeleccionado = clientesList.find(c => c.nombre === nombreCliente);
+                    if (clienteSeleccionado) {
+                      // Obtener el ID fiscal de este cliente
+                      const fetchClienteTaxId = async () => {
+                        try {
+                          const supabaseClient = getSupabaseClient();
+                          const { data, error } = await supabaseClient
+                            .from('clientes')
+                            .select('id_fiscal')
+                            .eq('id', clienteSeleccionado.id)
+                            .single();
+                            
+                          if (!error && data) {
+                            setInvoice(prev => ({...prev, taxId: data.id_fiscal || ''}));
+                          }
+                        } catch (err) {
+                          console.error('Error al obtener ID fiscal:', err);
+                        }
+                      };
+                      
+                      fetchClienteTaxId();
+                    }
+                  }}
                 >
-                  <option>DDH TRADE CO.,LIMITED</option>
-                  <option>Construcciones Martínez S.L.</option>
-                  <option>Edificaciones Modernas</option>
+                  {clientesList.map((cliente) => (
+                    <option key={cliente.id} value={cliente.nombre}>{cliente.nombre}</option>
+                  ))}
                 </select>
                 <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                   <FiChevronDown className="w-5 h-5" />
@@ -622,20 +682,13 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Pago</label>
-            <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={invoice.paymentTerms}
-                onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
-              >
-                <option>30% CASH IN ADVANCE 70% CASH AGAINST DOCUMENTS</option>
-                <option>100% CASH IN ADVANCE</option>
-                <option>50% CASH IN ADVANCE 50% BEFORE SHIPMENT</option>
-              </select>
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <FiChevronDown className="w-5 h-5" />
-              </div>
-            </div>
+            <input 
+              type="text" 
+              placeholder="Ej: 30% PAGO POR ADELANTADO 70% PAGO CONTRA DOCUMENTOS"
+              value={invoice.paymentTerms}
+              onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
         </div>
         

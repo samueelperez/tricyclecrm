@@ -26,7 +26,7 @@ interface InvoiceItem {
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [proveedoresList, setProveedoresList] = useState<{id: string, nombre: string}[]>([]);
+  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   
   // Datos iniciales para la factura
   const [invoice, setInvoice] = useState({
@@ -51,28 +51,28 @@ export default function NewCustomerInvoicePage() {
     totalAmount: 0
   });
 
-  // Cargar lista de proveedores al iniciar
+  // Cargar lista de clientes al iniciar
   useEffect(() => {
-    const cargarProveedores = async () => {
+    const cargarClientes = async () => {
       try {
         const supabaseClient = getSupabaseClient();
         const { data, error } = await supabaseClient
-          .from('proveedores')
+          .from('clientes')
           .select('id, nombre')
           .order('nombre');
           
         if (error) {
-          console.error('Error cargando proveedores:', error);
+          console.error('Error cargando clientes:', error);
           return;
         }
         
-        setProveedoresList(data || []);
+        setClientesList(data || []);
       } catch (err) {
-        console.error('Error al cargar los proveedores:', err);
+        console.error('Error al cargar los clientes:', err);
       }
     };
     
-    cargarProveedores();
+    cargarClientes();
   }, []);
 
   const handleCancel = () => {
@@ -98,11 +98,19 @@ export default function NewCustomerInvoicePage() {
       
       const supabase = getSupabaseClient();
       
+      // Obtener el ID del cliente seleccionado
+      let cliente_id = null;
+      const clienteSeleccionado = clientesList.find(c => c.nombre === invoice.customerName);
+      if (clienteSeleccionado) {
+        cliente_id = clienteSeleccionado.id;
+      }
+      
       // Preparar datos para guardar en Supabase
       const facturaData = {
         id_externo: invoice.number,
         fecha: invoice.date,
         negocio_id: null, // Se podría relacionar con un negocio específico en el futuro
+        cliente_id: cliente_id, // Incluir el ID del cliente
         monto: invoice.totalAmount,
         material: JSON.stringify({
           cliente_nombre: invoice.customerName,
@@ -145,7 +153,7 @@ export default function NewCustomerInvoicePage() {
     }
   };
 
-  // Preparar notas con la información de proveedores adicionales
+  // Preparar notas con la información de clientes adicionales
   const prepareNotes = () => {
     let notes = invoice.invoiceNotes || '';
     
@@ -293,11 +301,39 @@ export default function NewCustomerInvoicePage() {
                 <select 
                   className="w-full p-2 border rounded-md appearance-none"
                   value={invoice.customerName}
-                  onChange={(e) => setInvoice({...invoice, customerName: e.target.value})}
+                  onChange={(e) => {
+                    const nombreCliente = e.target.value;
+                    setInvoice({...invoice, customerName: nombreCliente});
+                    
+                    // Buscar el ID fiscal del cliente seleccionado
+                    const clienteSeleccionado = clientesList.find(c => c.nombre === nombreCliente);
+                    if (clienteSeleccionado) {
+                      // Obtener el ID fiscal de este cliente
+                      const fetchClienteTaxId = async () => {
+                        try {
+                          const supabaseClient = getSupabaseClient();
+                          const { data, error } = await supabaseClient
+                            .from('clientes')
+                            .select('id_fiscal')
+                            .eq('id', clienteSeleccionado.id)
+                            .single();
+                            
+                          if (!error && data) {
+                            setInvoice(prev => ({...prev, taxId: data.id_fiscal || ''}));
+                          }
+                        } catch (err) {
+                          console.error('Error al obtener ID fiscal:', err);
+                        }
+                      };
+                      
+                      fetchClienteTaxId();
+                    }
+                  }}
                 >
                   <option value="">Seleccionar cliente</option>
-                  <option>DDH TRADE CO.,LIMITED</option>
-                  <option>LAO QIXIN CO.,LTD.</option>
+                  {clientesList.map((cliente) => (
+                    <option key={cliente.id} value={cliente.nombre}>{cliente.nombre}</option>
+                  ))}
                 </select>
                 <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                   <FiChevronDown className="w-5 h-5" />
@@ -323,21 +359,13 @@ export default function NewCustomerInvoicePage() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Pago</label>
-            <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={invoice.paymentTerms}
-                onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
-              >
-                <option value="">Seleccionar términos de pago</option>
-                <option>30 días</option>
-                <option>60 días</option>
-                <option>Pago inmediato</option>
-              </select>
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <FiChevronDown className="w-5 h-5" />
-              </div>
-            </div>
+            <input 
+              type="text" 
+              placeholder="Ej: 30 días, 60 días, Pago inmediato, etc."
+              value={invoice.paymentTerms}
+              onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
         </div>
         

@@ -44,6 +44,7 @@ interface ProformaState {
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   
   // Datos iniciales para la proforma
   const [proforma, setProforma] = useState<ProformaState>({
@@ -73,6 +74,30 @@ export default function NewCustomerProformaPage() {
     totalAmount: 0
   });
 
+  // Cargar lista de clientes al iniciar
+  useEffect(() => {
+    const cargarClientes = async () => {
+      try {
+        const supabaseClient = supabase;
+        const { data, error } = await supabaseClient
+          .from('clientes')
+          .select('id, nombre')
+          .order('nombre');
+          
+        if (error) {
+          console.error('Error cargando clientes:', error);
+          return;
+        }
+        
+        setClientesList(data || []);
+      } catch (err) {
+        console.error('Error al cargar los clientes:', err);
+      }
+    };
+    
+    cargarClientes();
+  }, []);
+
   const handleCancel = () => {
     router.push(`/proformas?tab=customer`);
   };
@@ -97,11 +122,18 @@ export default function NewCustomerProformaPage() {
         return;
       }
       
+      // Obtener el ID del cliente seleccionado
+      let cliente_id = null;
+      const clienteSeleccionado = clientesList.find(c => c.nombre === proforma.customerName);
+      if (clienteSeleccionado) {
+        cliente_id = clienteSeleccionado.id;
+      }
+      
       // Preparar datos para guardar en Supabase
       const proformaData = {
         id_externo: proforma.number,
         fecha: proforma.date,
-        cliente_id: null, // Se podría buscar el ID del cliente según el nombre
+        cliente_id: cliente_id, // Incluir el ID del cliente
         id_fiscal: proforma.taxId,
         monto: proforma.totalAmount,
         puerto: proforma.ports,
@@ -162,11 +194,8 @@ export default function NewCustomerProformaPage() {
 
   // Preparar notas
   const prepareNotes = () => {
-    let notes = proforma.shippingNotes 
-      ? proforma.shippingNotes + '\nCliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '') 
-      : 'Cliente: ' + proforma.customerName + '\nMaterial: ' + (proforma.items[0]?.description || '');
-    
-    return notes;
+    // Usar directamente las notas de envío sin añadir líneas de Cliente y Material
+    return proforma.shippingNotes || '';
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {
@@ -311,12 +340,39 @@ export default function NewCustomerProformaPage() {
                 <select 
                   className="w-full p-2 border rounded-md appearance-none"
                   value={proforma.customerName}
-                  onChange={(e) => setProforma({...proforma, customerName: e.target.value})}
+                  onChange={(e) => {
+                    const nombreCliente = e.target.value;
+                    setProforma({...proforma, customerName: nombreCliente});
+                    
+                    // Buscar el ID fiscal del cliente seleccionado
+                    const clienteSeleccionado = clientesList.find(c => c.nombre === nombreCliente);
+                    if (clienteSeleccionado) {
+                      // Obtener el ID fiscal de este cliente
+                      const fetchClienteTaxId = async () => {
+                        try {
+                          const supabaseClient = supabase;
+                          const { data, error } = await supabaseClient
+                            .from('clientes')
+                            .select('id_fiscal')
+                            .eq('id', clienteSeleccionado.id)
+                            .single();
+                            
+                          if (!error && data) {
+                            setProforma(prev => ({...prev, taxId: data.id_fiscal || ''}));
+                          }
+                        } catch (err) {
+                          console.error('Error al obtener ID fiscal:', err);
+                        }
+                      };
+                      
+                      fetchClienteTaxId();
+                    }
+                  }}
                 >
                   <option value="">Seleccionar cliente</option>
-                  <option>DDH TRADE CO.,LIMITED</option>
-                  <option>Construcciones Martínez S.L.</option>
-                  <option>Edificaciones Modernas</option>
+                  {clientesList.map(cliente => (
+                    <option key={cliente.id} value={cliente.nombre}>{cliente.nombre}</option>
+                  ))}
                 </select>
                 <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                   <FiChevronDown className="w-5 h-5" />
@@ -343,21 +399,13 @@ export default function NewCustomerProformaPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
-              <div className="relative">
-                <select 
-                  className="w-full p-2 border rounded-md appearance-none"
-                  value={proforma.ports}
-                  onChange={(e) => setProforma({...proforma, ports: e.target.value})}
-                >
-                  <option value="">Seleccionar puerto</option>
-                  <option>TEMA PORT - GHANA</option>
-                  <option>BARCELONA - ESPAÑA</option>
-                  <option>VALENCIA - ESPAÑA</option>
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <FiChevronDown className="w-5 h-5" />
-                </div>
-              </div>
+              <input 
+                type="text" 
+                placeholder="Ej: TEMA PORT - GHANA, BARCELONA - ESPAÑA"
+                value={proforma.ports}
+                onChange={(e) => setProforma({...proforma, ports: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
@@ -378,21 +426,13 @@ export default function NewCustomerProformaPage() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Pago</label>
-            <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={proforma.paymentTerms}
-                onChange={(e) => setProforma({...proforma, paymentTerms: e.target.value})}
-              >
-                <option value="">Seleccionar términos de pago</option>
-                <option>30% PAGO POR ADELANTADO 70% PAGO CONTRA DOCUMENTOS</option>
-                <option>100% PAGO POR ADELANTADO</option>
-                <option>50% PAGO POR ADELANTADO 50% ANTES DEL ENVÍO</option>
-              </select>
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <FiChevronDown className="w-5 h-5" />
-              </div>
-            </div>
+            <input 
+              type="text" 
+              placeholder="Ej: 30% PAGO POR ADELANTADO 70% PAGO CONTRA DOCUMENTOS"
+              value={proforma.paymentTerms}
+              onChange={(e) => setProforma({...proforma, paymentTerms: e.target.value})}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
         </div>
         

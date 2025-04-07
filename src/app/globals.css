@@ -30,10 +30,14 @@ body {
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-primary-50 rounded-lg transition-colors;
+    @apply flex items-center px-4 py-3 text-gray-700 hover:bg-primary-50 rounded-lg transition-colors;
   }
 
   .sidebar-item-active {
-    @apply flex items-center gap-3 px-4 py-3 bg-primary-500 text-white rounded-lg;
+    @apply flex items-center px-4 py-3 bg-primary-500 text-white rounded-lg;
+  }
+
+  .sidebar-subitem {
+    @apply flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm;
   }
 } 
