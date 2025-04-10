@@ -164,7 +164,7 @@ export default function BLInfoPage() {
     if (!instruccion.notas) return null;
     
     const lines = instruccion.notas.split('\n');
-    const consigneeStartIndex = lines.findIndex(line => 
+    const consigneeStartIndex = lines.findIndex((line: string) => 
       line.toUpperCase().includes('CONSIGNEE:')
     );
     
@@ -190,7 +190,7 @@ export default function BLInfoPage() {
     if (!instruccion.notas) return null;
     
     const lines = instruccion.notas.split('\n');
-    const notifyStartIndex = lines.findIndex(line => 
+    const notifyStartIndex = lines.findIndex((line: string) => 
       line.toUpperCase().includes('NOTIFY:')
     );
     
@@ -216,7 +216,7 @@ export default function BLInfoPage() {
     if (!instruccion.notas) return "PP JUMBO BAGS";
     
     const lines = instruccion.notas.split('\n');
-    const descIndex = lines.findIndex(line => 
+    const descIndex = lines.findIndex((line: string) => 
       line.toUpperCase().includes('DESCRIPTION:')
     );
     
@@ -231,7 +231,7 @@ export default function BLInfoPage() {
     if (!instruccion.notas) return "";
     
     const lines = instruccion.notas.split('\n');
-    const noteIndex = lines.findIndex(line => 
+    const noteIndex = lines.findIndex((line: string) => 
       line.toUpperCase().includes('NOTE:')
     );
     
