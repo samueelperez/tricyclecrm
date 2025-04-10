@@ -402,11 +402,11 @@ export default function InstruccionesBLPage() {
                             )}
                           </button>
                           <Link
-                            href={`/instrucciones-bl/${instruccion.id}/imprimir`}
+                            href={`/instrucciones-bl/${instruccion.id}/pdf`}
                             className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
-                            title="Imprimir instrucción"
+                            title="Ver BL Info"
                           >
-                            <FiDownload className="h-4 w-4" />
+                            <FiFileText className="h-4 w-4" />
                           </Link>
                         </div>
                       </td>

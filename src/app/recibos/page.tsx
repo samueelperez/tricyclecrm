@@ -28,7 +28,6 @@ export default function GastosPage() {
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
-  const [categoriaFiltro, setCategoriaFiltro] = useState("todas");
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -157,9 +156,7 @@ export default function GastosPage() {
       gasto.proveedor.toLowerCase().includes(filtro.toLowerCase()) ||
       gasto.descripcion.toLowerCase().includes(filtro.toLowerCase());
     
-    const cumpleFiltroCategoria = categoriaFiltro === "todas" || gasto.categoria === categoriaFiltro;
-    
-    return cumpleFiltroTexto && cumpleFiltroCategoria;
+    return cumpleFiltroTexto;
   });
 
   // Obtener estilos de estado
@@ -229,8 +226,8 @@ export default function GastosPage() {
         
         {/* Filtros y búsqueda */}
         <div className="bg-white shadow-md rounded-lg p-5 mb-8 transition-all duration-300 ease-in-out transform hover:shadow-lg">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+            <div className="md:col-span-1">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <FiSearch className="text-gray-400 h-5 w-5" />
@@ -242,26 +239,6 @@ export default function GastosPage() {
                   onChange={(e) => setFiltro(e.target.value)}
                   className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                 />
-              </div>
-            </div>
-            
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiTag className="text-gray-400 h-5 w-5" />
-                </div>
-                <select
-                  value={categoriaFiltro}
-                  onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                >
-                  <option value="todas">Todas las categorías</option>
-                  {categoriasGasto.map((categoria) => (
-                    <option key={categoria.value} value={categoria.value}>
-                      {categoria.label}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
           </div>
@@ -279,21 +256,20 @@ export default function GastosPage() {
               <FiShoppingBag className="h-12 w-12 text-gray-400" />
             </div>
             <p className="text-gray-600 text-lg mb-4">
-              {filtro || categoriaFiltro !== 'todas' ? (
-                'No se encontraron gastos con los filtros seleccionados'
+              {filtro ? (
+                'No se encontraron gastos con el filtro seleccionado'
               ) : (
                 'No hay gastos registrados'
               )}
             </p>
-            {(filtro || categoriaFiltro !== 'todas') && (
+            {filtro && (
               <button 
                 onClick={() => {
                   setFiltro('');
-                  setCategoriaFiltro('todas');
                 }}
                 className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none"
               >
-                Limpiar filtros
+                Limpiar filtro
               </button>
             )}
           </div>
@@ -316,12 +292,6 @@ export default function GastosPage() {
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
-                      <FiTag className="mr-1 text-indigo-500" />
-                      Categoría
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
                       <FiUser className="mr-1 text-indigo-500" />
                       Proveedor
                     </div>
@@ -338,22 +308,13 @@ export default function GastosPage() {
                       Importe
                     </div>
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiCreditCard className="mr-1 text-indigo-500" />
-                      Estado
-                    </div>
-                  </th>
                   <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {gastosFiltrados.map((gasto) => {
-                  const { bgColor, textColor } = getEstadoStyles(gasto.estado);
-                  const categoria = getCategoriaStyles(gasto.categoria);
-                  
+                {gastosFiltrados.map((gasto) => {                  
                   return (
                     <tr key={gasto.id} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-3 py-3 whitespace-nowrap">
@@ -364,11 +325,6 @@ export default function GastosPage() {
                           <FiCalendar className="mr-1 text-indigo-500 h-4 w-4" />
                           {formatDate(gasto.fecha_emision)}
                         </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${categoria.bgColor} ${categoria.textColor}`}>
-                          {categoria.label}
-                        </span>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 flex items-center">
@@ -386,16 +342,6 @@ export default function GastosPage() {
                           <FiDollarSign className="mr-1 text-indigo-500 h-4 w-4" />
                           {formatMonto(gasto.monto)}
                         </div>
-                        {gasto.deducible && (
-                          <div className="text-xs text-green-600">
-                            Deducible
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}`}>
-                          {gasto.estado.charAt(0).toUpperCase() + gasto.estado.slice(1)}
-                        </span>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">

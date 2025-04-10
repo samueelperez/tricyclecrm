@@ -219,8 +219,7 @@ export default function NewCustomerProformaPage() {
       ...proforma,
       items: updatedItems,
       totalAmount,
-      totalWeight,
-      containers: Math.ceil(totalWeight / 20) // Estimación simple: 1 contenedor por cada 20 MT
+      totalWeight
     });
   };
 
@@ -254,8 +253,7 @@ export default function NewCustomerProformaPage() {
       ...proforma,
       items: updatedItems,
       totalAmount,
-      totalWeight,
-      containers: Math.ceil(totalWeight / 20)
+      totalWeight
     });
   };
 
@@ -559,12 +557,14 @@ export default function NewCustomerProformaPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores 40ft <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores</label>
               <input 
-                type="text" 
+                type="number" 
+                min="0"
                 value={proforma.containers}
-                className="w-full p-2 border rounded-md bg-gray-50"
-                readOnly
+                onChange={(e) => setProforma({...proforma, containers: parseInt(e.target.value) || 0})}
+                className="w-full p-2 border rounded-md"
+                placeholder="Ej: 3"
               />
             </div>
             <div>

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { addClienteIdToFacturasCliente, updateExistingFacturasCliente } from './migrations/add-cliente-id-to-facturas-cliente';
 
 /**
  * Realiza migraciones pendientes en la base de datos de forma automática
@@ -71,6 +72,25 @@ export async function verifyProformasProductosTable() {
     return true;
   } catch (error) {
     console.error('Error al verificar la tabla proformas_productos:', error);
+    return false;
+  }
+}
+
+/**
+ * Función para verificar y corregir la estructura de la tabla facturas_cliente
+ * Añade la columna cliente_id si no existe y migra los datos existentes
+ */
+export async function verifyFacturasClienteTable() {
+  try {
+    // Aplicar la migración para añadir la columna cliente_id
+    await addClienteIdToFacturasCliente();
+    
+    // Actualizar registros existentes
+    await updateExistingFacturasCliente();
+    
+    return true;
+  } catch (error) {
+    console.error('Error al verificar la tabla facturas_cliente:', error);
     return false;
   }
 } 

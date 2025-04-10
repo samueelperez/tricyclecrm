@@ -40,7 +40,112 @@ export const ejecutarMigracionRecibos = async (): Promise<MigracionResponse> => 
 
 export const ejecutarMigracionInstruccionesBL = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de instrucciones BL...');
-  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
+  
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Verificar si la tabla existe
+    const { data: existeTabla, error: errorVerificar } = await supabase
+      .from('instrucciones_bl')
+      .select('id')
+      .limit(1);
+    
+    // Si no hay error, la tabla ya existe
+    if (!errorVerificar) {
+      console.log('La tabla instrucciones_bl ya existe.');
+      return { 
+        success: true, 
+        message: 'La tabla instrucciones_bl ya existe en la base de datos.' 
+      };
+    }
+    
+    // Si el error no es porque la tabla no existe, retornar el error
+    if (!errorVerificar.message.includes('does not exist')) {
+      return {
+        success: false,
+        message: 'Error al verificar tabla instrucciones_bl: ' + errorVerificar.message,
+        error: errorVerificar
+      };
+    }
+    
+    console.log('La tabla instrucciones_bl no existe. Creando...');
+    
+    // Crear la tabla instrucciones_bl
+    const crearTablaSQL = `
+      CREATE TABLE IF NOT EXISTS public.instrucciones_bl (
+        id SERIAL PRIMARY KEY,
+        numero_instruccion TEXT NOT NULL,
+        fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
+        fecha_estimada_embarque DATE,
+        cliente TEXT,
+        cliente_id INTEGER REFERENCES public.clientes(id),
+        envio_id INTEGER REFERENCES public.envios(id),
+        estado TEXT DEFAULT 'borrador',
+        consignatario TEXT,
+        puerto_carga TEXT,
+        puerto_descarga TEXT,
+        tipo_carga TEXT,
+        incoterm TEXT,
+        notas TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+      );
+      
+      -- Crear políticas RLS
+      ALTER TABLE public.instrucciones_bl ENABLE ROW LEVEL SECURITY;
+      
+      CREATE POLICY "Todos pueden ver instrucciones_bl" 
+        ON public.instrucciones_bl FOR SELECT 
+        USING (true);
+        
+      CREATE POLICY "Usuarios autenticados pueden modificar instrucciones_bl" 
+        ON public.instrucciones_bl FOR ALL 
+        USING (auth.role() = 'authenticated');
+    `;
+    
+    // Ejecutar SQL
+    const { error: errorCrear } = await supabase.rpc('execute_sql', { sql: crearTablaSQL });
+    
+    if (errorCrear) {
+      // Si la función RPC no existe o falla, intentar con REST API
+      console.error('Error al crear tabla con RPC, intentando método alternativo:', errorCrear);
+      
+      // Intentar crear directamente insertando un registro de ejemplo
+      const { error: errorInsert } = await supabase
+        .from('instrucciones_bl')
+        .insert({
+          numero_instruccion: 'BL-INIT-001',
+          fecha_creacion: new Date().toISOString(),
+          cliente: 'Cliente inicial',
+          consignatario: 'Consignatario inicial',
+          puerto_carga: 'Puerto origen',
+          puerto_descarga: 'Puerto destino',
+          tipo_carga: 'FCL',
+          incoterm: 'FOB',
+          estado: 'borrador'
+        });
+      
+      if (errorInsert) {
+        return {
+          success: false,
+          message: 'No se pudo crear la tabla instrucciones_bl: ' + errorInsert.message,
+          error: errorInsert
+        };
+      }
+    }
+    
+    return { 
+      success: true, 
+      message: 'Tabla instrucciones_bl creada correctamente.' 
+    };
+  } catch (error: any) {
+    console.error('Error en migración de instrucciones_bl:', error);
+    return { 
+      success: false, 
+      message: 'Error en migración: ' + error.message,
+      error 
+    };
+  }
 };
 
 export const ejecutarMigracionConfiguracion = async (): Promise<MigracionResponse> => {

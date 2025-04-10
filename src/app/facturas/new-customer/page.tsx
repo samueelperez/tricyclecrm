@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fi';
 
 import { getSupabaseClient } from '@/lib/supabase';
+import { verifyFacturasClienteTable } from '@/lib/db-migrations';
 
 // Definir interfaces para los tipos
 interface InvoiceItem {
@@ -83,6 +84,9 @@ export default function NewCustomerInvoicePage() {
     setLoading(true);
     
     try {
+      // Verificar y actualizar la estructura de la tabla antes de guardar
+      await verifyFacturasClienteTable();
+      
       // Validar campos obligatorios
       if (!invoice.customerName) {
         alert('Por favor, seleccione un cliente');
@@ -110,7 +114,7 @@ export default function NewCustomerInvoicePage() {
         id_externo: invoice.number,
         fecha: invoice.date,
         negocio_id: null, // Se podría relacionar con un negocio específico en el futuro
-        cliente_id: cliente_id, // Incluir el ID del cliente
+        cliente_id: cliente_id, // Usar directamente el campo cliente_id
         monto: invoice.totalAmount,
         material: JSON.stringify({
           cliente_nombre: invoice.customerName,
@@ -269,8 +273,9 @@ export default function NewCustomerInvoicePage() {
               <input 
                 type="text" 
                 value={invoice.number}
-                className="w-full p-2 border rounded-md bg-gray-50"
-                readOnly
+                onChange={(e) => setInvoice({...invoice, number: e.target.value})}
+                className="w-full p-2 border rounded-md"
+                placeholder="Ej: FAC-2023-001"
               />
             </div>
             <div>

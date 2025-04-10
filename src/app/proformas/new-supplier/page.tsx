@@ -7,7 +7,6 @@ import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
 interface SupplierProforma {
-  dealNumber: string;
   date: string;
   supplierName: string;
   totalAmount: number;
@@ -15,59 +14,26 @@ interface SupplierProforma {
   currency: string;
   attachment?: File | null;
   number: string;
-  additionalClients: {
-    id: string;
-    name: string;
-    percentage?: number;
-  }[];
 }
 
 export default function NewSupplierProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   
   const [proforma, setProforma] = useState<SupplierProforma>({
-    dealNumber: '',
     date: new Date().toISOString().split('T')[0],
     supplierName: '',
     totalAmount: 0,
     materialName: '',
     currency: 'EUR',
     attachment: null,
-    number: '',
-    additionalClients: []
-  });
-
-  // Estado para gestionar la adición de nuevos clientes
-  const [newClient, setNewClient] = useState({
-    id: '',
-    name: '',
-    percentage: 0
+    number: ''
   });
 
   // Cargar lista de clientes al iniciar
   useEffect(() => {
-    const cargarClientes = async () => {
-      try {
-        const supabaseClient = getSupabaseClient();
-        const { data, error } = await supabaseClient
-          .from('clientes')
-          .select('id, nombre')
-          .order('nombre');
-          
-        if (error) {
-          console.error('Error cargando clientes:', error);
-          return;
-        }
-        
-        setClientesList(data || []);
-      } catch (err) {
-        console.error('Error al cargar los clientes:', err);
-      }
-    };
-    
-    cargarClientes();
+    // Esta función ya no es necesaria porque no hay clientes adicionales
+    // La eliminamos completamente
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -89,65 +55,13 @@ export default function NewSupplierProformaPage() {
 
   const handleClearAll = () => {
     setProforma({
-      dealNumber: '',
       date: new Date().toISOString().split('T')[0],
       supplierName: '',
       totalAmount: 0,
       materialName: '',
       currency: 'EUR',
       attachment: null,
-      number: '',
-      additionalClients: []
-    });
-    setNewClient({
-      id: '',
-      name: '',
-      percentage: 0
-    });
-  };
-
-  // Añadir un nuevo cliente
-  const addClient = () => {
-    if (!newClient.id) {
-      alert('Por favor, seleccione un cliente');
-      return;
-    }
-    
-    // Verificar si el cliente ya existe en la lista
-    if (proforma.additionalClients.some(c => c.id === newClient.id)) {
-      alert('Este cliente ya ha sido añadido');
-      return;
-    }
-    
-    // Buscar el nombre del cliente seleccionado
-    const clienteSeleccionado = clientesList.find(c => c.id === newClient.id);
-    if (!clienteSeleccionado) return;
-    
-    setProforma({
-      ...proforma,
-      additionalClients: [
-        ...proforma.additionalClients,
-        {
-          id: newClient.id,
-          name: clienteSeleccionado.nombre,
-          percentage: newClient.percentage || undefined
-        }
-      ]
-    });
-    
-    // Limpiar el formulario de nuevo cliente
-    setNewClient({
-      id: '',
-      name: '',
-      percentage: 0
-    });
-  };
-  
-  // Eliminar un cliente
-  const removeClient = (id: string) => {
-    setProforma({
-      ...proforma,
-      additionalClients: proforma.additionalClients.filter(client => client.id !== id)
+      number: ''
     });
   };
 
@@ -166,7 +80,7 @@ export default function NewSupplierProformaPage() {
       }
       
       // Generar un ID externo con formato claro de proforma de proveedor
-      const idExterno = proforma.dealNumber || `PRO-SUPP-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      const idExterno = proforma.number || `PRO-SUPP-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
       
       // Preparar datos para guardar en Supabase
       const proformaData = {
@@ -206,19 +120,9 @@ export default function NewSupplierProformaPage() {
     }
   };
   
-  // Preparar notas con la información de clientes adicionales
+  // Preparar notas con la información básica
   const prepareNotes = () => {
-    let notes = `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`;
-    
-    // Añadir información de clientes adicionales si existen
-    if (proforma.additionalClients.length > 0) {
-      notes += '\n\nClientes adicionales:\n';
-      notes += proforma.additionalClients.map(client => 
-        `${client.name}${client.percentage ? `: ${client.percentage}%` : ''}`
-      ).join('\n');
-    }
-    
-    return notes;
+    return `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`;
   };
 
   return (
@@ -240,33 +144,19 @@ export default function NewSupplierProformaPage() {
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Deal Number */}
+            {/* Número de Proforma */}
             <div>
-              <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                Número de Operación
-              </label>
-              <div className="relative">
-                <select
-                  id="dealNumber"
-                  name="dealNumber"
-                  value={proforma.dealNumber}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="">Seleccionar número de operación</option>
-                  <option value="INV001">INV001</option>
-                  <option value="INV002">INV002</option>
-                  <option value="INV003">INV003</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Proforma</label>
+              <input 
+                type="text" 
+                value={proforma.number}
+                onChange={(e) => setProforma({...proforma, number: e.target.value})}
+                className="w-full p-2 border rounded-md focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                placeholder="Ej: PRO-SUPP-23-001"
+              />
             </div>
 
-            {/* Supplier Proforma Date */}
+            {/* Fecha de Proforma */}
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
                 Fecha de Proforma
@@ -288,7 +178,7 @@ export default function NewSupplierProformaPage() {
               </div>
             </div>
 
-            {/* Supplier Name */}
+            {/* Nombre del Proveedor */}
             <div>
               <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700 mb-1">
                 Nombre del Proveedor
@@ -314,7 +204,7 @@ export default function NewSupplierProformaPage() {
               </div>
             </div>
 
-            {/* Total Amount */}
+            {/* Importe Total */}
             <div>
               <label htmlFor="totalAmount" className="block text-sm font-medium text-gray-700 mb-1">
                 Importe Total <span className="text-red-500">*</span>
@@ -331,7 +221,7 @@ export default function NewSupplierProformaPage() {
               />
             </div>
 
-            {/* Type Material Name */}
+            {/* Nombre del Material */}
             <div>
               <label htmlFor="materialName" className="block text-sm font-medium text-gray-700 mb-1">
                 Nombre del Material
@@ -346,7 +236,7 @@ export default function NewSupplierProformaPage() {
               />
             </div>
 
-            {/* Currency */}
+            {/* Moneda */}
             <div>
               <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
                 Moneda
@@ -360,21 +250,9 @@ export default function NewSupplierProformaPage() {
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
               />
             </div>
-
-            {/* Número de Proforma */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Proforma</label>
-              <input 
-                type="text" 
-                value={proforma.number}
-                onChange={(e) => setProforma({...proforma, number: e.target.value})}
-                className="w-full p-2 border rounded-md"
-                placeholder="Ej: PRO-SUPP-23-001"
-              />
-            </div>
           </div>
 
-          {/* Attachment */}
+          {/* Adjunto */}
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Adjunto
@@ -418,96 +296,6 @@ export default function NewSupplierProformaPage() {
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Clientes Adicionales */}
-          <div className="p-6 border-t border-gray-200">
-            <h2 className="text-lg font-medium text-gray-700 mb-4">Clientes Adicionales</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Cliente</label>
-                <div className="relative">
-                  <select 
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                    value={newClient.id}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      const selectedClient = clientesList.find(c => c.id === selectedId);
-                      setNewClient({
-                        ...newClient,
-                        id: selectedId,
-                        name: selectedClient?.nombre || ''
-                      });
-                    }}
-                  >
-                    <option value="">Seleccionar cliente</option>
-                    {clientesList.map(cliente => (
-                      <option key={cliente.id} value={cliente.id}>
-                        {cliente.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje (%)</label>
-                <input 
-                  type="number" 
-                  placeholder="ej. 40"
-                  value={newClient.percentage || ''}
-                  onChange={(e) => setNewClient({...newClient, percentage: parseFloat(e.target.value) || 0})}
-                  className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <button 
-                type="button"
-                onClick={addClient}
-                className="inline-flex items-center px-4 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                + Añadir Cliente
-              </button>
-            </div>
-            
-            {/* Lista de clientes añadidos */}
-            {proforma.additionalClients.length > 0 && (
-              <div className="mt-4 border rounded-md overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Porcentaje</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {proforma.additionalClients.map((client) => (
-                      <tr key={client.id}>
-                        <td className="px-4 py-2 whitespace-nowrap">{client.name}</td>
-                        <td className="px-4 py-2 whitespace-nowrap">{client.percentage || 'N/A'}%</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-right">
-                          <button 
-                            type="button"
-                            onClick={() => removeClient(client.id)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            Eliminar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </div>
 

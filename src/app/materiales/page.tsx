@@ -2,17 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { FiEdit, FiEye, FiTrash2, FiSearch } from 'react-icons/fi'
+import { FiEdit, FiEye, FiTrash2, FiSearch, FiTag } from 'react-icons/fi'
 import Link from 'next/link'
 
 interface Material {
   id: number
   nombre: string
   descripcion: string | null
-  codigo: string
-  precio_unitario: number
-  unidad_medida: string
-  stock_actual: number
+  categoria?: string
 }
 
 export default function MaterialesPage() {
@@ -27,7 +24,7 @@ export default function MaterialesPage() {
         setLoading(true)
         const { data, error } = await supabase
           .from('materiales')
-          .select('*')
+          .select('id, nombre, descripcion, categoria')
           .order('nombre')
         
         if (error) {
@@ -47,9 +44,22 @@ export default function MaterialesPage() {
 
   const filteredMateriales = materiales.filter(material => 
     material.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    material.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (material.descripcion && material.descripcion.toLowerCase().includes(searchQuery.toLowerCase()))
   )
+
+  // Función para obtener el nombre legible de la categoría
+  const getCategoriaLabel = (categoria?: string): string => {
+    switch (categoria) {
+      case 'plastico':
+        return 'Plástico';
+      case 'metal':
+        return 'Metal';
+      case 'papel':
+        return 'Papel';
+      default:
+        return 'No especificada';
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -62,7 +72,7 @@ export default function MaterialesPage() {
           </span>
           <input
             type="text"
-            placeholder="Buscar por nombre, código o descripción..."
+            placeholder="Buscar por nombre o descripción..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -93,22 +103,21 @@ export default function MaterialesPage() {
           <table className="min-w-full bg-white border rounded-lg overflow-hidden">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Unitario</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unidad</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredMateriales.map((material) => (
                 <tr key={material.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">{material.codigo}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{material.nombre}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">€{material.precio_unitario.toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{material.unidad_medida}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{material.stock_actual}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="flex items-center">
+                      <FiTag className="text-gray-400 mr-1" />
+                      {getCategoriaLabel(material.categoria)}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-3">
                       <Link href={`/materiales/${material.id}`} className="text-blue-500 hover:text-blue-700">

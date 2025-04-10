@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -8,31 +8,80 @@ import {
   FiSave, 
   FiX,
   FiPackage,
-  FiTag,
   FiFileText,
-  FiDollarSign,
-  FiHash,
-  FiBox
+  FiTag
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 
-interface MaterialFormData {
+interface Material {
+  id: number;
   nombre: string;
-  descripcion: string;
+  descripcion: string | null;
   categoria: string;
 }
 
-export default function NewMaterialPage() {
+type FormData = {
+  nombre: string;
+  descripcion: string;
+  categoria: string;
+};
+
+interface EditMaterialPageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function EditMaterialPage({ params }: EditMaterialPageProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const materialId = params.id;
   
   // Estado inicial del formulario
-  const [formData, setFormData] = useState<MaterialFormData>({
+  const [formData, setFormData] = useState<FormData>({
     nombre: '',
     descripcion: '',
     categoria: 'plastico' // Valor por defecto
   });
+
+  // Cargar datos del material
+  useEffect(() => {
+    async function loadMaterial() {
+      try {
+        setLoadingData(true);
+        const supabase = getSupabaseClient();
+        
+        const { data, error } = await supabase
+          .from('materiales')
+          .select('id, nombre, descripcion, categoria')
+          .eq('id', materialId)
+          .single();
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data) {
+          setFormData({
+            nombre: data.nombre || '',
+            descripcion: data.descripcion || '',
+            categoria: data.categoria || 'plastico'
+          });
+        } else {
+          throw new Error('No se encontró el material');
+        }
+      } catch (err) {
+        console.error('Error cargando material:', err);
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      } finally {
+        setLoadingData(false);
+      }
+    }
+    
+    loadMaterial();
+  }, [materialId]);
 
   // Manejar cambios en los campos del formulario
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -57,17 +106,18 @@ export default function NewMaterialPage() {
       
       const supabase = getSupabaseClient();
       
-      // Método más básico posible, sin arrays ni .select()
+      // Actualizar el material en Supabase
       const { error } = await supabase
         .from('materiales')
-        .insert({
+        .update({
           nombre: formData.nombre,
           descripcion: formData.descripcion,
           categoria: formData.categoria
-        });
+        })
+        .eq('id', materialId);
           
       if (error) {
-        throw new Error(`Error al guardar el material: ${error.message}`);
+        throw new Error(`Error al actualizar el material: ${error.message}`);
       }
       
       // Redirigir a la página de materiales
@@ -76,7 +126,7 @@ export default function NewMaterialPage() {
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
-      console.error('Error al guardar material:', err);
+      console.error('Error al actualizar material:', err);
     } finally {
       setLoading(false);
     }
@@ -99,8 +149,6 @@ export default function NewMaterialPage() {
     value: string | number;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
-    min?: string | number;
-    step?: string;
   }) => (
     <div className="relative">
       <input
@@ -138,32 +186,15 @@ export default function NewMaterialPage() {
     </div>
   );
 
-  // Función para renderizar un select
-  const renderSelect = (props: {
-    name: string;
-    id: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-    options: { value: string; label: string }[];
-  }) => (
-    <div className="relative">
-      <select
-        {...props}
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
-                  focus:border-indigo-500 focus:ring-indigo-500 
-                  transition-all duration-200 ease-in-out
-                  hover:border-indigo-300 sm:text-sm
-                  peer"
-      >
-        {props.options.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <div className="absolute inset-0 border border-indigo-500 rounded-md opacity-0 pointer-events-none transition-opacity duration-200 peer-focus:opacity-100"></div>
-    </div>
-  );
+  // Mostrar estado de carga inicial
+  if (loadingData) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        <p className="ml-3 text-gray-700">Cargando datos del material...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen py-10">
@@ -175,11 +206,11 @@ export default function NewMaterialPage() {
               <FiArrowLeft className="h-6 w-6" />
             </Link>
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
-              Nuevo Material
+              Editar Material
             </h1>
           </div>
           <div className="hidden sm:block text-sm text-gray-500">
-            Complete el formulario para añadir un nuevo material al inventario
+            ID: {materialId}
           </div>
         </div>
         
@@ -229,19 +260,23 @@ export default function NewMaterialPage() {
                 </div>
                 
                 {/* Categoría */}
-                <div className="relative group">
+                <div className="relative group mt-4">
                   {renderLabel('Categoría', true, <FiTag />)}
-                  {renderSelect({
-                    name: "categoria",
-                    id: "categoria",
-                    value: formData.categoria,
-                    onChange: handleInputChange,
-                    options: [
-                      { value: 'plastico', label: 'Plástico' },
-                      { value: 'metal', label: 'Metal' },
-                      { value: 'papel', label: 'Papel' }
-                    ]
-                  })}
+                  <select
+                    name="categoria"
+                    id="categoria"
+                    value={formData.categoria}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
+                              focus:border-indigo-500 focus:ring-indigo-500 
+                              transition-all duration-200 ease-in-out
+                              hover:border-indigo-300 sm:text-sm
+                              peer"
+                  >
+                    <option value="plastico">Plástico</option>
+                    <option value="metal">Metal</option>
+                    <option value="papel">Papel</option>
+                  </select>
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>
               </div>
@@ -288,7 +323,7 @@ export default function NewMaterialPage() {
               ) : (
                 <>
                   <FiSave className="mr-2 -ml-1 h-4 w-4" />
-                  Guardar Material
+                  Guardar Cambios
                 </>
               )}
             </button>

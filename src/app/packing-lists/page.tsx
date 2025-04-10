@@ -57,28 +57,28 @@ export default function PackingListsPage() {
   }, []);
 
   const loadPackingLists = async () => {
-    setLoading(true);
+      setLoading(true);
     setError(null);
-    try {
-      const supabase = getSupabaseClient();
-      const { data, error } = await supabase
-        .from('packing_lists')
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('packing_lists')
         .select(`
           *,
           items:packing_list_items(*)
         `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setPackingLists(data || []);
-    } catch (error) {
-      console.error('Error al cargar listas de empaque:', error);
-      setError('Error al cargar listas de empaque. Por favor, intente de nuevo.');
-    } finally {
-      setLoading(false);
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        setPackingLists(data || []);
+      } catch (error) {
+        console.error('Error al cargar listas de empaque:', error);
+        setError('Error al cargar listas de empaque. Por favor, intente de nuevo.');
+      } finally {
+        setLoading(false);
+      }
     }
-  }
 
   // Eliminar lista de empaque
   const handleDelete = async (id: string) => {
@@ -146,18 +146,18 @@ export default function PackingListsPage() {
           >
             <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nueva Lista de Empaque
           </Link>
-        </div>
-        
-        {/* Mensaje de error */}
-        {error && (
+      </div>
+      
+      {/* Mensaje de error */}
+      {error && (
           <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-md shadow-sm animate-fadeIn">
-            <div className="flex">
+          <div className="flex">
               <div className="flex-shrink-0 text-red-500">
                 <FiX className="h-5 w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
               <div className="ml-auto pl-3">
                 <div className="-mx-1.5 -my-1.5">
                   <button
@@ -188,8 +188,8 @@ export default function PackingListsPage() {
             />
           </div>
         </div>
-
-        {/* Tabla de listas de empaque */}
+      
+      {/* Tabla de listas de empaque */}
         {loading ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>

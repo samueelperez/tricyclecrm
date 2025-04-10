@@ -43,8 +43,8 @@ export default async function PackingListsLayout({ children }: PackingListsLayou
           </div>
         </div>
         <main className="flex-grow">
-          {children}
-        </main>
+      {children}
+    </main>
       </div>
     </MainLayout>
   );
