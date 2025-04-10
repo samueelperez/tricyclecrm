@@ -10,7 +10,7 @@ import {
   FiFileText,
   FiInfo,
   FiHash,
-  FiBarcode,
+  FiCode,
   FiTag
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';

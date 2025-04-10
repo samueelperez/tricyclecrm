@@ -557,7 +557,8 @@ export default function NewCustomerProformaPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores</label>./src/app/materiales/[id]/page.tsx:13:3
+              Type error: '"react-icons/fi"' has no exported member named 'FiBarcode'. Did you mean 'FiCode'?
               <input 
                 type="number" 
                 min="0"
