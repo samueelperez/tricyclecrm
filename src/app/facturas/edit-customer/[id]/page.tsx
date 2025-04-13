@@ -207,10 +207,10 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
                   <td className="py-2 px-4 border border-gray-300">{item.description}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.weight || 0}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.unitPrice.toFixed(2)} €</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{(item.unitPrice || 0).toFixed(2)} €</td>
                   <td className="py-2 px-4 text-center border border-gray-300">{item.packagingType || "N/A"}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.totalValue.toFixed(2)} €</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{(item.totalValue || 0).toFixed(2)} €</td>
                 </tr>
               ))}
             </tbody>
@@ -222,15 +222,15 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
           <div className="w-64 border border-gray-300 rounded-md overflow-hidden">
             <div className="flex justify-between py-2 px-4 bg-gray-50 border-b">
               <span className="font-medium">Subtotal:</span>
-              <span>{subtotal.toFixed(2)} €</span>
+              <span>{(subtotal || 0).toFixed(2)} €</span>
             </div>
             <div className="flex justify-between py-2 px-4 bg-white border-b">
               <span className="font-medium">IVA:</span>
-              <span>{taxAmount.toFixed(2)} €</span>
+              <span>{(taxAmount || 0).toFixed(2)} €</span>
             </div>
             <div className="flex justify-between py-3 px-4 bg-gray-100 font-bold">
               <span>Total:</span>
-              <span>{totalAmount.toFixed(2)} €</span>
+              <span>{(totalAmount || 0).toFixed(2)} €</span>
             </div>
           </div>
         </div>
@@ -1002,7 +1002,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
                   <input 
                     type="text" 
-                    value={item.totalValue.toFixed(2)}
+                    value={(item.totalValue || 0).toFixed(2)}
                     className="w-full p-2 border rounded-md bg-gray-50"
                     readOnly
                   />

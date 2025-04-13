@@ -15,6 +15,7 @@ interface MaterialData {
 
 interface SupplierInvoice {
   id: string;
+  invoiceId: string;
   dealNumber: string;
   date: string;
   supplierName: string;
@@ -34,6 +35,7 @@ export default function EditSupplierInvoicePage() {
   const [saving, setSaving] = useState(false);
   const [invoice, setInvoice] = useState<SupplierInvoice>({
     id: '',
+    invoiceId: '',
     dealNumber: '',
     date: new Date().toISOString().split('T')[0],
     supplierName: '',
@@ -83,6 +85,7 @@ export default function EditSupplierInvoicePage() {
         // Transformar datos al formato esperado
         setInvoice({
           id: id,
+          invoiceId: data.invoice_id || '',
           dealNumber: data.id_externo || '',
           date: data.fecha || new Date().toISOString().split('T')[0],
           supplierName: data.proveedor_nombre || '',
@@ -96,6 +99,7 @@ export default function EditSupplierInvoicePage() {
         // En caso de error, inicializar con datos vacíos
         setInvoice({
           id: id,
+          invoiceId: '',
           dealNumber: '',
           date: new Date().toISOString().split('T')[0],
           supplierName: '',
@@ -159,6 +163,7 @@ export default function EditSupplierInvoicePage() {
       // Preparar datos para actualizar en Supabase
       const facturaData = {
         id_externo: invoice.dealNumber,
+        invoice_id: invoice.invoiceId,
         fecha: invoice.date,
         monto: invoice.totalAmount,
         proveedor_nombre: invoice.supplierName,
@@ -243,10 +248,11 @@ export default function EditSupplierInvoicePage() {
 
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* ID de Factura (solo lectura) */}
+              {/* ID interno (solo lectura) */}
               <div>
                 <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de Factura
+                  ID interno
+                  <span className="ml-1 text-blue-500 text-xs font-normal">(no editable)</span>
                 </label>
                 <input
                   type="text"
@@ -254,8 +260,29 @@ export default function EditSupplierInvoicePage() {
                   name="id"
                   value={invoice.id}
                   readOnly
-                  className="block w-full rounded-md border border-gray-300 bg-gray-50 py-2 px-3 text-gray-500 focus:outline-none sm:text-sm"
+                  disabled
+                  className="block w-full rounded-md border border-gray-300 bg-gray-100 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
                 />
+              </div>
+
+              {/* ID de Factura */}
+              <div>
+                <label htmlFor="invoiceId" className="block text-sm font-medium text-gray-700 mb-1">
+                  ID de Factura <span className="text-red-500">*</span>
+                  <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="invoiceId"
+                    name="invoiceId"
+                    value={invoice.invoiceId}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="Ej: FACT-2023-001"
+                    className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
               </div>
 
               {/* Número de Operación */}
