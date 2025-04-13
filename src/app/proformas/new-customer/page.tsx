@@ -8,7 +8,9 @@ import {
   FiChevronDown, 
   FiPlus, 
   FiTrash2,
-  FiSave
+  FiSave,
+  FiCode,
+  FiSearch
 } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase';
 import { verifyProformasProductosTable } from '@/lib/db-migrations';
@@ -41,10 +43,20 @@ interface ProformaState {
   totalAmount: number;
 }
 
+// Lista de puertos predefinidos
+const PUERTOS_SUGERIDOS = [
+  'TEMA PORT - GHANA',
+  'APAPA PORT - NIGERIA',
+  'MERSIN PORT - TURKEY',
+  'KLANG WEST PORT - MALAYSIA',
+  'LAEMCHABANG PORT - THAILAND'
+];
+
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
+  const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   
   // Datos iniciales para la proforma
   const [proforma, setProforma] = useState<ProformaState>({
@@ -96,6 +108,21 @@ export default function NewCustomerProformaPage() {
     };
     
     cargarClientes();
+  }, []);
+
+  // Manejador para cerrar la lista de sugerencias al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.ports-combobox')) {
+        setShowPortSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const handleCancel = () => {
@@ -395,15 +422,43 @@ export default function NewCustomerProformaPage() {
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
-              <input 
-                type="text" 
-                placeholder="Ej: TEMA PORT - GHANA, BARCELONA - ESPAÑA"
-                value={proforma.ports}
-                onChange={(e) => setProforma({...proforma, ports: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
+              <div className="relative ports-combobox">
+                <input 
+                  type="text" 
+                  placeholder="Buscar o escribir puerto..."
+                  value={proforma.ports}
+                  onChange={(e) => {
+                    setProforma({...proforma, ports: e.target.value});
+                  }}
+                  onFocus={() => setShowPortSuggestions(true)}
+                  className="w-full p-2 border rounded-md pr-10"
+                />
+                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Lista de sugerencias */}
+                {showPortSuggestions && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {PUERTOS_SUGERIDOS
+                      .filter(port => 
+                        port.toLowerCase().includes(proforma.ports.toLowerCase())
+                      )
+                      .map((port, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setProforma({...proforma, ports: port});
+                            setShowPortSuggestions(false);
+                          }}
+                        >
+                          {port}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
@@ -557,8 +612,7 @@ export default function NewCustomerProformaPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores</label>./src/app/materiales/[id]/page.tsx:13:3
-              Type error: '"react-icons/fi"' has no exported member named 'FiBarcode'. Did you mean 'FiCode'?
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores</label>
               <input 
                 type="number" 
                 min="0"

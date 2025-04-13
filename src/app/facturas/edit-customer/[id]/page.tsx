@@ -35,6 +35,8 @@ interface NotasData {
   cliente_nombre?: string;
   taxId?: string;
   paymentTerms?: string;
+  ports?: string;
+  deliveryTerms?: string;
   notas?: string;
   items?: InvoiceItem[];
   descripcion?: string;
@@ -54,6 +56,8 @@ interface Invoice {
   taxAmount: number;
   totalAmount: number;
   bankAccount?: string;
+  ports: string;
+  deliveryTerms: string;
 }
 
 // Componente para la vista de impresión de factura
@@ -130,6 +134,34 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
           <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
             <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Términos de pago</h2>
             <p>{invoice.paymentTerms || "No especificado"}</p>
+          </div>
+        </div>
+
+        {/* Términos de Entrega */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
+              <input 
+                type="text" 
+                placeholder="Ej: TEMA PORT - GHANA, BARCELONA - ESPAÑA"
+                value={invoice.ports}
+                onChange={(e) => setInvoice({...invoice, ports: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
+              <input 
+                type="text" 
+                placeholder="ej. CIF (Cost, Insurance, and Freight)"
+                value={invoice.deliveryTerms}
+                onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
           </div>
         </div>
 
@@ -229,7 +261,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     subtotal: 0,
     taxAmount: 0,
     totalAmount: 0,
-    bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD'
+    bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
+    ports: '',
+    deliveryTerms: ''
   });
 
   // Cargar lista de clientes al iniciar
@@ -256,80 +290,56 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     cargarClientes();
   }, []);
 
-  // Cargar datos reales de Supabase
+  // Cargar datos de la factura
   useEffect(() => {
     const loadInvoice = async () => {
-      setLoading(true);
-      setError(null);
-      
       try {
         const supabase = getSupabaseClient();
-        
-        // Obtener la factura de la base de datos
-        const { data, error: fetchError } = await supabase
+        const { data, error } = await supabase
           .from('facturas_cliente')
           .select('*')
           .eq('id', params.id)
           .single();
-        
-        if (fetchError) throw fetchError;
-        if (!data) throw new Error('No se encontró la factura');
-        
-        // Extraer información adicional del campo notas si existe y es JSON válido
-        let notasData: NotasData = {};
-        let clienteNombre = '';
-        let taxId = '';
-        let paymentTerms = '';
-        let notasText = '';
-        let itemsData: InvoiceItem[] = [];
-        let descripcion = '';
-        
-        try {
-          if (data.material) {
-            notasData = JSON.parse(data.material);
-            clienteNombre = notasData.cliente_nombre || '';
-            taxId = notasData.taxId || '';
-            paymentTerms = notasData.paymentTerms || '';
-            notasText = notasData.notas || '';
-            itemsData = notasData.items || [];
-            descripcion = notasData.descripcion || data.material || '';
-          }
-        } catch (e) {
-          // Si no es JSON válido, usar material como texto plano
-          descripcion = data.material || '';
+          
+        if (error) {
+          throw error;
         }
         
-        // Transformar datos al formato esperado
-        const invoiceData: Invoice = {
-          id: params.id,
-          number: data.id_externo || '',
-          date: data.fecha || new Date().toISOString().split('T')[0],
-          customerName: clienteNombre,
-          taxId: taxId,
-          paymentTerms: paymentTerms,
-          invoiceNotes: notasText,
-          estado: data.estado || 'pendiente',
-          items: itemsData.length > 0 ? itemsData : [
-            {
+        if (data) {
+          // Parsear el campo material que contiene datos adicionales
+          const materialData: NotasData = data.material ? JSON.parse(data.material) : {};
+          
+          // Construir el objeto de factura
+          const facturaData: Invoice = {
+            id: data.id,
+            number: data.id_externo || '',
+            date: data.fecha || new Date().toISOString().split('T')[0],
+            customerName: materialData.cliente_nombre || '',
+            taxId: materialData.taxId || '',
+            paymentTerms: materialData.paymentTerms || '',
+            invoiceNotes: materialData.notas || '',
+            estado: data.estado || 'pendiente',
+            items: materialData.items || [{
               id: '1',
-              description: descripcion,
-              quantity: 1,
-              unitPrice: data.monto || 0,
+              description: '',
+              quantity: 0,
+              unitPrice: 0,
               taxRate: 21,
-              totalValue: data.monto || 0
-            }
-          ],
-          subtotal: data.monto || 0,
-          taxAmount: (data.monto || 0) * 0.21,
-          totalAmount: (data.monto || 0) * 1.21
-        };
-        
-        setInvoice(invoiceData);
+              totalValue: 0
+            }],
+            subtotal: data.monto || 0,
+            taxAmount: (data.monto || 0) * 0.21,
+            totalAmount: (data.monto || 0) * 1.21,
+            bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
+            ports: materialData.ports || '',
+            deliveryTerms: materialData.deliveryTerms || ''
+          };
+          
+          setInvoice(facturaData);
+        }
       } catch (error) {
         console.error('Error al cargar la factura:', error);
-        setError('Ha ocurrido un error al cargar la factura. Por favor, inténtelo de nuevo.');
-      } finally {
-        setLoading(false);
+        alert('Error al cargar los datos de la factura');
       }
     };
     
@@ -366,20 +376,23 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
       const totalAmount = subtotal + taxAmount;
       
-      // Preparar datos para actualizar en Supabase
+      // Preparar datos para guardar en Supabase
       const facturaData = {
         id_externo: invoice.number,
         fecha: invoice.date,
-        monto: totalAmount,
-        cliente_id: cliente_id, // Incluir el ID del cliente
+        cliente_id: cliente_id,
+        monto: invoice.totalAmount,
         material: JSON.stringify({
           cliente_nombre: invoice.customerName,
           taxId: invoice.taxId,
           paymentTerms: invoice.paymentTerms,
+          ports: invoice.ports,
+          deliveryTerms: invoice.deliveryTerms,
           notas: invoice.invoiceNotes,
           items: invoice.items,
           descripcion: invoice.items[0]?.description || ''
         }),
+        notas: invoice.invoiceNotes,
         estado: invoice.estado
       };
       
@@ -670,6 +683,34 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 placeholder="ej. XXXX30283-9-00"
                 value={invoice.taxId}
                 onChange={(e) => setInvoice({...invoice, taxId: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* Términos de Entrega */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
+              <input 
+                type="text" 
+                placeholder="Ej: TEMA PORT - GHANA, BARCELONA - ESPAÑA"
+                value={invoice.ports}
+                onChange={(e) => setInvoice({...invoice, ports: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
+              <input 
+                type="text" 
+                placeholder="ej. CIF (Cost, Insurance, and Freight)"
+                value={invoice.deliveryTerms}
+                onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
                 className="w-full p-2 border rounded-md"
               />
             </div>
