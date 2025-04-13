@@ -419,82 +419,42 @@ export default function NewCustomerInvoicePage() {
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Información de Puertos</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
-              <div className="relative ports-combobox">
-                <input 
-                  type="text" 
-                  placeholder="Puerto de origen..."
-                  value={invoice.puerto_origen}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_origen: e.target.value});
-                  }}
-                  onFocus={() => setShowPortSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_origen: port});
-                            setShowPortSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-              <div className="relative ports-combobox-dest">
-                <input 
-                  type="text" 
-                  placeholder="Puerto de destino..."
-                  value={invoice.puerto_destino}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_destino: e.target.value});
-                  }}
-                  onFocus={() => setShowPortDestSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortDestSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_destino: port});
-                            setShowPortDestSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
+            <div className="relative ports-combobox-dest">
+              <input 
+                type="text" 
+                placeholder="Puerto de destino..."
+                value={invoice.puerto_destino}
+                onChange={(e) => {
+                  setInvoice({...invoice, puerto_destino: e.target.value});
+                }}
+                onFocus={() => setShowPortDestSuggestions(true)}
+                className="w-full p-2 border rounded-md pr-10"
+              />
+              <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              
+              {/* Lista de sugerencias */}
+              {showPortDestSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {PUERTOS_SUGERIDOS
+                    .filter(port => 
+                      port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
+                    )
+                    .map((port, index) => (
+                      <div
+                        key={index}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => {
+                          setInvoice({...invoice, puerto_destino: port});
+                          setShowPortDestSuggestions(false);
+                        }}
+                      >
+                        {port}
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
