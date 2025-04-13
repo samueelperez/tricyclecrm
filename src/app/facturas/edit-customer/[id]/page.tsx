@@ -29,6 +29,7 @@ interface InvoiceItem {
   totalValue: number;
   weight?: number;
   packaging?: string;
+  packagingType?: string;
 }
 
 // Lista de puertos predefinidos
@@ -163,91 +164,23 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
-              <div className="relative ports-combobox">
-                <input 
-                  type="text" 
-                  placeholder="Buscar o escribir puerto..."
-                  value={invoice.puerto_origen}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_origen: e.target.value});
-                  }}
-                  onFocus={() => setShowPortSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_origen: port});
-                            setShowPortSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
+              <div className="p-2 border rounded-md">
+                {invoice.puerto_origen || "No especificado"}
               </div>
             </div>
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-              <div className="relative ports-combobox-dest">
-                <input 
-                  type="text" 
-                  placeholder="Buscar o escribir puerto de destino..."
-                  value={invoice.puerto_destino}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_destino: e.target.value});
-                  }}
-                  onFocus={() => setShowPortDestSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortDestSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_destino: port});
-                            setShowPortDestSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
+              <div className="p-2 border rounded-md">
+                {invoice.puerto_destino || "No especificado"}
               </div>
             </div>
           </div>
           
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-            <input 
-              type="text" 
-              placeholder="ej. CIF (Cost, Insurance, and Freight)"
-              value={invoice.deliveryTerms}
-              onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
-              className="w-full p-2 border rounded-md"
-            />
+            <div className="p-2 border rounded-md">
+              {invoice.deliveryTerms || "No especificado"}
+            </div>
           </div>
         </div>
 
@@ -260,6 +193,7 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
                 <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
                 <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
                 <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
+                <th className="py-2 px-4 text-center border border-gray-300">Tipo Empaque</th>
                 <th className="py-2 px-4 text-right border border-gray-300">IVA %</th>
                 <th className="py-2 px-4 text-right border border-gray-300">Total</th>
               </tr>
@@ -270,6 +204,7 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
                   <td className="py-2 px-4 border border-gray-300">{item.description}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.unitPrice.toFixed(2)} €</td>
+                  <td className="py-2 px-4 text-center border border-gray-300">{item.packagingType || "N/A"}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.totalValue.toFixed(2)} €</td>
                 </tr>
@@ -451,7 +386,10 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
             quantity: 0,
             unitPrice: 0,
             taxRate: 21,
-            totalValue: 0
+            totalValue: 0,
+            weight: 0,
+            packaging: '',
+            packagingType: ''
           }],
           subtotal: data.monto || 0,
           taxAmount: (data.monto || 0) * 0.21,
@@ -565,9 +503,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         updatedItems[index].quantity * updatedItems[index].unitPrice;
     }
     
+    // Calcular subtotal, impuestos y total
+    const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
+    const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+    const totalAmount = subtotal + taxAmount;
+    
     setInvoice({
       ...invoice,
-      items: updatedItems
+      items: updatedItems,
+      subtotal,
+      taxAmount,
+      totalAmount
     });
   };
 
@@ -583,6 +529,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           weight: 0,
           unitPrice: 0,
           packaging: 'Type',
+          packagingType: '',
           totalValue: 0,
           taxRate: 21
         }
@@ -593,9 +540,18 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   const removeItem = (index: number) => {
     const updatedItems = [...invoice.items];
     updatedItems.splice(index, 1);
+    
+    // Recalcular totales
+    const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
+    const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+    const totalAmount = subtotal + taxAmount;
+    
     setInvoice({
       ...invoice,
-      items: updatedItems
+      items: updatedItems,
+      subtotal,
+      taxAmount,
+      totalAmount
     });
   };
 
@@ -996,6 +952,19 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   />
                 </div>
                 <div className="col-span-3 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Tipo Empaque</label>
+                  <select 
+                    className="w-full p-2 border rounded-md appearance-none"
+                    value={item.packagingType || ''}
+                    onChange={(e) => handleItemChange(index, 'packagingType', e.target.value)}
+                  >
+                    <option value="">Tipo</option>
+                    <option value="Bales">Bales</option>
+                    <option value="Bags">Bags</option>
+                    <option value="Bulk">Bulk</option>
+                  </select>
+                </div>
+                <div className="col-span-3 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
                   <input 
                     type="text" 
@@ -1042,6 +1011,18 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   placeholder="ej. 80€"
                   className="w-full p-2 border rounded-md"
                 />
+              </div>
+              <div className="col-span-3 md:col-span-1">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Tipo Empaque</label>
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  onChange={(e) => addNewItem()}
+                >
+                  <option value="">Tipo</option>
+                  <option value="Bales">Bales</option>
+                  <option value="Bags">Bags</option>
+                  <option value="Bulk">Bulk</option>
+                </select>
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
