@@ -104,6 +104,9 @@ export default function NewCustomerInvoicePage() {
       if (!target.closest('.ports-combobox')) {
         setShowPortSuggestions(false);
       }
+      if (!target.closest('.payment-terms-combobox')) {
+        setShowPaymentTermsSuggestions(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -456,15 +459,43 @@ export default function NewCustomerInvoicePage() {
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Pago</h3>
           
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Pago</label>
-            <input 
-              type="text" 
-              placeholder="Ej: 30 días, 60 días, Pago inmediato, etc."
-              value={invoice.paymentTerms}
-              onChange={(e) => setInvoice({...invoice, paymentTerms: e.target.value})}
-              className="w-full p-2 border rounded-md"
-            />
+            <div className="relative payment-terms-combobox">
+              <input 
+                type="text" 
+                placeholder="Buscar o escribir términos de pago..."
+                value={invoice.paymentTerms}
+                onChange={(e) => {
+                  setInvoice({...invoice, paymentTerms: e.target.value});
+                }}
+                onFocus={() => setShowPaymentTermsSuggestions(true)}
+                className="w-full p-2 border rounded-md pr-10"
+              />
+              <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              
+              {/* Lista de sugerencias */}
+              {showPaymentTermsSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {TERMINOS_PAGO_SUGERIDOS
+                    .filter(term => 
+                      term.toLowerCase().includes(invoice.paymentTerms.toLowerCase())
+                    )
+                    .map((term, index) => (
+                      <div
+                        key={index}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => {
+                          setInvoice({...invoice, paymentTerms: term});
+                          setShowPaymentTermsSuggestions(false);
+                        }}
+                      >
+                        {term}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
