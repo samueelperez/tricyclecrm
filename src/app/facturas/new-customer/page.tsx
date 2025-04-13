@@ -22,7 +22,6 @@ interface InvoiceItem {
   quantity: number;
   weight?: number;
   unitPrice: number;
-  taxRate: number;
   totalValue: number;
   packaging?: string;
 }
@@ -72,13 +71,11 @@ export default function NewCustomerInvoicePage() {
         quantity: 0,
         weight: 0,
         unitPrice: 0,
-        taxRate: 21,
         totalValue: 0,
         packaging: ''
       }
     ] as InvoiceItem[],
     subtotal: 0,
-    taxAmount: 0,
     totalAmount: 0
   });
 
@@ -235,14 +232,12 @@ export default function NewCustomerInvoicePage() {
     
     // Recalcular totales
     const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
-    const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
     
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal,
-      taxAmount,
-      totalAmount: subtotal + taxAmount
+      totalAmount: subtotal
     });
   };
 
@@ -257,7 +252,6 @@ export default function NewCustomerInvoicePage() {
           quantity: 0,
           weight: 0,
           unitPrice: 0,
-          taxRate: 21,
           totalValue: 0,
           packaging: ''
         }
@@ -271,14 +265,12 @@ export default function NewCustomerInvoicePage() {
     
     // Recalcular totales
     const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
-    const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
     
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal,
-      taxAmount,
-      totalAmount: subtotal + taxAmount
+      totalAmount: subtotal
     });
   };
 
@@ -572,15 +564,6 @@ export default function NewCustomerInvoicePage() {
                     </div>
                   </div>
                 </div>
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">% IVA</label>
-                  <input 
-                    type="number" 
-                    value={item.taxRate || ''}
-                    onChange={(e) => handleItemChange(index, 'taxRate', parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border rounded-md"
-                  />
-                </div>
                 <div className="col-span-4 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
                   <input 
@@ -633,10 +616,6 @@ export default function NewCustomerInvoicePage() {
                 <div className="flex justify-between py-2">
                   <span className="text-gray-600">Subtotal:</span>
                   <span className="font-medium">{invoice.subtotal.toFixed(2)} €</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">IVA:</span>
-                  <span className="font-medium">{invoice.taxAmount.toFixed(2)} €</span>
                 </div>
                 <div className="flex justify-between py-2 border-t border-gray-200 mt-2">
                   <span className="text-gray-800 font-medium">Total:</span>
