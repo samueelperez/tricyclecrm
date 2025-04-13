@@ -47,6 +47,7 @@ export default function NewCustomerInvoicePage() {
   const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
+  const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
   
   // Datos iniciales para la factura
   const [invoice, setInvoice] = useState({
@@ -56,7 +57,8 @@ export default function NewCustomerInvoicePage() {
     taxId: '',
     paymentTerms: '',
     invoiceNotes: '',
-    ports: '',
+    puerto_origen: '',
+    puerto_destino: '',
     deliveryTerms: '',
     items: [
       {
@@ -103,6 +105,9 @@ export default function NewCustomerInvoicePage() {
       const target = event.target as HTMLElement;
       if (!target.closest('.ports-combobox')) {
         setShowPortSuggestions(false);
+      }
+      if (!target.closest('.ports-combobox-dest')) {
+        setShowPortDestSuggestions(false);
       }
       if (!target.closest('.payment-terms-combobox')) {
         setShowPaymentTermsSuggestions(false);
@@ -159,14 +164,15 @@ export default function NewCustomerInvoicePage() {
           cliente_nombre: invoice.customerName,
           taxId: invoice.taxId,
           paymentTerms: invoice.paymentTerms,
-          ports: invoice.ports,
           deliveryTerms: invoice.deliveryTerms,
           notas: invoice.invoiceNotes,
           items: invoice.items,
           descripcion: invoice.items[0]?.description || ''
         }),
         notas: prepareNotes(),
-        estado: 'pendiente'
+        estado: 'pendiente',
+        puerto_origen: invoice.puerto_origen,
+        puerto_destino: invoice.puerto_destino
       };
       
       console.log('Guardando factura:', facturaData);
@@ -399,20 +405,20 @@ export default function NewCustomerInvoicePage() {
           </div>
         </div>
         
-        {/* Términos de Entrega */}
+        {/* Información de Puertos */}
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Información de Puertos</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
               <div className="relative ports-combobox">
                 <input 
                   type="text" 
-                  placeholder="Buscar o escribir puerto..."
-                  value={invoice.ports}
+                  placeholder="Puerto de origen..."
+                  value={invoice.puerto_origen}
                   onChange={(e) => {
-                    setInvoice({...invoice, ports: e.target.value});
+                    setInvoice({...invoice, puerto_origen: e.target.value});
                   }}
                   onFocus={() => setShowPortSuggestions(true)}
                   className="w-full p-2 border rounded-md pr-10"
@@ -424,14 +430,14 @@ export default function NewCustomerInvoicePage() {
                   <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
                     {PUERTOS_SUGERIDOS
                       .filter(port => 
-                        port.toLowerCase().includes(invoice.ports.toLowerCase())
+                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
                       )
                       .map((port, index) => (
                         <div
                           key={index}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                           onClick={() => {
-                            setInvoice({...invoice, ports: port});
+                            setInvoice({...invoice, puerto_origen: port});
                             setShowPortSuggestions(false);
                           }}
                         >
@@ -442,6 +448,52 @@ export default function NewCustomerInvoicePage() {
                 )}
               </div>
             </div>
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
+              <div className="relative ports-combobox-dest">
+                <input 
+                  type="text" 
+                  placeholder="Puerto de destino..."
+                  value={invoice.puerto_destino}
+                  onChange={(e) => {
+                    setInvoice({...invoice, puerto_destino: e.target.value});
+                  }}
+                  onFocus={() => setShowPortDestSuggestions(true)}
+                  className="w-full p-2 border rounded-md pr-10"
+                />
+                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Lista de sugerencias */}
+                {showPortDestSuggestions && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {PUERTOS_SUGERIDOS
+                      .filter(port => 
+                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
+                      )
+                      .map((port, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setInvoice({...invoice, puerto_destino: port});
+                            setShowPortDestSuggestions(false);
+                          }}
+                        >
+                          {port}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Términos de Entrega */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
               <input 

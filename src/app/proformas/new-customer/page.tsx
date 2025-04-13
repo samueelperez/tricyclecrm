@@ -547,7 +547,7 @@ export default function NewCustomerProformaPage() {
                   />
                 </div>
                 <div className="col-span-3 md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Cantidad</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">40ft</label>
                   <input 
                     type="number" 
                     placeholder="ej. 10"
@@ -567,7 +567,7 @@ export default function NewCustomerProformaPage() {
                   />
                 </div>
                 <div className="col-span-3 md:col-span-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Precio</label>
                   <input 
                     type="number" 
                     placeholder="ej. 240.00"
@@ -585,9 +585,10 @@ export default function NewCustomerProformaPage() {
                       onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
                     >
                       <option>Tipo</option>
-                      <option>Balas</option>
-                      <option>Cajas</option>
-                      <option>Pallets</option>
+                      <option>Bales</option>
+                      <option>Loose</option>
+                      <option>Package</option>
+                      <option>Roles</option>
                     </select>
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                       <FiChevronDown className="w-4 h-4" />

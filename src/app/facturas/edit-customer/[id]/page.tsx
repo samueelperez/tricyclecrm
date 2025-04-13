@@ -52,11 +52,12 @@ interface NotasData {
   cliente_nombre?: string;
   taxId?: string;
   paymentTerms?: string;
-  ports?: string;
-  deliveryTerms?: string;
   notas?: string;
   items?: InvoiceItem[];
   descripcion?: string;
+  deliveryTerms?: string;
+  puerto_origen?: string;
+  puerto_destino?: string;
 }
 
 interface Invoice {
@@ -67,13 +68,14 @@ interface Invoice {
   taxId: string;
   paymentTerms: string;
   invoiceNotes: string;
-  estado: string;
   items: InvoiceItem[];
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
-  bankAccount?: string;
-  ports: string;
+  bankAccount: string;
+  estado: string;
+  puerto_origen: string;
+  puerto_destino: string;
   deliveryTerms: string;
 }
 
@@ -162,13 +164,13 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
               <div className="w-full p-2 border rounded-md bg-gray-50">
-                {invoice.ports || 'No especificado'}
+                {invoice.puerto_origen}
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
               <div className="w-full p-2 border rounded-md bg-gray-50">
-                {invoice.deliveryTerms || 'No especificado'}
+                {invoice.deliveryTerms}
               </div>
             </div>
           </div>
@@ -247,6 +249,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   const printComponentRef = useRef<HTMLDivElement>(null);
   const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
+  const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   
   // Estado para la factura
@@ -271,7 +274,8 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     taxAmount: 0,
     totalAmount: 0,
     bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
-    ports: '',
+    puerto_origen: '',
+    puerto_destino: '',
     deliveryTerms: ''
   });
 
@@ -305,6 +309,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       const target = event.target as HTMLElement;
       if (!target.closest('.ports-combobox')) {
         setShowPortSuggestions(false);
+      }
+      if (!target.closest('.ports-combobox-dest')) {
+        setShowPortDestSuggestions(false);
       }
       if (!target.closest('.payment-terms-combobox')) {
         setShowPaymentTermsSuggestions(false);
@@ -375,7 +382,8 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           taxAmount: (data.monto || 0) * 0.21,
           totalAmount: (data.monto || 0) * 1.21,
           bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
-          ports: materialData.ports || '',
+          puerto_origen: data.puerto_origen || materialData.puerto_origen || '',
+          puerto_destino: data.puerto_destino || materialData.puerto_destino || '',
           deliveryTerms: materialData.deliveryTerms || ''
         };
         
@@ -432,14 +440,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           cliente_nombre: invoice.customerName,
           taxId: invoice.taxId,
           paymentTerms: invoice.paymentTerms,
-          ports: invoice.ports,
           deliveryTerms: invoice.deliveryTerms,
           notas: invoice.invoiceNotes,
           items: invoice.items,
-          descripcion: invoice.items[0]?.description || ''
+          descripcion: invoice.items[0]?.description || '',
+          puerto_origen: invoice.puerto_origen,
+          puerto_destino: invoice.puerto_destino
         }),
         notas: invoice.invoiceNotes,
-        estado: invoice.estado
+        estado: invoice.estado,
+        puerto_origen: invoice.puerto_origen,
+        puerto_destino: invoice.puerto_destino
       };
       
       console.log('Actualizando factura:', facturaData);
@@ -741,14 +752,14 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
               <div className="relative ports-combobox">
                 <input 
                   type="text" 
                   placeholder="Buscar o escribir puerto..."
-                  value={invoice.ports}
+                  value={invoice.puerto_origen}
                   onChange={(e) => {
-                    setInvoice({...invoice, ports: e.target.value});
+                    setInvoice({...invoice, puerto_origen: e.target.value});
                   }}
                   onFocus={() => setShowPortSuggestions(true)}
                   className="w-full p-2 border rounded-md pr-10"
@@ -760,14 +771,14 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
                     {PUERTOS_SUGERIDOS
                       .filter(port => 
-                        port.toLowerCase().includes(invoice.ports.toLowerCase())
+                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
                       )
                       .map((port, index) => (
                         <div
                           key={index}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                           onClick={() => {
-                            setInvoice({...invoice, ports: port});
+                            setInvoice({...invoice, puerto_origen: port});
                             setShowPortSuggestions(false);
                           }}
                         >
@@ -778,15 +789,43 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 )}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-              <input 
-                type="text" 
-                placeholder="ej. CIF (Cost, Insurance, and Freight)"
-                value={invoice.deliveryTerms}
-                onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
+              <div className="relative ports-combobox-dest">
+                <input 
+                  type="text" 
+                  placeholder="Buscar o escribir puerto de destino..."
+                  value={invoice.puerto_destino}
+                  onChange={(e) => {
+                    setInvoice({...invoice, puerto_destino: e.target.value});
+                  }}
+                  onFocus={() => setShowPortDestSuggestions(true)}
+                  className="w-full p-2 border rounded-md pr-10"
+                />
+                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Lista de sugerencias */}
+                {showPortDestSuggestions && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {PUERTOS_SUGERIDOS
+                      .filter(port => 
+                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
+                      )
+                      .map((port, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setInvoice({...invoice, puerto_destino: port});
+                            setShowPortDestSuggestions(false);
+                          }}
+                        >
+                          {port}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -15,22 +15,25 @@ interface Factura {
   numero_factura?: string;
   fecha_emision: string;
   fecha_vencimiento: string;
-  cliente?: string;
+  cliente_id?: number | null;
+  cliente?: any;
+  cliente_nombre?: string;
   cliente_direccion?: string;
-  cliente_tax_id?: string;
   cliente_ciudad?: string;
   cliente_pais?: string;
-  proveedor?: string;
-  proveedor_direccion?: string;
-  proveedor_tax_id?: string;
+  cliente_cp?: string;
+  cliente_id_fiscal?: string;
+  id_fiscal?: string;
   total: number;
   estado: string;
-  divisa: string;
+  divisa?: string;
   notas?: string;
   tipo?: 'cliente' | 'proveedor';
   items?: FacturaItem[];
   clientes_adicionales?: FacturaCliente[];
   cuenta_bancaria?: string;
+  puerto_origen?: string;
+  puerto_destino?: string;
 }
 
 interface FacturaItem {
@@ -81,17 +84,19 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
   // Obtener dirección del destinatario
   const getDireccionDestinatario = () => {
     if (factura.tipo === 'proveedor') {
-      return factura.proveedor_direccion || '';
+      return factura.cliente_direccion || '';
+    } else {
+      return factura.cliente_direccion || '';
     }
-    return factura.cliente_direccion || '';
   };
   
-  // Obtener ID fiscal del destinatario
+  // Obtener Tax ID del destinatario
   const getTaxIDDestinatario = () => {
     if (factura.tipo === 'proveedor') {
-      return factura.proveedor_tax_id || '';
+      return factura.id_fiscal || '';
+    } else {
+      return factura.id_fiscal || factura.cliente_id_fiscal || '';
     }
-    return factura.cliente_tax_id || '';
   };
   
   // Extraer información de las notas
@@ -239,6 +244,14 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       <div style={{ marginBottom: '15px', fontSize: '9pt' }}>
         Exempt VAT. EXPORT Section 21.1 Ley 37/1992
       </div>
+      
+      {/* Información de puertos */}
+      {factura.puerto_destino && (
+        <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PORT INFORMATION:</div>
+          <div><span style={{ fontWeight: 'bold' }}>Port of Discharge:</span> CIF - {factura.puerto_destino}</div>
+        </div>
+      )}
       
       {/* Notas con formato específico para consignatario */}
       <div style={{ marginBottom: '20px' }}>

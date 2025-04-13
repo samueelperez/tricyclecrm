@@ -621,9 +621,11 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                       value={item.packaging}
                       onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
                     >
+                      <option>Tipo</option>
                       <option>Bales</option>
-                      <option>Boxes</option>
-                      <option>Pallets</option>
+                      <option>Loose</option>
+                      <option>Package</option>
+                      <option>Roles</option>
                     </select>
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                       <FiChevronDown className="w-4 h-4" />

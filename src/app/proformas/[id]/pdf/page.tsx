@@ -235,6 +235,14 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
         Exempt VAT. EXPORT Section 21.1 Ley 37/1992
       </div>
       
+      {/* Información de puertos */}
+      {proforma.puerto && (
+        <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PORT INFORMATION:</div>
+          <div><span style={{ fontWeight: 'bold' }}>Port of Discharge:</span> CIF - {proforma.puerto}</div>
+        </div>
+      )}
+      
       {/* Información bancaria */}
       {proforma.cuenta_bancaria && (
         <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
