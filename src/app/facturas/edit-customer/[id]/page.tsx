@@ -59,6 +59,7 @@ interface NotasData {
   deliveryTerms?: string;
   puerto_origen?: string;
   puerto_destino?: string;
+  pesoTotal?: number;
   // Claves abreviadas
   cn?: string;
   tax?: string;
@@ -70,6 +71,8 @@ interface NotasData {
   cont?: string;
   orig?: string;
   items_resumen?: any[];
+  contenedores?: string;
+  origen?: string;
 }
 
 interface Invoice {
