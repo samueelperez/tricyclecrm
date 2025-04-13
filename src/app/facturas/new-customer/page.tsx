@@ -459,24 +459,6 @@ export default function NewCustomerInvoicePage() {
           </div>
         </div>
         
-        {/* Términos de Entrega */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-              <input 
-                type="text" 
-                placeholder="ej. CIF (Cost, Insurance, and Freight)"
-                value={invoice.deliveryTerms}
-                onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-          </div>
-        </div>
-        
         {/* Payment Terms */}
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Pago</h3>
