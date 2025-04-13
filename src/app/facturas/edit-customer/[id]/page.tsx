@@ -161,18 +161,93 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puertos</label>
-              <div className="w-full p-2 border rounded-md bg-gray-50">
-                {invoice.puerto_origen}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
+              <div className="relative ports-combobox">
+                <input 
+                  type="text" 
+                  placeholder="Buscar o escribir puerto..."
+                  value={invoice.puerto_origen}
+                  onChange={(e) => {
+                    setInvoice({...invoice, puerto_origen: e.target.value});
+                  }}
+                  onFocus={() => setShowPortSuggestions(true)}
+                  className="w-full p-2 border rounded-md pr-10"
+                />
+                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Lista de sugerencias */}
+                {showPortSuggestions && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {PUERTOS_SUGERIDOS
+                      .filter(port => 
+                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
+                      )
+                      .map((port, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setInvoice({...invoice, puerto_origen: port});
+                            setShowPortSuggestions(false);
+                          }}
+                        >
+                          {port}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-              <div className="w-full p-2 border rounded-md bg-gray-50">
-                {invoice.deliveryTerms}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
+              <div className="relative ports-combobox-dest">
+                <input 
+                  type="text" 
+                  placeholder="Buscar o escribir puerto de destino..."
+                  value={invoice.puerto_destino}
+                  onChange={(e) => {
+                    setInvoice({...invoice, puerto_destino: e.target.value});
+                  }}
+                  onFocus={() => setShowPortDestSuggestions(true)}
+                  className="w-full p-2 border rounded-md pr-10"
+                />
+                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                {/* Lista de sugerencias */}
+                {showPortDestSuggestions && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                    {PUERTOS_SUGERIDOS
+                      .filter(port => 
+                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
+                      )
+                      .map((port, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setInvoice({...invoice, puerto_destino: port});
+                            setShowPortDestSuggestions(false);
+                          }}
+                        >
+                          {port}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             </div>
+          </div>
+          
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
+            <input 
+              type="text" 
+              placeholder="ej. CIF (Cost, Insurance, and Freight)"
+              value={invoice.deliveryTerms}
+              onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
         </div>
 
@@ -243,11 +318,11 @@ InvoicePrintView.displayName = 'InvoicePrintView';
 
 export default function EditCustomerInvoicePage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const printComponentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-  const printComponentRef = useRef<HTMLDivElement>(null);
   const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
@@ -827,6 +902,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 )}
               </div>
             </div>
+          </div>
+          
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
+            <input 
+              type="text" 
+              placeholder="ej. CIF (Cost, Insurance, and Freight)"
+              value={invoice.deliveryTerms}
+              onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
+              className="w-full p-2 border rounded-md"
+            />
           </div>
         </div>
         

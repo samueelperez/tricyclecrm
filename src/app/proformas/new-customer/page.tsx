@@ -59,6 +59,9 @@ const TERMINOS_PAGO_SUGERIDOS = [
   '50% CIA – 50% 14 days before ETA and after receiving copy of all documents required'
 ];
 
+// Lista de opciones de empaque predefinidas
+const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
+
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -243,10 +246,10 @@ export default function NewCustomerProformaPage() {
       [field]: value
     };
     
-    // Recalcular el valor total si cambia la cantidad o el precio unitario
-    if (field === 'quantity' || field === 'unitPrice') {
+    // Recalcular el valor total si cambia el peso o el precio unitario
+    if (field === 'weight' || field === 'unitPrice') {
       updatedItems[index].totalValue = 
-        updatedItems[index].quantity * updatedItems[index].unitPrice;
+        updatedItems[index].weight * updatedItems[index].unitPrice;
     }
     
     // Recalcular totales
@@ -579,17 +582,19 @@ export default function NewCustomerProformaPage() {
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Empaque</label>
                   <div className="relative">
-                    <select 
-                      className="w-full p-2 border rounded-md appearance-none"
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border rounded-md pr-10"
                       value={item.packaging}
                       onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
-                    >
-                      <option>Tipo</option>
-                      <option>Bales</option>
-                      <option>Loose</option>
-                      <option>Package</option>
-                      <option>Roles</option>
-                    </select>
+                      list="packaging-options"
+                      placeholder="Tipo de empaque"
+                    />
+                    <datalist id="packaging-options">
+                      {EMPAQUE_OPCIONES.map((option, idx) => (
+                        <option key={idx} value={option} />
+                      ))}
+                    </datalist>
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                       <FiChevronDown className="w-4 h-4" />
                     </div>

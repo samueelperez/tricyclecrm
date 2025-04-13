@@ -20,9 +20,11 @@ interface InvoiceItem {
   id: string;
   description: string;
   quantity: number;
+  weight?: number;
   unitPrice: number;
   taxRate: number;
   totalValue: number;
+  packaging?: string;
 }
 
 // Lista de puertos predefinidos
@@ -40,6 +42,9 @@ const TERMINOS_PAGO_SUGERIDOS = [
   '20% CIA – 80% 14 days before ETA and after receiving copy of all documents required',
   '50% CIA – 50% 14 days before ETA and after receiving copy of all documents required'
 ];
+
+// Lista de opciones de empaque predefinidas
+const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
 
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
@@ -65,9 +70,11 @@ export default function NewCustomerInvoicePage() {
         id: '1',
         description: '',
         quantity: 0,
+        weight: 0,
         unitPrice: 0,
         taxRate: 21,
-        totalValue: 0
+        totalValue: 0,
+        packaging: ''
       }
     ] as InvoiceItem[],
     subtotal: 0,
@@ -218,11 +225,12 @@ export default function NewCustomerInvoicePage() {
       [field]: value
     };
     
-    // Recalcular el valor total si cambia la cantidad o el precio unitario
-    if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate') {
-      const quantity = updatedItems[index].quantity;
+    // Recalcular el valor total si cambia el peso o el precio unitario
+    if (field === 'weight' || field === 'unitPrice') {
+      // Usar peso para el cálculo si está disponible, de lo contrario usar quantity
+      const weight = updatedItems[index].weight || 0;
       const unitPrice = updatedItems[index].unitPrice;
-      updatedItems[index].totalValue = quantity * unitPrice;
+      updatedItems[index].totalValue = weight * unitPrice;
     }
     
     // Recalcular totales
@@ -247,9 +255,11 @@ export default function NewCustomerInvoicePage() {
           id: Date.now().toString(),
           description: '',
           quantity: 0,
+          weight: 0,
           unitPrice: 0,
           taxRate: 21,
-          totalValue: 0
+          totalValue: 0,
+          packaging: ''
         }
       ]
     });
@@ -580,6 +590,16 @@ export default function NewCustomerInvoicePage() {
                   />
                 </div>
                 <div className="col-span-2 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
+                  <input 
+                    type="number" 
+                    placeholder="ej. 20.00"
+                    value={item.weight || ''}
+                    onChange={(e) => handleItemChange(index, 'weight', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border rounded-md"
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                   <input 
                     type="number" 
@@ -588,6 +608,27 @@ export default function NewCustomerInvoicePage() {
                     onChange={(e) => handleItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                     className="w-full p-2 border rounded-md"
                   />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Empaque</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="Tipo de empaque"
+                      value={item.packaging}
+                      onChange={(e) => handleItemChange(index, 'packaging', e.target.value)}
+                      list="packaging-options"
+                      className="w-full p-2 border rounded-md pr-10"
+                    />
+                    <datalist id="packaging-options">
+                      {EMPAQUE_OPCIONES.map((option, idx) => (
+                        <option key={idx} value={option} />
+                      ))}
+                    </datalist>
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <FiChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">% IVA</label>

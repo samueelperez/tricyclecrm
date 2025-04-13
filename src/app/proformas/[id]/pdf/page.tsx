@@ -238,7 +238,6 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
       {/* Información de puertos */}
       {proforma.puerto && (
         <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PORT INFORMATION:</div>
           <div><span style={{ fontWeight: 'bold' }}>Port of Discharge:</span> CIF - {proforma.puerto}</div>
         </div>
       )}

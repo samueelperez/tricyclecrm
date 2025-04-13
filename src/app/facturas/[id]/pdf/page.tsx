@@ -248,7 +248,6 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       {/* Información de puertos */}
       {factura.puerto_destino && (
         <div style={{ marginBottom: '20px', fontSize: '9pt' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>PORT INFORMATION:</div>
           <div><span style={{ fontWeight: 'bold' }}>Port of Discharge:</span> CIF - {factura.puerto_destino}</div>
         </div>
       )}
