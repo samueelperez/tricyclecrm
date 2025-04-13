@@ -243,7 +243,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   
   // Estado para la factura
   const [invoice, setInvoice] = useState<Invoice>({
-    id: params.id,
+    id: '',
     number: '',
     date: new Date().toISOString().split('T')[0],
     customerName: '',
@@ -251,16 +251,14 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     paymentTerms: '',
     invoiceNotes: '',
     estado: 'pendiente',
-    items: [
-      {
-        id: '1',
-        description: '',
-        quantity: 0,
-        unitPrice: 0,
-        taxRate: 21,
-        totalValue: 0
-      }
-    ],
+    items: [{
+      id: '1',
+      description: '',
+      quantity: 0,
+      unitPrice: 0,
+      taxRate: 21,
+      totalValue: 0
+    }],
     subtotal: 0,
     taxAmount: 0,
     totalAmount: 0,
@@ -293,10 +291,29 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     cargarClientes();
   }, []);
 
+  // Manejador para cerrar la lista de sugerencias al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.ports-combobox')) {
+        setShowPortSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Cargar datos de la factura
   useEffect(() => {
     const loadInvoice = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
+        console.log('Cargando factura con ID:', params.id);
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('facturas_cliente')
@@ -305,44 +322,59 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           .single();
           
         if (error) {
+          console.error('Error al consultar la factura:', error);
           throw error;
         }
         
-        if (data) {
-          // Parsear el campo material que contiene datos adicionales
-          const materialData: NotasData = data.material ? JSON.parse(data.material) : {};
-          
-          // Construir el objeto de factura
-          const facturaData: Invoice = {
-            id: data.id,
-            number: data.id_externo || '',
-            date: data.fecha || new Date().toISOString().split('T')[0],
-            customerName: materialData.cliente_nombre || '',
-            taxId: materialData.taxId || '',
-            paymentTerms: materialData.paymentTerms || '',
-            invoiceNotes: materialData.notas || '',
-            estado: data.estado || 'pendiente',
-            items: materialData.items || [{
-              id: '1',
-              description: '',
-              quantity: 0,
-              unitPrice: 0,
-              taxRate: 21,
-              totalValue: 0
-            }],
-            subtotal: data.monto || 0,
-            taxAmount: (data.monto || 0) * 0.21,
-            totalAmount: (data.monto || 0) * 1.21,
-            bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
-            ports: materialData.ports || '',
-            deliveryTerms: materialData.deliveryTerms || ''
-          };
-          
-          setInvoice(facturaData);
+        if (!data) {
+          console.error('No se encontró la factura con ID:', params.id);
+          throw new Error(`No se encontró la factura con ID: ${params.id}`);
         }
+        
+        console.log('Datos de factura recibidos:', data);
+        
+        // Parsear el campo material que contiene datos adicionales
+        let materialData: NotasData = {};
+        try {
+          materialData = data.material ? JSON.parse(data.material) : {};
+        } catch (parseError) {
+          console.error('Error al parsear el campo material:', parseError);
+          materialData = {};
+        }
+        
+        // Construir el objeto de factura
+        const facturaData: Invoice = {
+          id: data.id,
+          number: data.id_externo || '',
+          date: data.fecha || new Date().toISOString().split('T')[0],
+          customerName: materialData.cliente_nombre || '',
+          taxId: materialData.taxId || '',
+          paymentTerms: materialData.paymentTerms || '',
+          invoiceNotes: materialData.notas || '',
+          estado: data.estado || 'pendiente',
+          items: materialData.items || [{
+            id: '1',
+            description: '',
+            quantity: 0,
+            unitPrice: 0,
+            taxRate: 21,
+            totalValue: 0
+          }],
+          subtotal: data.monto || 0,
+          taxAmount: (data.monto || 0) * 0.21,
+          totalAmount: (data.monto || 0) * 1.21,
+          bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
+          ports: materialData.ports || '',
+          deliveryTerms: materialData.deliveryTerms || ''
+        };
+        
+        console.log('Objeto de factura construido:', facturaData);
+        setInvoice(facturaData);
       } catch (error) {
         console.error('Error al cargar la factura:', error);
-        alert('Error al cargar los datos de la factura');
+        setError(`Error al cargar los datos de la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      } finally {
+        setLoading(false);
       }
     };
     
