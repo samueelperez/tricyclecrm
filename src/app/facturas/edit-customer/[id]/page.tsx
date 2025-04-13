@@ -78,6 +78,9 @@ interface Invoice {
   puerto_origen: string;
   puerto_destino: string;
   deliveryTerms: string;
+  origen?: string;
+  contenedores?: string;
+  pesoTotal?: number;
 }
 
 // Componente para la vista de impresión de factura
@@ -161,25 +164,10 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
-              <div className="p-2 border rounded-md">
-                {invoice.puerto_origen || "No especificado"}
-              </div>
-            </div>
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-              <div className="p-2 border rounded-md">
-                {invoice.puerto_destino || "No especificado"}
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
             <div className="p-2 border rounded-md">
-              {invoice.deliveryTerms || "No especificado"}
+              {invoice.puerto_destino || "No especificado"}
             </div>
           </div>
         </div>
@@ -192,6 +180,7 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
               <tr className="bg-gray-100">
                 <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
                 <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
+                <th className="py-2 px-4 text-right border border-gray-300">Peso (MT)</th>
                 <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
                 <th className="py-2 px-4 text-center border border-gray-300">Tipo Empaque</th>
                 <th className="py-2 px-4 text-right border border-gray-300">IVA %</th>
@@ -203,6 +192,7 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
                 <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-2 px-4 border border-gray-300">{item.description}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
+                  <td className="py-2 px-4 text-right border border-gray-300">{item.weight || 0}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.unitPrice.toFixed(2)} €</td>
                   <td className="py-2 px-4 text-center border border-gray-300">{item.packagingType || "N/A"}</td>
                   <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
@@ -370,6 +360,41 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           materialData = {};
         }
         
+        // Parsear los items cuando están disponibles
+        let items: InvoiceItem[] = [];
+        try {
+          if (data.items) {
+            items = JSON.parse(data.items);
+          } else if (materialData.items) {
+            items = materialData.items;
+          } else {
+            items = [{
+              id: '1',
+              description: '',
+              quantity: 0,
+              unitPrice: 0,
+              taxRate: 21,
+              totalValue: 0,
+              weight: 0,
+              packaging: '',
+              packagingType: ''
+            }];
+          }
+        } catch (parseError) {
+          console.error('Error al parsear los items:', parseError);
+          items = [{
+            id: '1',
+            description: '',
+            quantity: 0,
+            unitPrice: 0,
+            taxRate: 21,
+            totalValue: 0,
+            weight: 0,
+            packaging: '',
+            packagingType: ''
+          }];
+        }
+        
         // Construir el objeto de factura
         const facturaData: Invoice = {
           id: data.id,
@@ -380,24 +405,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           paymentTerms: materialData.paymentTerms || '',
           invoiceNotes: materialData.notas || '',
           estado: data.estado || 'pendiente',
-          items: materialData.items || [{
-            id: '1',
-            description: '',
-            quantity: 0,
-            unitPrice: 0,
-            taxRate: 21,
-            totalValue: 0,
-            weight: 0,
-            packaging: '',
-            packagingType: ''
-          }],
+          items: items,
           subtotal: data.monto || 0,
           taxAmount: (data.monto || 0) * 0.21,
           totalAmount: (data.monto || 0) * 1.21,
           bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
           puerto_origen: data.puerto_origen || materialData.puerto_origen || '',
           puerto_destino: data.puerto_destino || materialData.puerto_destino || '',
-          deliveryTerms: materialData.deliveryTerms || ''
+          deliveryTerms: materialData.deliveryTerms || '',
+          origen: data.origen || '',
+          contenedores: data.contenedores || '',
+          pesoTotal: data.pesoTotal || 0
         };
         
         console.log('Objeto de factura construido:', facturaData);
@@ -443,6 +461,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
       const totalAmount = subtotal + taxAmount;
       
+      // Calcular peso total
+      const pesoTotal = invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0);
+      
+      // Guardar los items en otro campo o como información resumida
+      const itemResumen = invoice.items.map(item => ({
+        d: item.description.substring(0, 15),
+        q: item.quantity,
+        p: item.unitPrice,
+        t: item.packagingType ? item.packagingType.substring(0, 1) : ""
+      }));
+      
       // Preparar datos para guardar en Supabase
       const facturaData = {
         id_externo: invoice.number,
@@ -450,20 +479,20 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         cliente_id: cliente_id,
         monto: invoice.totalAmount,
         material: JSON.stringify({
-          cliente_nombre: invoice.customerName,
-          taxId: invoice.taxId,
-          paymentTerms: invoice.paymentTerms,
-          deliveryTerms: invoice.deliveryTerms,
-          notas: invoice.invoiceNotes,
-          items: invoice.items,
-          descripcion: invoice.items[0]?.description || '',
-          puerto_origen: invoice.puerto_origen,
-          puerto_destino: invoice.puerto_destino
+          cn: invoice.customerName.substring(0, 30),
+          tax: invoice.taxId,
+          pt: invoice.paymentTerms.substring(0, 30),
+          dt: invoice.deliveryTerms,
+          desc: invoice.items[0]?.description.substring(0, 20) || '',
+          pd: invoice.puerto_destino.substring(0, 30),
+          po: invoice.puerto_origen.substring(0, 30),
+          peso: invoice.pesoTotal,
+          cont: invoice.contenedores,
+          orig: invoice.origen,
+          items: itemResumen
         }),
-        notas: invoice.invoiceNotes,
-        estado: invoice.estado,
-        puerto_origen: invoice.puerto_origen,
-        puerto_destino: invoice.puerto_destino
+        notas: invoice.invoiceNotes.substring(0, 200),
+        estado: invoice.estado
       };
       
       console.log('Actualizando factura:', facturaData);
@@ -508,32 +537,49 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
     const totalAmount = subtotal + taxAmount;
     
+    // Calcular peso total
+    const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
+    
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal,
       taxAmount,
-      totalAmount
+      totalAmount,
+      pesoTotal
     });
   };
 
   const addNewItem = () => {
+    const newItem = {
+      id: Date.now().toString(),
+      description: '',
+      quantity: 0,
+      weight: 0,
+      unitPrice: 0,
+      packaging: 'Type',
+      packagingType: '',
+      totalValue: 0,
+      taxRate: 21
+    };
+    
+    const updatedItems = [...invoice.items, newItem];
+    
+    // Recalcular totales
+    const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
+    const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+    const totalAmount = subtotal + taxAmount;
+    
+    // Calcular peso total
+    const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
+    
     setInvoice({
       ...invoice,
-      items: [
-        ...invoice.items,
-        {
-          id: Date.now().toString(),
-          description: '',
-          quantity: 0,
-          weight: 0,
-          unitPrice: 0,
-          packaging: 'Type',
-          packagingType: '',
-          totalValue: 0,
-          taxRate: 21
-        }
-      ]
+      items: updatedItems,
+      subtotal,
+      taxAmount,
+      totalAmount,
+      pesoTotal
     });
   };
 
@@ -546,12 +592,16 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
     const totalAmount = subtotal + taxAmount;
     
+    // Calcular peso total
+    const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
+    
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal,
       taxAmount,
-      totalAmount
+      totalAmount,
+      pesoTotal
     });
   };
 
@@ -781,94 +831,43 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Carga</label>
-              <div className="relative ports-combobox">
-                <input 
-                  type="text" 
-                  placeholder="Buscar o escribir puerto..."
-                  value={invoice.puerto_origen}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_origen: e.target.value});
-                  }}
-                  onFocus={() => setShowPortSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_origen.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_origen: port});
-                            setShowPortSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
+            <div className="relative ports-combobox-dest">
+              <input 
+                type="text" 
+                placeholder="Buscar o escribir puerto de destino..."
+                value={invoice.puerto_destino}
+                onChange={(e) => {
+                  setInvoice({...invoice, puerto_destino: e.target.value});
+                }}
+                onFocus={() => setShowPortDestSuggestions(true)}
+                className="w-full p-2 border rounded-md pr-10"
+              />
+              <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              
+              {/* Lista de sugerencias */}
+              {showPortDestSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {PUERTOS_SUGERIDOS
+                    .filter(port => 
+                      port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
+                    )
+                    .map((port, index) => (
+                      <div
+                        key={index}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => {
+                          setInvoice({...invoice, puerto_destino: port});
+                          setShowPortDestSuggestions(false);
+                        }}
+                      >
+                        {port}
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-              <div className="relative ports-combobox-dest">
-                <input 
-                  type="text" 
-                  placeholder="Buscar o escribir puerto de destino..."
-                  value={invoice.puerto_destino}
-                  onChange={(e) => {
-                    setInvoice({...invoice, puerto_destino: e.target.value});
-                  }}
-                  onFocus={() => setShowPortDestSuggestions(true)}
-                  className="w-full p-2 border rounded-md pr-10"
-                />
-                <FiSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                
-                {/* Lista de sugerencias */}
-                {showPortDestSuggestions && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {PUERTOS_SUGERIDOS
-                      .filter(port => 
-                        port.toLowerCase().includes(invoice.puerto_destino.toLowerCase())
-                      )
-                      .map((port, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setInvoice({...invoice, puerto_destino: port});
-                            setShowPortDestSuggestions(false);
-                          }}
-                        >
-                          {port}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-            <input 
-              type="text" 
-              placeholder="ej. CIF (Cost, Insurance, and Freight)"
-              value={invoice.deliveryTerms}
-              onChange={(e) => setInvoice({...invoice, deliveryTerms: e.target.value})}
-              className="w-full p-2 border rounded-md"
-            />
           </div>
         </div>
         
@@ -943,6 +942,15 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   />
                 </div>
                 <div className="col-span-3 md:col-span-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
+                  <input 
+                    type="number" 
+                    value={item.weight || 0}
+                    onChange={(e) => handleItemChange(index, 'weight', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border rounded-md"
+                  />
+                </div>
+                <div className="col-span-3 md:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                   <input 
                     type="number" 
@@ -1005,6 +1013,14 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
+                <input 
+                  type="number" 
+                  placeholder="ej. 19.6"
+                  className="w-full p-2 border rounded-md"
+                />
+              </div>
+              <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                 <input 
                   type="text" 
@@ -1047,25 +1063,35 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           {/* Resumen */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subtotal <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Origen <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={invoice.subtotal.toFixed(2)}
+                name="origen"
+                value={invoice.puerto_origen || "Spain"}
+                onChange={(e) => setInvoice({...invoice, puerto_origen: e.target.value})}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contenedores <span className="text-blue-500">auto</span></label>
+              <input 
+                type="text" 
+                value={invoice.contenedores || "0"}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Impuestos <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Peso Total (MT) <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={invoice.taxAmount.toFixed(2)}
+                value={(invoice.pesoTotal || 0).toFixed(2)}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Total <span className="text-blue-500">auto</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Monto Total <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
                 value={invoice.totalAmount.toFixed(2)}
