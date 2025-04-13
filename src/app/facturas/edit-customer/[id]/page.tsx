@@ -59,6 +59,17 @@ interface NotasData {
   deliveryTerms?: string;
   puerto_origen?: string;
   puerto_destino?: string;
+  // Claves abreviadas
+  cn?: string;
+  tax?: string;
+  pt?: string;
+  dt?: string;
+  po?: string;
+  pd?: string;
+  peso?: number;
+  cont?: string;
+  orig?: string;
+  items_resumen?: any[];
 }
 
 interface Invoice {
@@ -360,6 +371,18 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           materialData = {};
         }
         
+        // Extraer datos usando tanto las claves completas como las abreviadas
+        const customerName = materialData.cliente_nombre || materialData.cn || '';
+        const taxId = materialData.taxId || materialData.tax || '';
+        const paymentTerms = materialData.paymentTerms || materialData.pt || '';
+        const deliveryTerms = materialData.deliveryTerms || materialData.dt || '';
+        const invoiceNotes = materialData.notas || data.notas || '';
+        const puerto_origen = materialData.puerto_origen || materialData.po || '';
+        const puerto_destino = materialData.puerto_destino || materialData.pd || '';
+        const pesoTotal = materialData.pesoTotal || materialData.peso || 0;
+        const contenedores = materialData.contenedores || materialData.cont || '';
+        const origen = materialData.origen || materialData.orig || '';
+        
         // Parsear los items cuando están disponibles
         let items: InvoiceItem[] = [];
         try {
@@ -400,22 +423,22 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           id: data.id,
           number: data.id_externo || '',
           date: data.fecha || new Date().toISOString().split('T')[0],
-          customerName: materialData.cliente_nombre || '',
-          taxId: materialData.taxId || '',
-          paymentTerms: materialData.paymentTerms || '',
-          invoiceNotes: materialData.notas || '',
+          customerName: customerName,
+          taxId: taxId,
+          paymentTerms: paymentTerms,
+          invoiceNotes: invoiceNotes,
           estado: data.estado || 'pendiente',
           items: items,
           subtotal: data.monto || 0,
           taxAmount: (data.monto || 0) * 0.21,
           totalAmount: (data.monto || 0) * 1.21,
           bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
-          puerto_origen: data.puerto_origen || materialData.puerto_origen || '',
-          puerto_destino: data.puerto_destino || materialData.puerto_destino || '',
-          deliveryTerms: materialData.deliveryTerms || '',
-          origen: data.origen || '',
-          contenedores: data.contenedores || '',
-          pesoTotal: data.pesoTotal || 0
+          puerto_origen: puerto_origen,
+          puerto_destino: puerto_destino,
+          deliveryTerms: deliveryTerms,
+          origen: origen,
+          contenedores: contenedores,
+          pesoTotal: pesoTotal
         };
         
         console.log('Objeto de factura construido:', facturaData);

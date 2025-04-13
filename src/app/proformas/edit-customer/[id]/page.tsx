@@ -515,16 +515,6 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                 )}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Términos de Entrega</label>
-              <input 
-                type="text" 
-                placeholder="ej. CIF (Cost, Insurance, and Freight)"
-                value={proforma.deliveryTerms}
-                onChange={(e) => setProforma({...proforma, deliveryTerms: e.target.value})}
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
           </div>
         </div>
         
