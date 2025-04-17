@@ -16,9 +16,17 @@ interface SupplierProforma {
   number: string;
 }
 
+interface Proveedor {
+  id: number;
+  nombre: string;
+  id_fiscal: string | null;
+  contacto_nombre: string | null;
+}
+
 export default function NewSupplierProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   
   const [proforma, setProforma] = useState<SupplierProforma>({
     date: new Date().toISOString().split('T')[0],
@@ -30,10 +38,28 @@ export default function NewSupplierProformaPage() {
     number: ''
   });
 
-  // Cargar lista de clientes al iniciar
+  // Cargar lista de proveedores al iniciar
   useEffect(() => {
-    // Esta función ya no es necesaria porque no hay clientes adicionales
-    // La eliminamos completamente
+    const fetchProveedores = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('proveedores')
+          .select('id, nombre, id_fiscal, contacto_nombre')
+          .order('nombre', { ascending: true });
+          
+        if (error) {
+          console.error('Error al cargar proveedores:', error);
+          return;
+        }
+        
+        setProveedores(data || []);
+      } catch (error) {
+        console.error('Error inesperado al cargar proveedores:', error);
+      }
+    };
+    
+    fetchProveedores();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -192,9 +218,11 @@ export default function NewSupplierProformaPage() {
                   className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
                 >
                   <option value="">Seleccionar proveedor</option>
-                  <option value="Recisur">Recisur</option>
-                  <option value="Materiales Construcción S.A.">Materiales Construcción S.A.</option>
-                  <option value="Suministros Industriales López">Suministros Industriales López</option>
+                  {proveedores.map((proveedor) => (
+                    <option key={proveedor.id} value={proveedor.nombre}>
+                      {proveedor.nombre}
+                    </option>
+                  ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

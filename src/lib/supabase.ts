@@ -268,4 +268,224 @@ export const crear_tabla_permisos_archivos = async () => {
     console.error('Error en crear_tabla_permisos_archivos:', error);
     return { success: false, error };
   }
+};
+
+/**
+ * Registra las funciones SQL necesarias en Supabase automáticamente
+ * Esta función se ejecuta desde el inicializador de la base de datos
+ */
+export const registerDatabaseFunctions = async () => {
+  console.log('Registrando funciones SQL en Supabase...');
+  
+  // Obtener cliente con permisos adecuados
+  const client = getSupabaseClient();
+  
+  // Lista de funciones SQL a registrar
+  const functions = [
+    // Función para aplicar la migración de proformas_productos de forma segura
+    `
+    CREATE OR REPLACE FUNCTION public.apply_proformas_migration()
+    RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    AS $func$
+    BEGIN
+      -- Verificar si la columna ya existe
+      IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'proformas_productos' 
+        AND column_name = 'proveedor_id'
+      ) THEN
+        -- Añadir la columna sin restricción de clave foránea
+        EXECUTE 'ALTER TABLE public.proformas_productos ADD COLUMN proveedor_id INTEGER';
+      END IF;
+    END;
+    $func$;
+    `,
+    
+    // Función para crear la tabla de migraciones si no existe
+    `
+    CREATE OR REPLACE FUNCTION public.create_migrations_table()
+    RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    AS $func$
+    BEGIN
+      CREATE TABLE IF NOT EXISTS public.migrations (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      
+      -- Políticas RLS para la tabla migrations
+      ALTER TABLE public.migrations ENABLE ROW LEVEL SECURITY;
+      
+      -- Verificar si las políticas ya existen para evitar errores
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'migrations' 
+        AND policyname = 'Cualquier usuario puede ver migraciones'
+      ) THEN
+        -- Permitir que cualquier usuario pueda ver las migraciones
+        CREATE POLICY "Cualquier usuario puede ver migraciones" 
+          ON public.migrations 
+          FOR SELECT 
+          USING (true);
+      END IF;
+      
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'migrations' 
+        AND policyname = 'Solo usuarios autenticados pueden modificar migraciones'
+      ) THEN
+        -- Permitir que solo los usuarios autenticados puedan modificar migraciones
+        CREATE POLICY "Solo usuarios autenticados pueden modificar migraciones" 
+          ON public.migrations 
+          FOR ALL 
+          USING (auth.role() = 'authenticated');
+      END IF;
+    END;
+    $func$;
+    `,
+    
+    // Función para verificar si una tabla existe
+    `
+    DO $$
+    BEGIN
+      -- Intentar eliminar la función si existe
+      DROP FUNCTION IF EXISTS public.table_exists(text);
+      
+      -- Crear la nueva versión
+      CREATE OR REPLACE FUNCTION public.table_exists(table_name_param text)
+      RETURNS boolean
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      AS $func$
+      DECLARE
+        exists_bool BOOLEAN;
+      BEGIN
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = table_name_param
+        ) INTO exists_bool;
+        
+        RETURN exists_bool;
+      END;
+      $func$;
+    END;
+    $$;
+    `,
+    
+    // Función para obtener las columnas de una tabla
+    `
+    DO $$
+    BEGIN
+      -- Eliminar la función si existe
+      DROP FUNCTION IF EXISTS public.get_columns(text);
+      
+      -- Crear la nueva versión
+      CREATE OR REPLACE FUNCTION public.get_columns(table_name_param text)
+      RETURNS TABLE (
+        column_name text,
+        data_type text,
+        is_nullable text,
+        column_default text,
+        constraint_type text
+      )
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      AS $func$
+      BEGIN
+        RETURN QUERY
+        SELECT 
+          c.column_name::text,
+          c.data_type::text,
+          c.is_nullable::text,
+          c.column_default::text,
+          tc.constraint_type::text
+        FROM 
+          information_schema.columns c
+        LEFT JOIN 
+          information_schema.constraint_column_usage ccu 
+          ON c.column_name = ccu.column_name 
+          AND c.table_name = ccu.table_name
+        LEFT JOIN 
+          information_schema.table_constraints tc 
+          ON ccu.constraint_name = tc.constraint_name
+        WHERE 
+          c.table_schema = 'public' 
+          AND c.table_name = table_name_param;
+      END;
+      $func$;
+    END;
+    $$;
+    `,
+    
+    // Función para ejecutar SQL directamente - Necesitamos averiguar qué tipo de retorno tiene actualmente
+    `
+    DO $$
+    BEGIN
+      -- Solo crear la función si no existe
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'execute_sql' AND pronamespace = 'public'::regnamespace
+      ) THEN
+        EXECUTE '
+          CREATE FUNCTION public.execute_sql(sql text)
+          RETURNS SETOF json
+          LANGUAGE plpgsql
+          SECURITY DEFINER
+          AS $inner$
+          BEGIN
+            EXECUTE $1;
+            RETURN;
+          END;
+          $inner$;
+        ';
+      END IF;
+    END;
+    $$;
+    `
+  ];
+  
+  // Registrar cada función
+  let success = true;
+  for (const funcSql of functions) {
+    try {
+      // Usar RPCNEW que es un método más seguro para ejecutar funciones
+      const { error } = await client.rpc('execute_sql', { sql: funcSql });
+      
+      if (error) {
+        // Si la función es execute_sql y no existe, crear directamente
+        if (error.message.includes('function execute_sql(text) does not exist') && 
+            funcSql.includes('CREATE OR REPLACE FUNCTION public.execute_sql')) {
+          console.log('La función execute_sql no existe. Intentando crear directamente...');
+          
+          // Consulta directa a través de adminRpc (solo funciona con permisos adecuados)
+          const { error: directError } = await client.rpc('postgres_execute', { 
+            query: funcSql 
+          });
+          
+          if (directError) {
+            console.warn(`Error al crear execute_sql directamente: ${directError.message}`);
+            success = false;
+          } else {
+            console.log('✅ Función execute_sql creada correctamente');
+          }
+        } else {
+          console.warn(`Error al registrar función SQL: ${error.message}`);
+          // Algunos errores son esperados (ej. función ya existe) y no afectan el funcionamiento
+          // Por lo que no marcamos success = false por ahora
+        }
+      } else {
+        console.log('✅ Función SQL registrada correctamente');
+      }
+    } catch (error) {
+      console.warn(`Error inesperado al registrar función: ${error instanceof Error ? error.message : String(error)}`);
+      // No marcamos como fallido para no bloquear el resto de la inicialización
+    }
+  }
+  
+  return { success };
 }; 

@@ -11,6 +11,8 @@ import {
   FiSave,
   FiSearch
 } from 'react-icons/fi';
+import { cookies } from 'next/headers';
+import { Proforma } from '@/app/proformas/components/types';
 
 import { getSupabaseClient } from '@/lib/supabase';
 import { verifyFacturasClienteTable } from '@/lib/db-migrations';
@@ -45,6 +47,15 @@ const TERMINOS_PAGO_SUGERIDOS = [
 // Lista de opciones de empaque predefinidas
 const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
 
+// Definir una versión extendida de la interface Proforma que incluya la propiedad cliente
+interface ProformaWithClient extends Proforma {
+  cliente?: {
+    id: string;
+    nombre: string;
+    id_fiscal?: string;
+  } | null;
+}
+
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -52,6 +63,9 @@ export default function NewCustomerInvoicePage() {
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
+  const [proformasList, setProformasList] = useState<ProformaWithClient[]>([]);
+  const [selectedProformaId, setSelectedProformaId] = useState<string>('');
+  const [selectedProforma, setSelectedProforma] = useState<ProformaWithClient | null>(null);
   
   // Datos iniciales para la factura
   const [invoice, setInvoice] = useState({
@@ -76,7 +90,8 @@ export default function NewCustomerInvoicePage() {
       }
     ] as InvoiceItem[],
     subtotal: 0,
-    totalAmount: 0
+    totalAmount: 0,
+    proforma_id: null as number | null, // Añadir esta propiedad para evitar errores de tipo
   });
 
   // Cargar lista de clientes al iniciar
@@ -101,6 +116,26 @@ export default function NewCustomerInvoicePage() {
     };
     
     cargarClientes();
+    
+    // Cargar proformas de clientes
+    const cargarProformas = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('proformas')
+          .select('*, cliente:clientes(*)')
+          .order('fecha', { ascending: false })
+          .limit(50);
+        
+        if (error) throw error;
+        
+        setProformasList(data || []);
+      } catch (error) {
+        console.error('Error al cargar proformas:', error);
+      }
+    };
+    
+    cargarProformas();
   }, []);
 
   // Manejador para cerrar la lista de sugerencias al hacer clic fuera
@@ -176,7 +211,9 @@ export default function NewCustomerInvoicePage() {
         notas: prepareNotes(),
         estado: 'pendiente',
         puerto_origen: invoice.puerto_origen,
-        puerto_destino: invoice.puerto_destino
+        puerto_destino: invoice.puerto_destino,
+        proforma_id: selectedProforma?.id || null, // Incluir referencia a la proforma
+        ref_proforma: selectedProforma?.id_externo || null // Incluir referencia externa a la proforma
       };
       
       console.log('Guardando factura:', facturaData);
@@ -274,6 +311,85 @@ export default function NewCustomerInvoicePage() {
     });
   };
 
+  const handleProformaSelect = async (proformaId: string) => {
+    if (!proformaId) {
+      setSelectedProforma(null);
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const supabase = getSupabaseClient();
+      
+      // Obtener detalles de la proforma
+      const { data: proforma, error: proformaError } = await supabase
+        .from('proformas')
+        .select('*, cliente:clientes(*)')
+        .eq('id', proformaId)
+        .single();
+      
+      if (proformaError) throw proformaError;
+      
+      // Guardar la proforma seleccionada
+      setSelectedProforma(proforma as ProformaWithClient);
+      
+      // Obtener productos de la proforma
+      const { data: proformaProductos, error: productosError } = await supabase
+        .from('proformas_productos')
+        .select('*')
+        .eq('proforma_id', proformaId);
+      
+      if (productosError) throw productosError;
+      
+      // Mapear productos de la proforma a items de factura
+      const invoiceItems = proformaProductos?.map((producto, index) => ({
+        id: String(index + 1),
+        description: producto.descripcion || '',
+        quantity: producto.cantidad || 0,
+        weight: producto.peso || 0,
+        unitPrice: producto.precio_unitario || 0,
+        totalValue: producto.valor_total || 0,
+        packaging: producto.empaque || ''
+      })) || [];
+      
+      // Si no hay productos, mantener al menos un ítem vacío
+      if (invoiceItems.length === 0) {
+        invoiceItems.push({
+          id: '1',
+          description: '',
+          quantity: 0,
+          weight: 0,
+          unitPrice: 0,
+          totalValue: 0,
+          packaging: ''
+        });
+      }
+      
+      // Actualizar el estado de la factura con los datos de la proforma
+      setInvoice({
+        ...invoice,
+        customerName: proforma.cliente?.nombre || '',
+        taxId: proforma.cliente?.id_fiscal || '',
+        paymentTerms: proforma.condiciones_pago || '',
+        puerto_origen: proforma.puerto_origen || '',
+        puerto_destino: proforma.puerto_destino || '',
+        deliveryTerms: proforma.incoterm || '',
+        invoiceNotes: `Ref. Proforma: ${proforma.numero}${proforma.notas ? '\n' + proforma.notas : ''}`,
+        items: invoiceItems,
+        subtotal: proforma.monto_subtotal || 0,
+        totalAmount: proforma.monto || 0,
+        proforma_id: parseInt(proformaId)
+      });
+      
+    } catch (error) {
+      console.error('Error al cargar detalles de la proforma:', error);
+      alert('Error al cargar la proforma seleccionada');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="bg-gray-50 min-h-screen pb-10">
       {/* Cabecera */}
@@ -312,6 +428,53 @@ export default function NewCustomerInvoicePage() {
       
       {/* Contenido del formulario */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        {/* Selector de Proforma */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Seleccionar Proforma Existente (Opcional)</h3>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Proforma</label>
+              <div className="relative">
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  value={selectedProformaId}
+                  onChange={(e) => {
+                    const newProformaId = e.target.value;
+                    setSelectedProformaId(newProformaId);
+                    if (newProformaId) {
+                      handleProformaSelect(newProformaId);
+                    }
+                  }}
+                >
+                  <option value="">Seleccionar proforma (opcional)</option>
+                  {proformasList.map((proforma) => (
+                    <option key={proforma.id} value={proforma.id}>
+                      {proforma.id_externo || `PRO-${proforma.id}`} - {proforma.cliente?.nombre || 'Sin cliente'} - {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(proforma.monto || 0)}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <FiChevronDown className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                Al seleccionar una proforma, se cargarán automáticamente todos sus datos en el formulario.
+              </p>
+              {selectedProforma && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-md border border-blue-200">
+                  <p className="text-sm text-blue-700 font-medium">
+                    Proforma seleccionada: {selectedProforma.id_externo || `PRO-${selectedProforma.id}`}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Cliente: {selectedProforma.cliente?.nombre} • Monto: {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(selectedProforma.monto || 0)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
         {/* Invoice Details */}
         <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-4">Detalles de Factura</h3>

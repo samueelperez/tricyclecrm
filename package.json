@@ -14,8 +14,12 @@
     "db:auto-sync": "node scripts/db-auto-sync.js",
     "db:watch": "node scripts/watch-schema.js",
     "dev:with-db-watch": "concurrently \"npm run dev\" \"npm run db:watch\"",
+    "dev:auto-migrate": "concurrently \"npm run dev\" \"npm run db:watch\" \"node scripts/auto-migrate-dev.js\"",
+    "dev:safe-migrate": "node scripts/supabase-init.js && npm run dev",
     "deploy:migrations": "node -e \"require('./.cursor/crmDatabaseHooks.mdc').deployHook().then(console.log).catch(console.error)\"",
     "db:apply-migrations": "node scripts/apply-migrations.js",
+    "db:fix-functions": "node scripts/fix-db-functions.js",
+    "postbuild": "node scripts/apply-migrations.js $VERCEL_URL",
     "db:check": "node scripts/check-db-integrity.js",
     "db:setup": "node scripts/setup-db.js",
     "db:sql": "node scripts/execute-sql.js",
@@ -29,7 +33,8 @@
     "db:check-relations": "node scripts/check-foreign-keys.js",
     "db:check-relationships": "node scripts/check-relationships.js",
     "db:check-consistency": "node scripts/check-project-consistency.js",
-    "db:full-check": "node scripts/full-check.js"
+    "db:full-check": "node scripts/full-check.js",
+    "db:apply-foreign-keys": "node scripts/apply-migrations.js $NEXT_PUBLIC_APP_URL --apply-foreign-key"
   },
   "dependencies": {
     "@atlaskit/css-reset": "^7.0.1",

@@ -18,15 +18,37 @@ interface ProformaTableProps {
 const extractClientInfo = (notes?: string): string => {
   if (!notes) return '';
   
-  // Buscar un patrón como "Cliente: Nombre del Cliente" o "Proveedor: Nombre del Proveedor"
-  const clientMatch = notes.match(/Cliente: (.+?)($|\n)/);
-  const supplierMatch = notes.match(/Proveedor: (.+?)($|\n)/);
+  // Buscar patrones específicos en distintos formatos
+  const clientPatterns = [
+    /Cliente: (.+?)($|\n)/,
+    /Cliente:(.+?)($|\n)/,
+    /Cliente (.+?)($|\n)/,
+    /Proveedor: (.+?)($|\n)/,
+    /Proveedor:(.+?)($|\n)/,
+    /Proveedor (.+?)($|\n)/
+  ];
   
-  // Devolver el primer grupo capturado (el nombre)
-  if (clientMatch) return clientMatch[1].trim();
-  if (supplierMatch) return supplierMatch[1].trim();
+  // Intentar cada patrón
+  for (const pattern of clientPatterns) {
+    const match = notes.match(pattern);
+    if (match && match[1] && match[1].trim()) {
+      return match[1].trim();
+    }
+  }
   
-  // Si no hay coincidencia, devolver las primeras palabras de las notas (hasta 25 caracteres)
+  // Si no hay coincidencia, buscar otras pistas en el texto
+  const lines = notes.split('\n');
+  for (const line of lines) {
+    if (line.toLowerCase().includes('cliente') || line.toLowerCase().includes('proveedor')) {
+      // Extraer la parte después de "Cliente" o "Proveedor" si existe
+      const afterLabel = line.split(/cliente|proveedor/i)[1];
+      if (afterLabel && afterLabel.trim()) {
+        return afterLabel.trim().replace(/^[:\s]+/, '');
+      }
+    }
+  }
+  
+  // Si aún no hay coincidencia, devolver las primeras palabras de las notas
   return notes.split('\n')[0].substring(0, 25) + (notes.length > 25 ? '...' : '');
 };
 
@@ -34,11 +56,35 @@ const extractClientInfo = (notes?: string): string => {
 const extractMaterialInfo = (notes?: string): string => {
   if (!notes) return '';
   
-  // Buscar un patrón como "Material: Nombre del Material"
-  const materialMatch = notes.match(/Material: (.+?)($|\n)/);
+  // Buscar patrones específicos en distintos formatos
+  const materialPatterns = [
+    /Material: (.+?)($|\n)/,
+    /Material:(.+?)($|\n)/,
+    /Material (.+?)($|\n)/,
+    /Producto: (.+?)($|\n)/,
+    /Producto:(.+?)($|\n)/,
+    /Producto (.+?)($|\n)/
+  ];
   
-  // Devolver el primer grupo capturado (el nombre del material)
-  if (materialMatch) return materialMatch[1].trim();
+  // Intentar cada patrón
+  for (const pattern of materialPatterns) {
+    const match = notes.match(pattern);
+    if (match && match[1] && match[1].trim()) {
+      return match[1].trim();
+    }
+  }
+  
+  // Si no hay coincidencia, buscar líneas con palabras clave
+  const lines = notes.split('\n');
+  for (const line of lines) {
+    if (line.toLowerCase().includes('material') || line.toLowerCase().includes('producto')) {
+      // Extraer la parte después de "Material" o "Producto" si existe
+      const afterLabel = line.split(/material|producto/i)[1];
+      if (afterLabel && afterLabel.trim()) {
+        return afterLabel.trim().replace(/^[:\s]+/, '');
+      }
+    }
+  }
   
   // Si no hay coincidencia, devolver vacío
   return '';
@@ -63,6 +109,17 @@ const ProformaCard = memo(({
     ? `/proformas/edit-supplier/${proforma.id}?tab=${activeTab}` 
     : `/proformas/edit-customer/${proforma.id}?tab=${activeTab}`;
 
+  // Obtener el nombre del cliente desde diferentes fuentes
+  const clientName = proforma.clientes?.nombre || 
+                     (proforma.material ? proforma.material : extractClientInfo(proforma.notas)) || 
+                     'Sin cliente';
+  
+  // Obtener el material desde diferentes fuentes
+  const materialInfo = proforma.material || 
+                       proforma.producto || 
+                       extractMaterialInfo(proforma.notas) || 
+                       'Sin material';
+
   return (
     <div 
       className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-100"
@@ -73,7 +130,7 @@ const ProformaCard = memo(({
             {proforma.id_externo || `Sin ID`}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {extractClientInfo(proforma.notas) || 'Sin cliente'}
+            {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {clientName}
           </p>
         </div>
         
@@ -89,7 +146,7 @@ const ProformaCard = memo(({
       
       <div className="mt-4 flex flex-col md:flex-row md:justify-between md:items-center">
         <p className="text-sm text-gray-600">
-          <span className="font-medium">Material:</span> {extractMaterialInfo(proforma.notas) || 'Sin material'}
+          <span className="font-medium">Material:</span> {materialInfo}
         </p>
         
         <div className="mt-4 md:mt-0 flex space-x-4">

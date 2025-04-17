@@ -1,221 +1,108 @@
 #!/usr/bin/env node
 
 /**
- * Script para aplicar migraciones a la base de datos de Supabase automáticamente
+ * Script para aplicar migraciones de base de datos.
  * 
- * Este script lee los archivos de migración SQL y los ejecuta contra
- * la base de datos Supabase utilizando la API REST.
+ * Uso:
+ * node scripts/apply-migrations.js https://tudominio.com [--apply-foreign-key] [--token=token-secreto]
+ * 
+ * Este script puede ejecutarse:
+ * 1. Después de un despliegue automáticamente desde CI/CD
+ * 2. Como parte de un webhook de GitHub/GitLab
+ * 3. Manualmente cuando sea necesario
  */
 
-const fs = require('fs');
-const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
+const { URL } = require('url');
+const https = require('https');
+const http = require('http');
 
-// Cargar variables de entorno
-dotenv.config();
-
-// Configuración de Supabase
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Verificar credenciales
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('\n❌ Error: Las credenciales de Supabase no están configuradas.\n');
-  console.error('Por favor, asegúrate de que tu archivo .env contiene:');
-  console.error('  NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co');
-  console.error('  SUPABASE_SERVICE_ROLE_KEY=tu-clave-de-servicio');
+// Capturar argumentos
+const args = process.argv.slice(2);
+if (args.length === 0) {
+  console.error('Uso: node apply-migrations.js URL [--apply-foreign-key] [--token=tu-token]');
   process.exit(1);
 }
 
-// Crear cliente Supabase con clave de servicio (privilegios administrativos)
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+const baseUrl = args[0];
+const applyForeignKey = args.includes('--apply-foreign-key');
+const tokenArg = args.find(arg => arg.startsWith('--token='));
+const token = tokenArg ? tokenArg.split('=')[1] : null;
 
-// Directorio de migraciones
-const migrationsDir = path.join(__dirname, '..', 'supabase', 'migrations');
-
-/**
- * Ejecuta una consulta SQL en Supabase
- * @param {string} sql - Consulta SQL a ejecutar
- * @returns {Promise} Resultado de la operación
- */
-async function executeSql(sql) {
-  try {
-    // Usar función postgresql para ejecutar SQL directamente
-    const { data, error } = await supabase.rpc('execute_sql', { sql });
-    
-    if (error) {
-      // Si el error es por falta de la función RPC, vamos a usar la API REST
-      if (error.message.includes('Could not find the function')) {
-        console.log('⚠️ La función execute_sql no existe. Intentando con la API REST...');
-        
-        // Usar la API REST para ejecutar SQL (menos óptimo pero funciona)
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Prefer': 'return=minimal',
-            'X-Client-Info': 'migration-script'
-          },
-          body: JSON.stringify({
-            query: sql
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Error de API: ${response.status} ${response.statusText}`);
-        }
-        
-        return { success: true };
-      }
-      
-      throw error;
-    }
-    
-    return { success: true, data };
-  } catch (err) {
-    throw err;
-  }
+// Validar URL
+let url;
+try {
+  url = new URL(`${baseUrl}/api/db-migrate${applyForeignKey ? '?applyForeignKey=true' : ''}`);
+} catch (error) {
+  console.error('URL inválida:', baseUrl);
+  process.exit(1);
 }
 
-/**
- * Aplica un archivo de migración
- * @param {string} filePath - Ruta al archivo de migración
- * @returns {Promise<boolean>} true si la migración fue exitosa
- */
-async function applyMigration(filePath) {
-  try {
-    console.log(`📄 Aplicando migración: ${path.basename(filePath)}`);
-    
-    // Leer el archivo SQL
-    const sql = fs.readFileSync(filePath, 'utf8');
-    
-    // Dividir en sentencias separadas por ";" y remover comentarios
-    const statements = sql
-      .split(';')
-      .map(statement => statement.trim())
-      .filter(statement => statement && !statement.startsWith('--'));
-    
-    // Ejecutar cada sentencia
-    for (const statement of statements) {
-      if (statement) {
-        try {
-          await executeSql(statement);
-        } catch (error) {
-          console.error(`❌ Error ejecutando SQL: ${error.message}`);
-          console.error('Sentencia SQL:');
-          console.error(statement);
-          throw error;
-        }
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error(`❌ Error al aplicar migración ${path.basename(filePath)}: ${error.message}`);
-    return false;
+// Preparar opciones para la petición
+const options = {
+  hostname: url.hostname,
+  port: url.port || (url.protocol === 'https:' ? 443 : 80),
+  path: `${url.pathname}${url.search}`,
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json'
   }
+};
+
+// Añadir token si se ha proporcionado
+if (token) {
+  options.headers['Authorization'] = `Bearer ${token}`;
 }
 
-/**
- * Verifica si una tabla existe en la base de datos
- * @param {string} tableName - Nombre de la tabla
- * @returns {Promise<boolean>} true si la tabla existe
- */
-async function tableExists(tableName) {
-  try {
-    const { data, error } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_schema', 'public')
-      .eq('table_name', tableName)
-      .limit(1);
-    
-    if (error) throw error;
-    
-    return data && data.length > 0;
-  } catch (error) {
-    console.error(`❌ Error verificando si existe la tabla ${tableName}: ${error.message}`);
-    return false;
-  }
-}
+console.log(`Ejecutando migraciones en ${url.href}...`);
 
-/**
- * Función principal
- */
-async function main() {
-  console.log('🚀 Iniciando proceso de migración de base de datos...');
+// Seleccionar el módulo adecuado según el protocolo
+const requestModule = url.protocol === 'https:' ? https : http;
+
+// Ejecutar la petición
+const req = requestModule.request(options, (res) => {
+  let data = '';
   
-  try {
-    // Verificar que exista el directorio de migraciones
-    if (!fs.existsSync(migrationsDir)) {
-      console.error(`❌ No se encontró el directorio de migraciones: ${migrationsDir}`);
+  res.on('data', (chunk) => {
+    data += chunk;
+  });
+  
+  res.on('end', () => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      try {
+        const result = JSON.parse(data);
+        
+        // Mostrar resultado
+        console.log(`Migraciones completadas con estado: ${result.status}`);
+        
+        if (result.steps && result.steps.length > 0) {
+          result.steps.forEach(step => {
+            if (step.success) {
+              console.log(`✅ ${step.name}: ${step.message || 'Completado'}`);
+            } else {
+              console.error(`❌ ${step.name}: ${step.message || 'Fallido'}`);
+            }
+          });
+        }
+        
+        // Salir con código de error si hay algún paso fallido
+        const hasFailures = result.steps && result.steps.some(step => !step.success);
+        process.exit(hasFailures ? 1 : 0);
+      } catch (error) {
+        console.error('Error al procesar la respuesta:', error);
+        console.error('Datos recibidos:', data);
+        process.exit(1);
+      }
+    } else {
+      console.error(`Error HTTP ${res.statusCode}: ${res.statusMessage}`);
+      console.error('Respuesta:', data);
       process.exit(1);
     }
-    
-    // Obtener todos los archivos de migración
-    const migrationFiles = fs.readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
-      .sort(); // Ordenar alfabéticamente (importante para el orden de ejecución)
-    
-    if (migrationFiles.length === 0) {
-      console.log('ℹ️ No hay archivos de migración para aplicar.');
-      process.exit(0);
-    }
-    
-    // Verificar si existe la tabla migrations
-    const hasMigrationsTable = await tableExists('migrations');
-    
-    // Si no existe la tabla migrations, aplicar primero las funciones RPC
-    if (!hasMigrationsTable) {
-      console.log('⚠️ La tabla migrations no existe. Aplicando primero las funciones RPC...');
-      
-      // Buscar el archivo de funciones RPC
-      const rpcFile = migrationFiles.find(file => file.includes('setup_rpc_functions'));
-      
-      if (rpcFile) {
-        const success = await applyMigration(path.join(migrationsDir, rpcFile));
-        if (!success) {
-          console.error('❌ Error al aplicar las funciones RPC. No se puede continuar.');
-          process.exit(1);
-        }
-        console.log('✅ Funciones RPC aplicadas correctamente.');
-      } else {
-        console.error('❌ No se encontró el archivo de funciones RPC.');
-        process.exit(1);
-      }
-    }
-    
-    // Aplicar las migraciones de esquema
-    console.log('🔄 Aplicando migraciones de esquema...');
-    
-    const schemaFiles = migrationFiles.filter(file => !file.includes('setup_rpc_functions'));
-    
-    for (const file of schemaFiles) {
-      const success = await applyMigration(path.join(migrationsDir, file));
-      if (!success) {
-        console.error(`❌ Error al aplicar la migración ${file}.`);
-        process.exit(1);
-      }
-      console.log(`✅ Migración ${file} aplicada correctamente.`);
-    }
-    
-    console.log('🎉 Proceso de migración completado con éxito!');
-  } catch (error) {
-    console.error(`❌ Error inesperado: ${error.message}`);
-    if (error.stack) console.error(error.stack);
-    process.exit(1);
-  }
-}
+  });
+});
 
-// Ejecutar la función principal
-main().catch(error => {
-  console.error(`❌ Error fatal: ${error.message}`);
+req.on('error', (error) => {
+  console.error('Error al ejecutar la petición:', error.message);
   process.exit(1);
-}); 
+});
+
+req.end(); 

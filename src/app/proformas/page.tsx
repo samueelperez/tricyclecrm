@@ -69,10 +69,10 @@ function ProformasContent() {
         return;
       }
       
-      // Cargar todas las proformas
+      // Cargar todas las proformas con información completa
       const { data, error: fetchError } = await supabase
         .from('proformas')
-        .select('*')
+        .select('*, clientes(nombre)')
         .order('fecha', { ascending: false });
       
       if (fetchError) {
@@ -80,11 +80,22 @@ function ProformasContent() {
       }
       
       if (data) {
+        // Imprimir para depuración
+        console.log('Datos de proformas completos:', data);
+        
         // Separar proformas por tipo (cliente/proveedor) basado en las notas
         const customerProfs: Proforma[] = [];
         const supplierProfs: Proforma[] = [];
         
         data.forEach(proforma => {
+          // Imprimir cada proforma para depuración
+          console.log(`Proforma ID ${proforma.id}:`, {
+            id_externo: proforma.id_externo,
+            cliente_id: proforma.cliente_id,
+            cliente: proforma.clientes?.nombre,
+            notas: proforma.notas
+          });
+          
           // Si tiene notas y contiene "Proveedor:" es una proforma de proveedor
           if (proforma.notas && proforma.notas.includes('Proveedor:')) {
             supplierProfs.push({
