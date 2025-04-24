@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { FiDatabase, FiSettings, FiShield, FiHome } from "react-icons/fi";
+import { FiDatabase, FiSettings, FiShield, FiHome, FiEye } from "react-icons/fi";
 
 export default async function AdminLayout({
   children,
@@ -15,20 +15,20 @@ export default async function AdminLayout({
   
   // Si el usuario no tiene sesión, redirigir al login
   if (!sessionData?.session) {
+    console.log("Layout Admin: No hay sesión, redirigiendo a login");
     redirect("/login");
   }
   
-  // Verificar si el usuario tiene rol de administrador
-  const { data: userData, error } = await supabase
-    .from('perfiles')
-    .select('cargo')
-    .eq('id', sessionData.session.user.id)
-    .single();
+  // Verificar si el usuario es administrador basado en el email
+  const userEmail = sessionData.session.user.email;
   
-  if (!userData || error || userData.cargo !== 'admin') {
-    // Redirigir a la página principal si no es administrador
+  // Solo permitir acceso al usuario admin@tricyclecrm.com
+  if (userEmail !== 'admin@tricyclecrm.com') {
+    console.log("Layout Admin: Usuario no es admin, redirigiendo a dashboard");
     redirect("/dashboard");
   }
+  
+  console.log("Layout Admin: Permitiendo acceso a", userEmail);
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -54,6 +54,16 @@ export default async function AdminLayout({
               <span className="px-3 py-1 text-gray-400 text-sm font-medium">
                 Administración
               </span>
+            </li>
+            
+            <li>
+              <Link 
+                href="/admin/secciones" 
+                className="flex items-center px-3 py-2 rounded-md hover:bg-gray-800"
+              >
+                <FiEye className="mr-2" />
+                Visibilidad de Secciones
+              </Link>
             </li>
             
             <li>
