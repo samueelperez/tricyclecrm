@@ -81,7 +81,7 @@ export default function CompanyProfileForm({ onSave }: CompanyProfileProps) {
         if (data.profile) {
           // Establecer los valores del formulario
           Object.entries(data.profile).forEach(([key, value]) => {
-            if (key in register()) {
+            if (typeof key === 'string') {
               setValue(key as keyof CompanyProfileFormData, value as any);
             }
           });
