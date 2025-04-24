@@ -66,6 +66,7 @@
     "react-textarea-autosize": "^8.5.9",
     "react-trello": "^2.2.11",
     "react-trello-client": "^1.1.6",
+    "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
     "zod": "^3.22.4"
   },
