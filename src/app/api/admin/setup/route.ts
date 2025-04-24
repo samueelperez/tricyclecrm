@@ -44,13 +44,10 @@ export async function POST() {
           })
           
           if (directError) {
-            // Si ambos métodos fallan, intentar con SQL directo
-            const { error: sqlError } = await supabaseAdmin.from('_sql').select('*').execute(cmd)
-            
-            if (sqlError) {
-              console.error(`Error ejecutando SQL directo: ${sqlError.message}`)
-              throw new Error(`Error en comando SQL ${i + 1}: ${sqlError.message}`)
-            }
+            console.warn(`Error con execute_sql: ${directError.message}`)
+            // Si ambos métodos fallan, simplemente registrar y continuar
+            // No hay forma directa de ejecutar SQL arbitrario sin una función RPC
+            console.log(`No se pudo ejecutar comando SQL: ${cmd.substring(0, 100)}...`)
           }
         }
       } catch (cmdError) {
@@ -60,15 +57,23 @@ export async function POST() {
     }
 
     // Verificar que la vista auth_users_view se haya creado correctamente
-    const { data: viewCheck, error: viewError } = await supabaseAdmin
-      .from('auth_users_view')
-      .select('count(*)', { count: 'exact', head: true })
+    try {
+      const { data: viewCheck, error: viewError } = await supabaseAdmin
+        .from('auth_users_view')
+        .select('count(*)', { count: 'exact', head: true })
 
-    if (viewError) {
-      console.error('La vista auth_users_view no se creó correctamente:', viewError)
+      if (viewError) {
+        console.error('La vista auth_users_view no se creó correctamente:', viewError)
+        return NextResponse.json({ 
+          warning: 'Migración completada con advertencias', 
+          details: 'Algunos objetos pueden no haberse creado correctamente' 
+        })
+      }
+    } catch (checkError) {
+      console.error('Error al verificar vista:', checkError)
       return NextResponse.json({ 
-        warning: 'Migración completada con advertencias', 
-        details: 'Algunos objetos pueden no haberse creado correctamente' 
+        warning: 'Migración completada pero no se pudo verificar', 
+        details: 'No se pudo verificar si las tablas se crearon correctamente' 
       })
     }
 
