@@ -49,6 +49,12 @@ ALTER TABLE chatbot_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chatbot_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chatbot_interactions ENABLE ROW LEVEL SECURITY;
 
+-- Eliminar políticas existentes para conversaciones
+DROP POLICY IF EXISTS "Usuarios pueden ver sus propias conversaciones" ON chatbot_conversations;
+DROP POLICY IF EXISTS "Usuarios pueden insertar sus propias conversaciones" ON chatbot_conversations;
+DROP POLICY IF EXISTS "Usuarios pueden actualizar sus propias conversaciones" ON chatbot_conversations;
+DROP POLICY IF EXISTS "Usuarios pueden eliminar sus propias conversaciones" ON chatbot_conversations;
+
 -- Políticas RLS para conversaciones
 CREATE POLICY "Usuarios pueden ver sus propias conversaciones"
   ON chatbot_conversations
@@ -69,6 +75,11 @@ CREATE POLICY "Usuarios pueden eliminar sus propias conversaciones"
   ON chatbot_conversations
   FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Eliminar políticas existentes para mensajes
+DROP POLICY IF EXISTS "Usuarios pueden ver mensajes de sus conversaciones" ON chatbot_messages;
+DROP POLICY IF EXISTS "Usuarios pueden insertar mensajes en sus conversaciones" ON chatbot_messages;
+DROP POLICY IF EXISTS "Usuarios pueden eliminar mensajes de sus conversaciones" ON chatbot_messages;
 
 -- Políticas RLS para mensajes
 CREATE POLICY "Usuarios pueden ver mensajes de sus conversaciones"
@@ -98,6 +109,10 @@ CREATE POLICY "Usuarios pueden eliminar mensajes de sus conversaciones"
     AND c.user_id = auth.uid()
   ));
 
+-- Eliminar políticas existentes para interacciones
+DROP POLICY IF EXISTS "Solo administradores pueden ver todas las interacciones" ON chatbot_interactions;
+DROP POLICY IF EXISTS "Usuarios pueden insertar sus propias interacciones" ON chatbot_interactions;
+
 -- Políticas RLS para interacciones
 CREATE POLICY "Solo administradores pueden ver todas las interacciones"
   ON chatbot_interactions
@@ -112,6 +127,10 @@ CREATE POLICY "Usuarios pueden insertar sus propias interacciones"
   ON chatbot_interactions
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+-- Eliminar función y trigger si existen
+DROP TRIGGER IF EXISTS chatbot_conversation_updated_at ON chatbot_conversations;
+DROP FUNCTION IF EXISTS update_chatbot_conversation_updated_at();
 
 -- Trigger para actualizar automáticamente updated_at en conversaciones
 CREATE OR REPLACE FUNCTION update_chatbot_conversation_updated_at()
