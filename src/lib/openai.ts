@@ -206,7 +206,7 @@ export async function useAssistantAPI(threadId: string | null, message: string):
         console.warn('No se encontraron mensajes del asistente');
         return {
           response: 'No se recibió respuesta del asistente',
-          threadId: currentThreadId
+          threadId: currentThreadId || ''
         };
       }
       
@@ -232,7 +232,7 @@ export async function useAssistantAPI(threadId: string | null, message: string):
       console.log('Respuesta procesada exitosamente');
       return {
         response: responseText.trim() || 'El asistente envió una respuesta vacía',
-        threadId: currentThreadId
+        threadId: currentThreadId || ''
       };
     } catch (error) {
       console.error('Error al obtener o procesar los mensajes:', error);
