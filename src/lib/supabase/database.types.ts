@@ -114,6 +114,59 @@ export type Database = {
           }
         ]
       }
+      company_profile: {
+        Row: {
+          id: string
+          user_id: string
+          company_name: string
+          industry: string
+          description: string
+          products_services: string
+          target_customers: string
+          competitors: string | null
+          unique_selling_points: string | null
+          regions: string[] | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          company_name: string
+          industry: string
+          description: string
+          products_services: string
+          target_customers: string
+          competitors?: string | null
+          unique_selling_points?: string | null
+          regions?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          company_name?: string
+          industry?: string
+          description?: string
+          products_services?: string
+          target_customers?: string
+          competitors?: string | null
+          unique_selling_points?: string | null
+          regions?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_profile_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       albaran_items: {
         Row: {
           cantidad: number
