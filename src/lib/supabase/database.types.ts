@@ -1350,6 +1350,10 @@ export type Database = {
           constraint_type: string
         }[]
       }
+      get_crm_insights: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_indexes: {
         Args: {
           table_name: string
