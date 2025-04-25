@@ -47,6 +47,41 @@ export type Database = {
           }
         ]
       }
+      chatbot_interactions: {
+        Row: {
+          id: string
+          message: string
+          mode: string
+          user_id: string
+          timestamp: string
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          message: string
+          mode: string
+          user_id: string
+          timestamp?: string
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          message?: string
+          mode?: string
+          user_id?: string
+          timestamp?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_interactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       chatbot_messages: {
         Row: {
           id: string
