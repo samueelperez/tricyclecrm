@@ -40,7 +40,7 @@ export default function ClientesPage() {
       try {
         const { data, error: fetchError } = await supabase
           .from('clientes')
-          .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre')
+          .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
           .order('nombre')
         
         if (fetchError) {
