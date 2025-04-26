@@ -3,8 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiEdit, FiMail, FiPhone, FiMap, FiUser, FiFileText } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit, FiMail, FiPhone, FiMap, FiUser, FiFileText, FiPackage, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import { Suspense } from 'react';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import ClienteDetalle from '@/components/clientes/cliente-detalle';
+import { Spinner } from '@/components/ui/spinner';
 
 interface Cliente {
   id: number;
@@ -21,11 +26,25 @@ interface Cliente {
   updated_at: string | null;
 }
 
+interface Material {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  categoria: string | null;
+}
+
+// Cargar cliente por ID
+async function getCliente(id: number) {
+  const supabase = createServerComponentClient({ cookies });
+  
 export default function ClienteDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [materiales, setMateriales] = useState<Material[]>([]);
+  const [loadingMateriales, setLoadingMateriales] = useState(false);
+  const [materialesError, setMaterialesError] = useState<string | null>(null);
   const clienteId = parseInt(params.id);
 
   useEffect(() => {
@@ -66,6 +85,43 @@ export default function ClienteDetailPage({ params }: { params: { id: string } }
     
     fetchCliente();
   }, [clienteId]);
+
+  // Cargar materiales del cliente
+  const fetchMaterialesCliente = async () => {
+    if (!clienteId || isNaN(clienteId) || !cliente) return;
+    
+    try {
+      setLoadingMateriales(true);
+      setMaterialesError(null);
+      
+      // Limitar tiempo de carga
+      const timeoutPromise = new Promise<any>((_, reject) => {
+        setTimeout(() => reject(new Error('Tiempo de espera agotado')), 3000);
+      });
+      
+      // Realizar petición
+      const fetchPromise = fetch(`/api/clientes/materiales?cliente_id=${clienteId}`);
+      
+      // Usar la primera promesa que se complete
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
+      const data = await response.json();
+      
+      setMateriales(data || []);
+    } catch (err) {
+      console.error('Error al cargar materiales del cliente:', err);
+      setMaterialesError('No se pudieron cargar los materiales. Intente nuevamente.');
+      setMateriales([]);
+    } finally {
+      setLoadingMateriales(false);
+    }
+  };
+  
+  // Cargar materiales al inicio
+  useEffect(() => {
+    if (!loading && cliente) {
+      fetchMaterialesCliente();
+    }
+  }, [loading, cliente]);
 
   // Formatear fecha para mejor visualización
   const formatDate = (dateString: string | null) => {
@@ -242,23 +298,78 @@ export default function ClienteDetailPage({ params }: { params: { id: string } }
         </div>
       </div>
       
-      {/* Sección futura para mostrar negocios asociados */}
-      <div className="mt-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Negocios relacionados</h2>
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-          <p className="text-gray-500">
-            La integración con negocios se implementará proximamente.
-          </p>
+      {/* Sección de Materiales */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mt-8">
+        <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+          <div>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
+              <FiPackage className="mr-2 text-blue-500" /> Materiales que compra
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Materiales asociados a este cliente.
+            </p>
+          </div>
+          <button
+            onClick={fetchMaterialesCliente}
+            disabled={loadingMateriales}
+            className="text-gray-500 hover:text-indigo-600 p-2"
+            title="Recargar materiales"
+          >
+            <FiRefreshCw className={`h-5 w-5 ${loadingMateriales ? 'animate-spin' : ''}`} />
+          </button>
         </div>
-      </div>
-      
-      {/* Sección futura para mostrar facturas asociadas */}
-      <div className="mt-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Facturas asociadas</h2>
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-          <p className="text-gray-500">
-            La integración con facturas se implementará proximamente.
-          </p>
+        
+        <div className="border-t border-gray-200">
+          {loadingMateriales ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : materialesError ? (
+            <div className="px-4 py-5 sm:p-6 text-center">
+              <div className="flex flex-col items-center justify-center p-6 text-red-500">
+                <FiAlertCircle className="h-12 w-12 text-red-300 mb-4" />
+                <p>{materialesError}</p>
+                <button
+                  onClick={fetchMaterialesCliente}
+                  className="mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                >
+                  Intentar de nuevo
+                </button>
+              </div>
+            </div>
+          ) : materiales.length > 0 ? (
+            <div className="px-4 py-5 sm:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {materiales.map((material) => (
+                  <div key={material.id} className="border border-gray-200 rounded-md p-4 hover:shadow-md transition-all duration-200">
+                    <h4 className="font-medium text-gray-900">{material.nombre}</h4>
+                    {material.categoria && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                        {material.categoria}
+                      </span>
+                    )}
+                    {material.descripcion && (
+                      <p className="text-sm text-gray-500 mt-2">{material.descripcion}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-5 sm:p-6 text-center">
+              <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+                <FiPackage className="h-12 w-12 text-gray-300 mb-4" />
+                <p>Este cliente no tiene materiales asignados.</p>
+                <Link 
+                  href={`/clientes/edit/${cliente.id}`} 
+                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <FiEdit className="mr-2 -ml-1 h-4 w-4" />
+                  Asignar materiales
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -14,9 +14,11 @@ import {
   FiMail,
   FiPhone,
   FiGlobe,
-  FiFile
+  FiFile,
+  FiPackage
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import MaterialesSelector from '@/components/clientes/materiales-selector';
 
 interface ClienteFormData {
   nombre: string;
@@ -28,6 +30,7 @@ interface ClienteFormData {
   contacto_nombre: string;
   email: string;
   telefono: string;
+  material_ids: number[];
 }
 
 export default function EditClientePage({ params }: { params: { id: string } }) {
@@ -47,7 +50,8 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
     pais: '',
     contacto_nombre: '',
     email: '',
-    telefono: ''
+    telefono: '',
+    material_ids: []
   });
 
   // Cargar datos del cliente
@@ -87,7 +91,8 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
           pais: data.pais || '',
           contacto_nombre: data.contacto_nombre || '',
           email: data.email || '',
-          telefono: data.telefono || ''
+          telefono: data.telefono || '',
+          material_ids: [] // Los materiales se cargarán en el componente MaterialesSelector
         });
         
       } catch (err) {
@@ -107,6 +112,14 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
     setFormData({
       ...formData,
       [name]: value
+    });
+  };
+
+  // Manejar cambios en los materiales seleccionados
+  const handleMaterialesChange = (materialIds: number[]) => {
+    setFormData({
+      ...formData,
+      material_ids: materialIds
     });
   };
 
@@ -142,6 +155,26 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
         
       if (updateError) {
         throw new Error(`Error al actualizar el cliente: ${updateError.message}`);
+      }
+      
+      // Actualizar los materiales seleccionados
+      try {
+        const materialesResponse = await fetch('/api/clientes/materiales', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            cliente_id: clienteId,
+            material_ids: formData.material_ids,
+          }),
+        });
+        
+        if (!materialesResponse.ok) {
+          console.error('Error al actualizar los materiales del cliente, pero el cliente se actualizó correctamente');
+        }
+      } catch (materialesError) {
+        console.error('Error al actualizar materiales:', materialesError);
       }
       
       // Redirigir a la página de clientes
@@ -411,6 +444,28 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Sección de Materiales */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                <FiPackage className="mr-2 text-indigo-500" />
+                Materiales
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Materiales que compra este cliente
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+              {/* Selector de materiales */}
+              <MaterialesSelector 
+                clienteId={clienteId}
+                onMaterialesChange={handleMaterialesChange}
+                disabled={saving}
+              />
             </div>
           </div>
           

@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { FiPlus, FiSearch, FiEdit, FiTrash2, FiUser, FiUsers, FiPhone, FiMail, FiMapPin } from 'react-icons/fi'
 import Link from 'next/link'
 import { getSupabaseClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { toast } from 'react-hot-toast'
 
 interface Cliente {
   id: number
@@ -16,34 +19,25 @@ interface Cliente {
 }
 
 export default function ClientesPage() {
+  const router = useRouter()
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     const fetchClientes = async () => {
       setLoading(true)
       
       try {
-        const supabase = getSupabaseClient();
+        const { data, error: fetchError } = await supabase
+          .from('clientes')
+          .select('id, nombre, id_fiscal, email, telefono')
+          .order('nombre')
         
-        // Consulta básica para obtener todos los clientes
-        let query = supabase.from('clientes').select('*')
-        
-        // Si hay una búsqueda, filtrar por nombre o id fiscal
-        if (searchQuery) {
-          query = query.or(`nombre.ilike.%${searchQuery}%,id_fiscal.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
-        }
-        
-        // Ordenar por nombre
-        query = query.order('nombre', { ascending: true })
-        
-        const { data, error } = await query
-        
-        if (error) {
-          console.error('Error cargando clientes:', error)
-          return
+        if (fetchError) {
+          throw new Error(`Error al cargar clientes: ${fetchError.message}`)
         }
         
         setClientes(data || [])
@@ -55,7 +49,7 @@ export default function ClientesPage() {
     }
     
     fetchClientes()
-  }, [searchQuery])
+  }, [supabase])
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
@@ -70,9 +64,6 @@ export default function ClientesPage() {
     setDeleteLoading(clienteId);
     
     try {
-      const supabase = getSupabaseClient();
-      
-      // Eliminar cliente de Supabase
       const { error: deleteError } = await supabase
         .from('clientes')
         .delete()
@@ -87,6 +78,7 @@ export default function ClientesPage() {
       // Actualizar la lista de clientes
       setClientes(clientes.filter(cliente => cliente.id !== clienteId));
       
+      toast.success('Cliente eliminado correctamente');
     } catch (error) {
       console.error('Error inesperado:', error);
       alert('Error al eliminar el cliente');
@@ -94,6 +86,13 @@ export default function ClientesPage() {
       setDeleteLoading(null);
     }
   };
+
+  // Filtrar clientes según término de búsqueda
+  const filteredClientes = clientes.filter(cliente => 
+    cliente.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cliente.id_fiscal && cliente.id_fiscal.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (cliente.email && cliente.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen py-8">
@@ -104,12 +103,14 @@ export default function ClientesPage() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
             Clientes
           </h1>
-          <Link 
-            href="/clientes/new"
-            className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
-          >
-            <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Cliente
-          </Link>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+            <Link 
+              href="/clientes/new"
+              className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              <FiPlus className="mr-2 -ml-1 h-5 w-5" /> Nuevo Cliente
+            </Link>
+          </div>
         </div>
         
         {/* Buscador */}
@@ -134,7 +135,7 @@ export default function ClientesPage() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
             <p className="text-gray-500 text-lg">Cargando clientes...</p>
           </div>
-        ) : clientes.length === 0 ? (
+        ) : filteredClientes.length === 0 ? (
           <div className="bg-white shadow-md rounded-lg p-10 text-center">
             <div className="flex justify-center mb-4">
               <FiUsers className="h-12 w-12 text-gray-400" />
@@ -183,7 +184,7 @@ export default function ClientesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {clientes.map((cliente) => (
+                  {filteredClientes.map((cliente) => (
                     <tr key={cliente.id} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
