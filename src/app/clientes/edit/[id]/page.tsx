@@ -30,6 +30,8 @@ interface ClienteFormData {
   contacto_nombre: string;
   email: string;
   telefono: string;
+  sitio_web: string;
+  comentarios: string;
   material_ids: number[];
 }
 
@@ -51,6 +53,8 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
     contacto_nombre: '',
     email: '',
     telefono: '',
+    sitio_web: '',
+    comentarios: '',
     material_ids: []
   });
 
@@ -92,6 +96,8 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
           contacto_nombre: data.contacto_nombre || '',
           email: data.email || '',
           telefono: data.telefono || '',
+          sitio_web: data.sitio_web || '',
+          comentarios: data.comentarios || '',
           material_ids: [] // Los materiales se cargarán en el componente MaterialesSelector
         });
         
@@ -149,7 +155,9 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
           pais: formData.pais || null,
           contacto_nombre: formData.contacto_nombre || null,
           email: formData.email || null,
-          telefono: formData.telefono || null
+          telefono: formData.telefono || null,
+          sitio_web: formData.sitio_web || null,
+          comentarios: formData.comentarios || null
         })
         .eq('id', clienteId);
         
@@ -443,6 +451,20 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
                   })}
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>
+
+                {/* Sitio Web */}
+                <div className="relative group">
+                  {renderLabel('Sitio Web', false, <FiGlobe />)}
+                  {renderInput({
+                    type: "url",
+                    name: "sitio_web",
+                    id: "sitio_web",
+                    value: formData.sitio_web,
+                    onChange: handleInputChange,
+                    placeholder: "https://www.ejemplo.com"
+                  })}
+                  <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -466,6 +488,40 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
                 onMaterialesChange={handleMaterialesChange}
                 disabled={saving}
               />
+            </div>
+          </div>
+          
+          {/* Sección de Comentarios */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                <FiFile className="mr-2 text-indigo-500" />
+                Comentarios
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Notas adicionales sobre este cliente
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+              <div className="relative">
+                <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                  <span className="text-indigo-500 mr-1.5"><FiFile /></span>
+                  Comentarios
+                </label>
+                <textarea
+                  id="comentarios"
+                  name="comentarios"
+                  rows={4}
+                  value={formData.comentarios}
+                  onChange={handleInputChange}
+                  placeholder="Ingrese comentarios o notas adicionales sobre este cliente"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm 
+                            focus:border-indigo-500 focus:ring-indigo-500 
+                            transition-all duration-200 ease-in-out
+                            hover:border-indigo-300 sm:text-sm"
+                ></textarea>
+              </div>
             </div>
           </div>
           

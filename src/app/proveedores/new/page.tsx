@@ -18,6 +18,7 @@ import {
   FiPackage
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import MaterialesSelector from '@/components/proveedores/materiales-selector';
 
 interface ProveedorFormData {
   nombre: string;
@@ -29,6 +30,7 @@ interface ProveedorFormData {
   contacto_nombre: string;
   email: string;
   telefono: string;
+  material_ids: number[];
 }
 
 export default function NewProveedorPage() {
@@ -46,7 +48,8 @@ export default function NewProveedorPage() {
     pais: '',
     contacto_nombre: '',
     email: '',
-    telefono: ''
+    telefono: '',
+    material_ids: []
   });
 
   // Manejar cambios en los campos del formulario
@@ -55,6 +58,14 @@ export default function NewProveedorPage() {
     setFormData({
       ...formData,
       [name]: value
+    });
+  };
+
+  // Manejar cambios en los materiales seleccionados
+  const handleMaterialesChange = (materialIds: number[]) => {
+    setFormData({
+      ...formData,
+      material_ids: materialIds
     });
   };
 
@@ -90,6 +101,27 @@ export default function NewProveedorPage() {
         
       if (insertError) {
         throw new Error(`Error al guardar el proveedor: ${insertError.message}`);
+      }
+
+      // Guardar los materiales seleccionados si hay alguno
+      if (data && data[0] && formData.material_ids.length > 0) {
+        const proveedorId = data[0].id;
+        
+        // Llamar al API para guardar la relación proveedor-materiales
+        const materialesResponse = await fetch('/api/proveedores/materiales', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            proveedor_id: proveedorId,
+            material_ids: formData.material_ids,
+          }),
+        });
+        
+        if (!materialesResponse.ok) {
+          console.error('Error al guardar los materiales del proveedor, pero el proveedor se guardó correctamente');
+        }
       }
       
       // Redirigir a la página de proveedores
@@ -346,6 +378,27 @@ export default function NewProveedorPage() {
                   <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Sección de Materiales */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                <FiPackage className="mr-2 text-indigo-500" />
+                Materiales
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Materiales que ofrece este proveedor
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+              <MaterialesSelector 
+                proveedorId={null}
+                onMaterialesChange={handleMaterialesChange}
+                disabled={loading}
+              />
             </div>
           </div>
           
