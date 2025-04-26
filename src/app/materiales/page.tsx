@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { FiEdit, FiEye, FiTrash2, FiSearch, FiTag } from 'react-icons/fi'
 import Link from 'next/link'
+import { toast } from 'react-hot-toast'
 
 interface Material {
   id: number
@@ -16,31 +17,83 @@ export default function MaterialesPage() {
   const [materiales, setMateriales] = useState<Material[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    async function loadMateriales() {
-      try {
-        setLoading(true)
-        const { data, error } = await supabase
-          .from('materiales')
-          .select('id, nombre, descripcion, categoria')
-          .order('nombre')
-        
-        if (error) {
-          throw error
-        }
-        
-        setMateriales(data || [])
-      } catch (error) {
-        console.error('Error cargando materiales:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadMateriales()
   }, [supabase])
+
+  async function loadMateriales() {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('materiales')
+        .select('id, nombre, descripcion, categoria')
+        .order('nombre')
+      
+      if (error) {
+        throw error
+      }
+      
+      setMateriales(data || [])
+    } catch (error) {
+      console.error('Error cargando materiales:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Está seguro de que desea eliminar este material? Esta acción no se puede deshacer.')) {
+      return;
+    }
+    
+    setDeleteLoading(id);
+    
+    try {
+      // Primero verificamos si el material está siendo usado en alguna relación
+      const { data: relacionesProveedores, error: errorProveedores } = await supabase
+        .from('proveedores_materiales')
+        .select('id')
+        .eq('material_id', id)
+        .limit(1);
+        
+      if (errorProveedores) throw errorProveedores;
+      
+      const { data: relacionesClientes, error: errorClientes } = await supabase
+        .from('clientes_materiales')
+        .select('id')
+        .eq('material_id', id)
+        .limit(1);
+        
+      if (errorClientes) throw errorClientes;
+      
+      // Si hay relaciones, no permitimos eliminar
+      if ((relacionesProveedores && relacionesProveedores.length > 0) || 
+          (relacionesClientes && relacionesClientes.length > 0)) {
+        toast.error('No se puede eliminar este material porque está asociado a clientes o proveedores');
+        return;
+      }
+      
+      // Si no hay relaciones, procedemos a eliminar
+      const { error: deleteError } = await supabase
+        .from('materiales')
+        .delete()
+        .eq('id', id);
+        
+      if (deleteError) throw deleteError;
+      
+      // Actualizamos la lista de materiales
+      setMateriales(materiales.filter(material => material.id !== id));
+      toast.success('Material eliminado correctamente');
+    } catch (error) {
+      console.error('Error eliminando material:', error);
+      toast.error('Error al eliminar el material');
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
 
   const filteredMateriales = materiales.filter(material => 
     material.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,8 +179,16 @@ export default function MaterialesPage() {
                       <Link href={`/materiales/${material.id}/edit`} className="text-green-500 hover:text-green-700">
                         <FiEdit />
                       </Link>
-                      <button className="text-red-500 hover:text-red-700">
-                        <FiTrash2 />
+                      <button 
+                        onClick={() => handleDelete(material.id)} 
+                        disabled={deleteLoading === material.id}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        {deleteLoading === material.id ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
+                        ) : (
+                          <FiTrash2 />
+                        )}
                       </button>
                     </div>
                   </td>
