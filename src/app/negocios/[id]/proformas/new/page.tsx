@@ -18,7 +18,16 @@ import {
 interface Cliente {
   id: number;
   nombre: string;
-  id_fiscal: string | null;
+  id_fiscal?: string | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  codigo_postal?: string | null;
+  pais?: string | null;
+  contacto_nombre?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+  sitio_web?: string | null;
+  comentarios?: string | null;
 }
 
 interface ProformaProducto {

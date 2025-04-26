@@ -12,10 +12,17 @@ interface Cliente {
   id: number
   nombre: string
   id_fiscal: string | null
-  telefono: string | null
-  email: string | null
+  direccion: string | null
   ciudad: string | null
+  codigo_postal: string | null
   pais: string | null
+  contacto_nombre: string | null
+  email: string | null
+  telefono: string | null
+  sitio_web: string | null
+  comentarios: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export default function ClientesPage() {
@@ -33,7 +40,7 @@ export default function ClientesPage() {
       try {
         const { data, error: fetchError } = await supabase
           .from('clientes')
-          .select('id, nombre, id_fiscal, email, telefono')
+          .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre')
           .order('nombre')
         
         if (fetchError) {
