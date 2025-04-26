@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiEdit, FiMail, FiPhone, FiMap, FiUser, FiFileText, FiPackage, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit, FiMail, FiPhone, FiMap, FiUser, FiFileText, FiPackage, FiRefreshCw, FiAlertCircle, FiGlobe } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Suspense } from 'react';
-import ClienteDetalle from '@/components/clientes/cliente-detalle';
-import { Spinner } from '@/components/ui/spinner';
+// Componentes no disponibles actualmente:
+// import ClienteDetalle from '@/components/clientes/cliente-detalle';
+// import { Spinner } from '@/components/ui/spinner';
 
 interface Cliente {
   id: number;
@@ -20,6 +21,8 @@ interface Cliente {
   contacto_nombre: string | null;
   email: string | null;
   telefono: string | null;
+  sitio_web: string | null;
+  comentarios: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -249,6 +252,21 @@ export default function ClienteDetailPage({ params }: { params: { id: string } }
             
             <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt className="text-sm font-medium text-gray-500 flex items-center">
+                <FiGlobe className="mr-2" /> Sitio Web
+              </dt>
+              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {cliente.sitio_web ? (
+                  <a href={cliente.sitio_web} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                    {cliente.sitio_web}
+                  </a>
+                ) : (
+                  'No especificado'
+                )}
+              </dd>
+            </div>
+            
+            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-gray-500 flex items-center">
                 <FiMap className="mr-2" /> Dirección
               </dt>
               <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
@@ -288,6 +306,17 @@ export default function ClienteDetailPage({ params }: { params: { id: string } }
                 {formatDate(cliente.updated_at)}
               </dd>
             </div>
+
+            {cliente.comentarios && (
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <FiFileText className="mr-2" /> Comentarios
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 whitespace-pre-line">
+                  {cliente.comentarios}
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
       </div>
