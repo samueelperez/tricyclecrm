@@ -155,9 +155,8 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
           pais: formData.pais || null,
           contacto_nombre: formData.contacto_nombre || null,
           email: formData.email || null,
-          telefono: formData.telefono || null,
-          sitio_web: formData.sitio_web || null,
-          comentarios: formData.comentarios || null
+          telefono: formData.telefono || null
+          // sitio_web y comentarios se quitaron temporalmente hasta actualizar la base de datos
         })
         .eq('id', clienteId);
         
