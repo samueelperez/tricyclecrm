@@ -6,8 +6,6 @@ import Link from 'next/link';
 import { FiArrowLeft, FiEdit, FiMail, FiPhone, FiMap, FiUser, FiFileText, FiPackage, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Suspense } from 'react';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import ClienteDetalle from '@/components/clientes/cliente-detalle';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -33,10 +31,6 @@ interface Material {
   categoria: string | null;
 }
 
-// Cargar cliente por ID
-async function getCliente(id: number) {
-  const supabase = createServerComponentClient({ cookies });
-  
 export default function ClienteDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);

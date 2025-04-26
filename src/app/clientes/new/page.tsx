@@ -99,7 +99,9 @@ export default function NewClientePage() {
           pais: formData.pais || null,
           contacto_nombre: formData.contacto_nombre || null,
           email: formData.email || null,
-          telefono: formData.telefono || null
+          telefono: formData.telefono || null,
+          sitio_web: formData.sitio_web || null,
+          comentarios: formData.comentarios || null
         }])
         .select();
         
