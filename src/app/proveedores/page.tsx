@@ -13,6 +13,8 @@ interface Proveedor {
   email: string | null
   ciudad: string | null
   pais: string | null
+  sitio_web: string | null
+  comentarios: string | null
 }
 
 export default function ProveedoresPage() {

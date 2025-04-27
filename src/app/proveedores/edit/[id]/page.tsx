@@ -30,6 +30,8 @@ interface ProveedorFormData {
   contacto_nombre: string;
   email: string;
   telefono: string;
+  sitio_web: string;
+  comentarios: string;
   material_ids: number[];
 }
 
@@ -51,6 +53,8 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
     contacto_nombre: '',
     email: '',
     telefono: '',
+    sitio_web: '',
+    comentarios: '',
     material_ids: []
   });
 
@@ -92,6 +96,8 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           contacto_nombre: data.contacto_nombre || '',
           email: data.email || '',
           telefono: data.telefono || '',
+          sitio_web: data.sitio_web || '',
+          comentarios: data.comentarios || '',
           material_ids: data.material_ids || []
         });
         
@@ -149,7 +155,9 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           pais: formData.pais || null,
           contacto_nombre: formData.contacto_nombre || null,
           email: formData.email || null,
-          telefono: formData.telefono || null
+          telefono: formData.telefono || null,
+          sitio_web: formData.sitio_web || null,
+          comentarios: formData.comentarios || null
         })
         .eq('id', proveedorId);
         
@@ -427,7 +435,7 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
                 </div>
                 
                 {/* Teléfono */}
-                <div className="relative group">
+                <div className="sm:col-span-3">
                   {renderLabel('Teléfono', false, <FiPhone />)}
                   {renderInput({
                     type: "tel",
@@ -435,9 +443,38 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
                     id: "telefono",
                     value: formData.telefono,
                     onChange: handleInputChange,
-                    placeholder: "+34 600 123 456"
+                    placeholder: "Ej: +34 600 000 000"
                   })}
-                  <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all duration-300 group-hover:w-full"></div>
+                </div>
+
+                {/* Sitio Web */}
+                <div className="sm:col-span-3">
+                  {renderLabel('Sitio Web', false, <FiGlobe />)}
+                  {renderInput({
+                    type: "url",
+                    name: "sitio_web",
+                    id: "sitio_web",
+                    value: formData.sitio_web,
+                    onChange: handleInputChange,
+                    placeholder: "Ej: https://empresa.com"
+                  })}
+                </div>
+
+                {/* Comentarios */}
+                <div className="sm:col-span-6">
+                  {renderLabel('Comentarios', false, <FiFile />)}
+                  <div className="relative">
+                    <textarea
+                      name="comentarios"
+                      id="comentarios"
+                      rows={3}
+                      value={formData.comentarios}
+                      onChange={handleInputChange}
+                      placeholder="Información adicional sobre el proveedor..."
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all duration-200 ease-in-out hover:border-indigo-300 sm:text-sm"
+                    ></textarea>
+                    <div className="absolute inset-0 border border-indigo-500 rounded-md opacity-0 pointer-events-none transition-opacity duration-200 peer-focus:opacity-100"></div>
+                  </div>
                 </div>
               </div>
             </div>
