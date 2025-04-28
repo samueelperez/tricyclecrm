@@ -47,8 +47,7 @@ const menuItems = [
     name: "Logística", 
     icon: <FiTruck className="w-5 h-5" />,
     submenu: [
-      { id: "albaranes", name: "Albaranes", href: "/albaranes", icon: <FiClipboard className="w-4 h-4" /> },
-      { id: "envios", name: "Envíos", href: "/envios", icon: <FiTruck className="w-4 h-4" /> },
+      { id: "facturas-logistica", name: "Facturas Logística", href: "/facturas-logistica", icon: <FiFileText className="w-4 h-4" /> },
       { id: "packing-lists", name: "Listas de Empaque", href: "/packing-lists", icon: <FiList className="w-4 h-4" /> },
     ]
   },

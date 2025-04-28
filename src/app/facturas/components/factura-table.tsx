@@ -65,6 +65,11 @@ const FacturaCard = memo(({
           <p className="text-sm text-gray-500 mt-1">
             {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {factura.cliente || 'Sin especificar'}
           </p>
+          {factura.puerto_destino && (
+            <p className="text-xs text-gray-500 mt-1">
+              <span className="font-medium">Puerto destino:</span> {factura.puerto_destino}
+            </p>
+          )}
         </div>
         
         <div className="flex flex-col md:items-end">

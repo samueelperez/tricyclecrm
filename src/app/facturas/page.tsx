@@ -93,17 +93,40 @@ function FacturasContent() {
         setSupplierFacturas(datosEjemploProveedor);
       } else {
         // Formatear facturas de clientes
-        const facturasCliente = (clienteData || []).map(factura => ({
-          ...factura,
-          id: String(factura.id),
-          fecha_emision: factura.fecha_emision || factura.fecha || new Date().toISOString(),
-          fecha_vencimiento: factura.fecha_vencimiento || factura.fecha || new Date().toISOString(),
-          total: factura.total || factura.monto || 0,
-          estado: factura.estado || 'pendiente',
-          divisa: factura.divisa || 'EUR',
-          cliente: factura.cliente || 'Cliente sin especificar',
-          tipo: 'cliente'
-        }));
+        const facturasCliente = (clienteData || []).map(factura => {
+          // Obtener información de puertos del campo material si no están en las columnas
+          let puerto_origen = factura.puerto_origen;
+          let puerto_destino = factura.puerto_destino;
+          
+          // Si hay material JSON, intentar extraer puertos de ahí
+          if (!puerto_origen || !puerto_destino) {
+            try {
+              const material = factura.material ? JSON.parse(factura.material) : {};
+              if (!puerto_origen) {
+                puerto_origen = material.puerto_origen || material.po || null;
+              }
+              if (!puerto_destino) {
+                puerto_destino = material.puerto_destino || material.pd || null;
+              }
+            } catch (e) {
+              console.warn('Error al parsear material para puertos:', e);
+            }
+          }
+          
+          return {
+            ...factura,
+            id: String(factura.id),
+            fecha_emision: factura.fecha_emision || factura.fecha || new Date().toISOString(),
+            fecha_vencimiento: factura.fecha_vencimiento || factura.fecha || new Date().toISOString(),
+            total: factura.total || factura.monto || 0,
+            estado: factura.estado || 'pendiente',
+            divisa: factura.divisa || 'EUR',
+            cliente: factura.cliente || 'Cliente sin especificar',
+            tipo: 'cliente',
+            puerto_origen,
+            puerto_destino
+          };
+        });
         
         // Formatear facturas de proveedores
         const facturasProveedor = (proveedorData || []).map(factura => ({

@@ -63,7 +63,7 @@ export default function CrearNegocioPage() {
         // Cargar clientes
         const { data: clientesData, error: clientesError } = await supabase
           .from('clientes')
-          .select('id, nombre')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono')
           .order('nombre');
 
         if (clientesError) throw clientesError;
@@ -211,8 +211,7 @@ export default function CrearNegocioPage() {
             negocio_id: negocioId,
             material_id,
             cantidad: 1,
-            precio_unitario: parseFloat(formData.valor_total) / formData.material_ids.length || 0,
-            subtotal: parseFloat(formData.valor_total) / formData.material_ids.length || 0
+            material_nombre: materiales.find(m => m.id === material_id)?.nombre || 'Material desconocido'
           }));
           
           const { error: materialError } = await supabase

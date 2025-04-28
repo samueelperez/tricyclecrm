@@ -46,9 +46,11 @@ export default function MaterialesSelector({ proveedorId, onMaterialesChange, di
           const response = await fetch(`/api/proveedores/materiales?proveedor_id=${proveedorId}`);
           if (response.ok) {
             const materialesData = await response.json();
-            const ids = materialesData?.map((m: Material) => m.id) || [];
+            const ids = materialesData?.map((m: any) => m.id) || [];
             setSelectedMaterialIds(ids);
             if (onMaterialesChange) onMaterialesChange(ids);
+          } else {
+            throw new Error('Error al cargar materiales seleccionados');
           }
         } catch (selectedError) {
           console.error('Error al cargar materiales seleccionados:', selectedError);
@@ -70,9 +72,8 @@ export default function MaterialesSelector({ proveedorId, onMaterialesChange, di
     if (onMaterialesChange) onMaterialesChange(selectedOptions);
   };
 
-  // Cargar datos al montar el componente (sólo una vez) o bajo demanda
+  // Cargar datos al montar el componente o cuando cambia el proveedorId
   useEffect(() => {
-    // Iniciar con una carga inmediata
     fetchMateriales();
     
     // Forzar finalización de carga después de 3 segundos
@@ -81,7 +82,7 @@ export default function MaterialesSelector({ proveedorId, onMaterialesChange, di
     }, 3000);
     
     return () => clearTimeout(timeout);
-  }, []);
+  }, [proveedorId]); // Recargar cuando cambia el ID del proveedor
 
   if (error) {
     return (

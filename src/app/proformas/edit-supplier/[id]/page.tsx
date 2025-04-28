@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import ProveedorSelector from '@/components/proveedor-selector';
 
 interface SupplierProforma {
   id: string;
@@ -15,6 +16,16 @@ interface SupplierProforma {
   materialName: string;
   currency: string;
   attachment?: File | null;
+}
+
+interface Proveedor {
+  id: number;
+  nombre: string;
+  id_fiscal?: string;
+  email?: string;
+  ciudad?: string;
+  telefono?: string;
+  sitio_web?: string;
 }
 
 export default function EditSupplierProformaPage({ params }: { params: { id: string } }) {
@@ -30,6 +41,7 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
     currency: 'EUR',
     attachment: null
   });
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
 
   // Cargar datos reales desde Supabase
   useEffect(() => {
@@ -76,6 +88,33 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
     loadProforma();
   }, [params.id]);
 
+  // Cargar datos de proveedores y proforma
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        
+        // Cargar proveedores
+        const { data: proveedoresData, error: proveedoresError } = await supabase
+          .from('proveedores')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono, sitio_web')
+          .order('nombre', { ascending: true });
+        
+        if (proveedoresError) {
+          throw new Error(`Error al cargar proveedores: ${proveedoresError.message}`);
+        }
+        
+        setProveedores(proveedoresData || []);
+
+      } catch (error) {
+        console.error('Error loading proveedores:', error);
+        alert(`Error al cargar proveedores: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setProforma(prev => ({
@@ -104,6 +143,13 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
       currency: 'EUR',
       attachment: null
     });
+  };
+
+  const handleProveedorChange = (nombreProveedor: string) => {
+    setProforma(prev => ({
+      ...prev,
+      supplierName: nombreProveedor
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,26 +277,15 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
             {/* Supplier Name */}
             <div>
               <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700 mb-1">
-                Supplier Name
+                Nombre del Proveedor
               </label>
-              <div className="relative">
-                <select
-                  id="supplierName"
-                  name="supplierName"
-                  value={proforma.supplierName}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="Recisur">Recisur</option>
-                  <option value="Materiales Construcción S.A.">Materiales Construcción S.A.</option>
-                  <option value="Suministros Industriales López">Suministros Industriales López</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+              <ProveedorSelector
+                value={proforma.supplierName}
+                proveedoresList={proveedores}
+                onChange={handleProveedorChange}
+                placeholder="Seleccionar proveedor"
+                className=""
+              />
             </div>
 
             {/* Total Amount */}

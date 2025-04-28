@@ -14,7 +14,13 @@ import {
   FiMapPin, 
   FiGlobe,
   FiFileText,
-  FiCalendar 
+  FiCalendar,
+  FiTrash2,
+  FiCreditCard,
+  FiHome,
+  FiFile,
+  FiDownload,
+  FiPaperclip
 } from 'react-icons/fi';
 
 interface Proveedor {
@@ -28,11 +34,13 @@ interface Proveedor {
   telefono: string | null;
   email: string | null;
   sitio_web: string | null;
-  notas: string | null;
+  comentarios: string | null;
   contacto_nombre: string | null;
   contacto_telefono: string | null;
   contacto_email: string | null;
   created_at: string | null;
+  nombre_archivo: string | null;
+  ruta_archivo: string | null;
 }
 
 export default function ProveedorDetailPage({ params }: { params: { id: string } }) {
@@ -40,6 +48,10 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
   const [proveedor, setProveedor] = useState<Proveedor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [materiales, setMateriales] = useState<any[]>([]);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProveedor = async () => {
@@ -58,10 +70,52 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
           throw error;
         }
 
-        setProveedor(data);
+        if (data) {
+          setProveedor(data);
+          
+          // Obtener URL del archivo si existe
+          if (data.nombre_archivo && data.ruta_archivo) {
+            try {
+              // Crear una URL firmada (válida por 1 hora) para el archivo
+              const { data: fileData, error: fileError } = await supabase
+                .storage
+                .from('documentos')
+                .createSignedUrl(data.ruta_archivo, 3600);
+                
+              if (fileError) {
+                console.error('Error al obtener URL firmada:', fileError);
+              } else if (fileData) {
+                setFileUrl(fileData.signedUrl);
+              }
+            } catch (error) {
+              console.error('Error al generar URL firmada:', error);
+            }
+          }
+          
+          // Obtener materiales
+          const { data: materialesData, error: materialesError } = await supabase
+            .from('proveedores_materiales')
+            .select(`
+              materiales (
+                id,
+                nombre,
+                descripcion,
+                precio_unidad,
+                unidad
+              )
+            `)
+            .eq('proveedor_id', params.id);
+          
+          if (materialesError) {
+            console.error('Error al obtener materiales:', materialesError);
+          } else if (materialesData) {
+            const materialesMapped = materialesData.map(item => item.materiales);
+            setMateriales(materialesMapped);
+          }
+        }
       } catch (err) {
-        console.error('Error al cargar el proveedor:', err);
-        setError('No se pudo cargar la información del proveedor');
+        console.error('Error al cargar proveedor:', err);
+        setError('Error al cargar los datos del proveedor');
       } finally {
         setLoading(false);
       }
@@ -69,6 +123,82 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
 
     fetchProveedor();
   }, [params.id]);
+
+  // Añadir la sección de documentos adjuntos al componente
+  const renderArchivoAdjunto = () => {
+    if (!proveedor?.nombre_archivo) return null;
+    
+    return (
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div className="px-4 py-5 sm:px-6 bg-gray-50 flex items-center">
+          <div className="flex-shrink-0 h-12 w-12 flex items-center justify-center bg-indigo-100 rounded-full mr-4">
+            <FiPaperclip className="h-6 w-6 text-indigo-600" />
+          </div>
+          <div>
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Documento Adjunto</h3>
+            <p className="max-w-2xl text-sm text-gray-500">
+              {proveedor.nombre_archivo}
+            </p>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
+          <div className="flex flex-col items-center justify-center">
+            {proveedor.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
+              <div className="w-full flex flex-col items-center">
+                <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mb-3">
+                  <iframe 
+                    src={fileUrl || ''} 
+                    className="w-full h-full"
+                    title="Vista previa del PDF"
+                  />
+                </div>
+                <a 
+                  href={fileUrl || '#'}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiDownload className="mr-2 -ml-1 h-5 w-5" /> Ver en nueva pestaña
+                </a>
+              </div>
+            ) : proveedor.nombre_archivo?.toLowerCase().match(/\.(jpe?g|png|gif)$/i) ? (
+              <div className="flex flex-col items-center">
+                <div className="border rounded-md p-2 mb-3">
+                  <img 
+                    src={fileUrl || '#'}
+                    alt={proveedor.nombre_archivo} 
+                    className="max-h-64 max-w-full object-contain"
+                  />
+                </div>
+                <a 
+                  href={fileUrl || '#'}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiDownload className="mr-2 -ml-1 h-5 w-5" /> Ver en tamaño completo
+                </a>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <FiFile className="h-16 w-16 text-gray-500 mb-2" />
+                <p className="text-sm text-gray-600 mb-3">Archivo adjunto</p>
+                <a 
+                  href={fileUrl || '#'}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiDownload className="mr-2 -ml-1 h-5 w-5" /> Descargar archivo
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -276,13 +406,13 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
                   )}
                 </div>
 
-                {proveedor.notas && (
+                {proveedor.comentarios && (
                   <>
                     <h4 className="text-md font-medium text-gray-900 flex items-center mt-6">
-                      <FiFileText className="mr-2 text-indigo-500" /> Notas
+                      <FiFileText className="mr-2 text-indigo-500" /> Comentarios
                     </h4>
                     <div className="pl-6">
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{proveedor.notas}</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{proveedor.comentarios}</p>
                     </div>
                   </>
                 )}
@@ -299,6 +429,9 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
             </div>
           </div>
         </div>
+
+        {/* Mostrar documento adjunto si existe */}
+        {renderArchivoAdjunto()}
 
         {/* Botones de acción */}
         <div className="flex justify-between items-center pt-6">

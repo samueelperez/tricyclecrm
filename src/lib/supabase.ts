@@ -4,15 +4,30 @@ import { createClient } from '@supabase/supabase-js';
 // Re-exportar desde supabase/index
 export * from './supabase/index';
 
+// Variables de entorno para Supabase
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Log para depuración (en desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[Supabase Config]', { 
+    url: SUPABASE_URL.slice(0, 15) + '...', 
+    key: SUPABASE_ANON_KEY ? 'Configurada' : 'No configurada',
+    env: process.env.NODE_ENV
+  });
+}
+
 // Cliente básico para componentes cliente usando createClient
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Alternativa recomendada para componentes cliente de Next.js
 export const getSupabaseClient = () => {
-  return createClientComponentClient();
+  // En componentes del cliente, usamos createClientComponentClient con parámetros explícitos
+  // para mayor seguridad
+  return createClientComponentClient({
+    supabaseUrl: SUPABASE_URL,
+    supabaseKey: SUPABASE_ANON_KEY,
+  });
 };
 
 // Tipo común para las respuestas de migración

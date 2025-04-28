@@ -124,7 +124,7 @@ export default function NuevaProforma({ params }: { params: { id: string } }) {
     try {
       const { data, error } = await supabase
         .from('clientes')
-        .select('id, nombre, id_fiscal')
+        .select('id, nombre, id_fiscal, email, ciudad, telefono')
         .order('nombre');
       
       if (error) throw error;

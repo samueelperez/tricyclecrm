@@ -200,7 +200,7 @@ export default function Dashboard() {
       // Obtener clientes con más facturas
       const { data: clientes, error: clientesError } = await supabase
         .from('clientes')
-        .select('id, nombre')
+        .select('id, nombre, id_fiscal, email, ciudad, telefono')
         .limit(3);
       
       if (clientesError) throw clientesError;

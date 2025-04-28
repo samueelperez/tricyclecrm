@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import ProveedorSelector from '@/components/proveedor-selector';
 
 interface SupplierProforma {
   date: string;
@@ -19,8 +20,11 @@ interface SupplierProforma {
 interface Proveedor {
   id: number;
   nombre: string;
-  id_fiscal: string | null;
-  contacto_nombre: string | null;
+  id_fiscal?: string;
+  email?: string;
+  ciudad?: string;
+  telefono?: string;
+  sitio_web?: string;
 }
 
 export default function NewSupplierProformaPage() {
@@ -45,7 +49,7 @@ export default function NewSupplierProformaPage() {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('proveedores')
-          .select('id, nombre, id_fiscal, contacto_nombre')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono, sitio_web')
           .order('nombre', { ascending: true });
           
         if (error) {
@@ -67,6 +71,13 @@ export default function NewSupplierProformaPage() {
     setProforma(prev => ({
       ...prev,
       [name]: name === 'totalAmount' ? parseFloat(value) || 0 : value
+    }));
+  };
+
+  const handleProveedorChange = (nombreProveedor: string) => {
+    setProforma(prev => ({
+      ...prev,
+      supplierName: nombreProveedor
     }));
   };
 
@@ -209,27 +220,13 @@ export default function NewSupplierProformaPage() {
               <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700 mb-1">
                 Nombre del Proveedor
               </label>
-              <div className="relative">
-                <select
-                  id="supplierName"
-                  name="supplierName"
-                  value={proforma.supplierName}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="">Seleccionar proveedor</option>
-                  {proveedores.map((proveedor) => (
-                    <option key={proveedor.id} value={proveedor.nombre}>
-                      {proveedor.nombre}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+              <ProveedorSelector
+                value={proforma.supplierName}
+                proveedoresList={proveedores}
+                onChange={handleProveedorChange}
+                placeholder="Seleccionar proveedor"
+                className=""
+              />
             </div>
 
             {/* Importe Total */}

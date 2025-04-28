@@ -15,10 +15,14 @@ import {
   FiPhone,
   FiGlobe,
   FiFile,
-  FiPackage
+  FiPackage,
+  FiUpload,
+  FiPaperclip,
+  FiCheck
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import MaterialesSelector from '@/components/proveedores/materiales-selector';
+import { toast } from 'react-hot-toast';
 
 interface ProveedorFormData {
   nombre: string;
@@ -33,6 +37,10 @@ interface ProveedorFormData {
   sitio_web: string;
   comentarios: string;
   material_ids: number[];
+  archivo_adjunto?: File | null;
+  nombre_archivo?: string | null;
+  ruta_archivo?: string | null;
+  archivo_url?: string | null; // Usado solo temporalmente para previsualización
 }
 
 export default function NewProveedorPage() {
@@ -53,7 +61,11 @@ export default function NewProveedorPage() {
     telefono: '',
     sitio_web: '',
     comentarios: '',
-    material_ids: []
+    material_ids: [],
+    archivo_adjunto: null,
+    nombre_archivo: null,
+    ruta_archivo: null,
+    archivo_url: null
   });
 
   // Manejar cambios en los campos del formulario
@@ -70,6 +82,57 @@ export default function NewProveedorPage() {
     setFormData({
       ...formData,
       material_ids: materialIds
+    });
+  };
+
+  // Manejar cambio de archivo adjunto
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      // Verificar el tamaño del archivo (10MB máximo)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
+        return;
+      }
+      
+      // Verificar el tipo de archivo
+      const fileType = file.type;
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!validTypes.includes(fileType)) {
+        setError('Tipo de archivo no válido. Solo se permiten PDF, PNG, JPG.');
+        return;
+      }
+      
+      // Crear un objeto URL para previsualizar el archivo si es necesario
+      const fileUrl = URL.createObjectURL(file);
+      
+      setFormData({
+        ...formData,
+        archivo_adjunto: file,
+        nombre_archivo: file.name,
+        archivo_url: fileUrl
+      });
+      
+      console.log('Archivo seleccionado:', {
+        nombre: file.name,
+        tipo: file.type,
+        tamaño: `${Math.round(file.size / 1024)} KB`
+      });
+      
+      // Limpiar mensaje de error si existía
+      if (error) setError(null);
+    }
+  };
+  
+  // Eliminar archivo adjunto
+  const handleClearFile = () => {
+    setFormData({
+      ...formData,
+      archivo_adjunto: null,
+      nombre_archivo: null,
+      ruta_archivo: null,
+      archivo_url: null
     });
   };
 
@@ -101,7 +164,10 @@ export default function NewProveedorPage() {
           email: formData.email || null,
           telefono: formData.telefono || null,
           sitio_web: formData.sitio_web || null,
-          comentarios: formData.comentarios || null
+          comentarios: formData.comentarios || null,
+          nombre_archivo: formData.nombre_archivo,
+          ruta_archivo: null,
+          archivo_url: null
         }])
         .select();
         
@@ -130,12 +196,73 @@ export default function NewProveedorPage() {
         }
       }
       
+      // Si hay un archivo adjunto, subirlo a Storage
+      if (formData.archivo_adjunto && data && data[0]) {
+        const proveedorId = data[0].id;
+        const fileExt = formData.archivo_adjunto.name.split('.').pop();
+        const filePath = `proveedores/${proveedorId}.${fileExt}`;
+        
+        console.log('Iniciando carga del archivo a Supabase Storage...', {
+          bucket: 'documentos',
+          filePath,
+          fileSize: `${Math.round(formData.archivo_adjunto.size / 1024)} KB`,
+          fileType: formData.archivo_adjunto.type
+        });
+        
+        try {
+          // Obtener el cliente de Supabase
+          const supabase = getSupabaseClient();
+          console.log('Supabase client creado');
+          
+          // Subir el archivo
+          console.log('Subiendo archivo a path:', filePath);
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('documentos')
+            .upload(filePath, formData.archivo_adjunto, {
+              upsert: true,
+              contentType: formData.archivo_adjunto.type
+            });
+          
+          console.log('Resultado de subida:', { uploadData, error: uploadError ? uploadError.message : null });
+          
+          if (uploadError) {
+            console.error('Error al subir el archivo adjunto:', uploadError);
+            toast.error(`Error al subir el archivo: ${uploadError.message}`);
+          } else {
+            console.log('Archivo subido correctamente a Storage');
+            
+            // Actualizar el registro con la ruta del archivo (no guardamos la URL directamente)
+            console.log('Actualizando proveedor con la ruta del archivo:', filePath);
+            const { error: updateError } = await supabase
+              .from('proveedores')
+              .update({ 
+                nombre_archivo: formData.archivo_adjunto.name,
+                ruta_archivo: filePath
+              })
+              .eq('id', proveedorId);
+              
+            if (updateError) {
+              console.error('Error al actualizar la información del archivo:', updateError);
+              toast.error('Se creó el proveedor y se subió el archivo, pero hubo un error al guardar la referencia');
+            } else {
+              console.log('Archivo registrado con éxito.');
+              toast.success('Proveedor y archivo guardados correctamente');
+            }
+          }
+        } catch (error) {
+          console.error('Error general en la carga de archivos:', error);
+          toast.error(`Error en la carga: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+      }
+      
       // Redirigir a la página de proveedores
       router.push('/proveedores');
       router.refresh();
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
+      toast.error(err instanceof Error ? err.message : 'Error desconocido');
       console.error('Error al guardar proveedor:', err);
     } finally {
       setLoading(false);
@@ -434,6 +561,94 @@ export default function NewProveedorPage() {
                 onMaterialesChange={handleMaterialesChange}
                 disabled={loading}
               />
+            </div>
+          </div>
+          
+          {/* Sección de Archivos Adjuntos */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                <FiPaperclip className="mr-2 text-indigo-500" />
+                Documentación
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Documentos relacionados con este proveedor
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+              <div className="mt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Adjuntar Documento
+                </label>
+                
+                {/* Previsualización del archivo si existe */}
+                {formData.archivo_adjunto && (
+                  <div className="mb-4 border rounded-lg overflow-hidden bg-gray-50">
+                    <div className="px-4 py-2 bg-gray-100 border-b flex justify-between items-center">
+                      <span className="font-medium text-sm text-gray-700">
+                        {formData.nombre_archivo}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleClearFile}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <FiX className="h-5 w-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="p-4">
+                      {/* Visualización según tipo de archivo */}
+                      {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
+                        <div className="flex flex-col items-center">
+                          <FiFile className="h-16 w-16 text-red-500 mb-2" />
+                          <p className="text-sm text-gray-600">Documento PDF listo para subir</p>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <img 
+                            src={formData.archivo_url || ''}
+                            alt={formData.nombre_archivo || 'Vista previa'} 
+                            className="max-h-64 max-w-full object-contain"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Sección para cargar archivo */}
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 h-24 w-24 border border-gray-200 rounded flex items-center justify-center mr-4">
+                    {formData.archivo_adjunto ? (
+                      <FiCheck className="h-8 w-8 text-green-500" />
+                    ) : (
+                      <FiUpload className="h-6 w-6 text-gray-300" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex text-sm text-gray-600">
+                      <label
+                        htmlFor="file-upload"
+                        className="relative cursor-pointer rounded-md bg-white font-medium text-blue-600 hover:text-blue-500"
+                      >
+                        <span>{formData.archivo_adjunto ? 'Cambiar archivo' : 'Cargar archivo'}</span>
+                        <input
+                          id="file-upload"
+                          name="file-upload"
+                          type="file"
+                          className="sr-only"
+                          onChange={handleFileChange}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                        />
+                      </label>
+                      <p className="pl-1">o arrastrar y soltar</p>
+                    </div>
+                    <p className="text-xs text-gray-500">PDF, PNG, JPG hasta 10MB</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           

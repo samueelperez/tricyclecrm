@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   FiArrowLeft, 
+  FiEdit, 
   FiSave, 
   FiX, 
   FiUser,
@@ -15,7 +16,10 @@ import {
   FiPhone,
   FiGlobe,
   FiFile,
-  FiPackage
+  FiPackage,
+  FiUpload,
+  FiPaperclip,
+  FiDownload
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import MaterialesSelector from '@/components/proveedores/materiales-selector';
@@ -33,6 +37,10 @@ interface ProveedorFormData {
   sitio_web: string;
   comentarios: string;
   material_ids: number[];
+  archivo_adjunto?: File | null;
+  nombre_archivo?: string | null;
+  ruta_archivo?: string | null;
+  archivo_url?: string | null; // Usado solo temporalmente para previsualización
 }
 
 export default function EditProveedorPage({ params }: { params: { id: string } }) {
@@ -55,7 +63,11 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
     telefono: '',
     sitio_web: '',
     comentarios: '',
-    material_ids: []
+    material_ids: [],
+    archivo_adjunto: null,
+    nombre_archivo: null,
+    ruta_archivo: null,
+    archivo_url: null
   });
 
   // Cargar datos del proveedor
@@ -98,8 +110,34 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           telefono: data.telefono || '',
           sitio_web: data.sitio_web || '',
           comentarios: data.comentarios || '',
-          material_ids: data.material_ids || []
+          material_ids: data.material_ids || [],
+          archivo_adjunto: null,
+          nombre_archivo: data.nombre_archivo || null,
+          ruta_archivo: data.ruta_archivo || null,
+          archivo_url: null // Inicializamos en null y lo obtendremos después
         });
+        
+        // Si hay un archivo adjunto, obtener la URL firmada
+        if (data.ruta_archivo) {
+          try {
+            const { data: fileData, error: fileError } = await supabase
+              .storage
+              .from('documentos')
+              .createSignedUrl(data.ruta_archivo, 3600); // URL válida por 1 hora
+              
+            if (!fileError && fileData) {
+              setFormData(prev => ({
+                ...prev,
+                archivo_url: fileData.signedUrl
+              }));
+            } else {
+              console.error('Error al obtener URL firmada:', fileError);
+            }
+          } catch (urlError) {
+            console.error('Error al generar URL del archivo:', urlError);
+            // No bloqueamos la carga de la página por este error
+          }
+        }
         
       } catch (err) {
         console.error('Error al cargar proveedor:', err);
@@ -129,6 +167,56 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
     });
   };
 
+  // Manejar cambio de archivo adjunto
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Verificar el tamaño del archivo (10MB máximo)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
+        return;
+      }
+      
+      // Verificar el tipo de archivo
+      const fileType = file.type;
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!validTypes.includes(fileType)) {
+        setError('Tipo de archivo no válido. Solo se permiten PDF, PNG, JPG.');
+        return;
+      }
+      
+      // Crear un objeto URL para previsualizar el archivo
+      const fileUrl = URL.createObjectURL(file);
+      
+      setFormData(prevData => ({
+        ...prevData,
+        archivo_adjunto: file,
+        nombre_archivo: file.name,
+        archivo_url: fileUrl
+      }));
+      
+      console.log('Archivo seleccionado:', {
+        nombre: file.name,
+        tipo: file.type,
+        tamaño: `${Math.round(file.size / 1024)} KB`
+      });
+      
+      // Limpiar mensaje de error si existía
+      if (error) setError(null);
+    }
+  };
+  
+  // Eliminar archivo adjunto
+  const handleClearFile = () => {
+    setFormData({
+      ...formData,
+      archivo_adjunto: null,
+      nombre_archivo: null,
+      ruta_archivo: null,
+      archivo_url: null
+    });
+  };
+
   // Manejar envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,45 +231,141 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
       
       const supabase = getSupabaseClient();
       
+      // Preparar datos para actualizar
+      const updateData = {
+        nombre: formData.nombre,
+        id_fiscal: formData.id_fiscal || null,
+        direccion: formData.direccion || null,
+        ciudad: formData.ciudad || null,
+        codigo_postal: formData.codigo_postal || null,
+        pais: formData.pais || null,
+        contacto_nombre: formData.contacto_nombre || null,
+        email: formData.email || null,
+        telefono: formData.telefono || null,
+        sitio_web: formData.sitio_web || null,
+        comentarios: formData.comentarios || null,
+        nombre_archivo: formData.nombre_archivo,
+        ruta_archivo: formData.ruta_archivo
+      };
+      
+      // Gestión de archivos
+      if (formData.archivo_adjunto) {
+        console.log('Subiendo archivo adjunto:', {
+          nombre: formData.archivo_adjunto.name,
+          tamaño: `${Math.round(formData.archivo_adjunto.size / 1024)} KB`,
+          tipo: formData.archivo_adjunto.type
+        });
+        
+        try {
+          // Si hay un archivo previo, eliminarlo
+          if (formData.ruta_archivo) {
+            try {
+              console.log('Eliminando archivo anterior:', formData.ruta_archivo);
+              const { error: removeError } = await supabase.storage.from('documentos').remove([formData.ruta_archivo]);
+              if (removeError) {
+                console.warn('Error al eliminar archivo anterior:', removeError);
+              } else {
+                console.log('Archivo anterior eliminado correctamente');
+              }
+            } catch (removeError) {
+              console.warn('No se pudo eliminar el archivo anterior:', removeError);
+              // Continuamos con el proceso aunque no se pueda eliminar
+            }
+          }
+          
+          // Generar nombre único para el archivo
+          const fileExt = formData.archivo_adjunto.name.split('.').pop();
+          const filePath = `proveedores/${proveedorId}.${fileExt}`;
+          console.log('Ruta del archivo generada:', filePath);
+          
+          // Subir el nuevo archivo
+          console.log('Iniciando carga del archivo a Supabase Storage...');
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('documentos')
+            .upload(filePath, formData.archivo_adjunto, {
+              upsert: true,
+              contentType: formData.archivo_adjunto.type
+            });
+          
+          console.log('Resultado de la carga:', { uploadData, error: uploadError ? uploadError.message : null });
+          
+          if (uploadError) {
+            console.error('Error al subir el archivo a Supabase:', uploadError);
+            throw new Error(`Error al subir el archivo: ${uploadError.message}`);
+          }
+          
+          console.log('Archivo subido correctamente a Storage');
+          
+          // Actualizar referencias en la base de datos
+          updateData.nombre_archivo = formData.archivo_adjunto.name;
+          updateData.ruta_archivo = filePath;
+          
+          // No guardamos la URL pública, la obtendremos al cargar la página
+          // Esto evita problemas con URLs temporales que pueden expirar
+        } catch (uploadError) {
+          console.error('Error durante la carga del archivo:', uploadError);
+          throw new Error(`Error al procesar el archivo adjunto: ${uploadError instanceof Error ? uploadError.message : 'Error desconocido'}`);
+        }
+      } else if (formData.nombre_archivo === null) {
+        // Si se eliminó el archivo, eliminar también de Storage
+        if (formData.ruta_archivo) {
+          try {
+            console.log('Eliminando archivo:', formData.ruta_archivo);
+            const { error: removeError } = await supabase.storage.from('documentos').remove([formData.ruta_archivo]);
+            if (removeError) {
+              console.warn('Error al eliminar el archivo:', removeError);
+            } else {
+              console.log('Archivo eliminado correctamente');
+            }
+          } catch (removeError) {
+            console.warn('No se pudo eliminar el archivo:', removeError);
+          }
+        }
+        updateData.ruta_archivo = null;
+      }
+      
       // Actualizar proveedor en Supabase
+      console.log('Actualizando proveedor con datos:', updateData);
       const { error: updateError } = await supabase
         .from('proveedores')
-        .update({
-          nombre: formData.nombre,
-          id_fiscal: formData.id_fiscal || null,
-          direccion: formData.direccion || null,
-          ciudad: formData.ciudad || null,
-          codigo_postal: formData.codigo_postal || null,
-          pais: formData.pais || null,
-          contacto_nombre: formData.contacto_nombre || null,
-          email: formData.email || null,
-          telefono: formData.telefono || null,
-          sitio_web: formData.sitio_web || null,
-          comentarios: formData.comentarios || null
-        })
+        .update(updateData)
         .eq('id', proveedorId);
         
       if (updateError) {
+        console.error('Error al actualizar proveedor en la base de datos:', updateError);
         throw new Error(`Error al actualizar el proveedor: ${updateError.message}`);
       }
+      
+      console.log('Proveedor actualizado correctamente');
 
       // Actualizar los materiales seleccionados
-      const materialesResponse = await fetch('/api/proveedores/materiales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          proveedor_id: proveedorId,
-          material_ids: formData.material_ids,
-        }),
-      });
-      
-      if (!materialesResponse.ok) {
-        console.error('Error al actualizar los materiales del proveedor, pero el proveedor se actualizó correctamente');
+      try {
+        console.log('Actualizando materiales del proveedor...');
+        const materialesResponse = await fetch('/api/proveedores/materiales', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            proveedor_id: proveedorId,
+            material_ids: formData.material_ids,
+          }),
+        });
+        
+        if (!materialesResponse.ok) {
+          console.error('Error en la respuesta al actualizar materiales:', materialesResponse.status);
+          throw new Error(`Error: ${materialesResponse.status}`);
+        }
+        
+        console.log('Materiales actualizados correctamente');
+      } catch (materialesError) {
+        console.error('Error al actualizar los materiales del proveedor:', materialesError);
+        // No bloqueamos el flujo por un error en la actualización de materiales
       }
       
       // Redirigir a la página del proveedor
+      console.log('Redirección a la página del proveedor');
       router.push(`/proveedores/${proveedorId}`);
       router.refresh();
       
@@ -498,6 +682,133 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
                 onMaterialesChange={handleMaterialesChange}
                 disabled={loading}
               />
+            </div>
+          </div>
+          
+          {/* Sección de Archivos Adjuntos */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
+                <FiPaperclip className="mr-2 text-indigo-500" />
+                Documentación
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Documentos relacionados con este proveedor
+              </p>
+            </div>
+            
+            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+              {/* Previsualización del archivo si existe */}
+              {(formData.archivo_url || (formData.archivo_adjunto && formData.nombre_archivo)) && (
+                <div className="mb-4 border rounded-lg overflow-hidden bg-gray-50">
+                  <div className="px-4 py-2 bg-gray-100 border-b flex justify-between items-center">
+                    <span className="font-medium text-sm text-gray-700">
+                      {formData.nombre_archivo}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearFile}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <FiX className="h-5 w-5" />
+                    </button>
+                  </div>
+                  
+                  <div className="p-4">
+                    {/* Visualización según tipo de archivo */}
+                    {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
+                      <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
+                        <iframe 
+                          src={formData.archivo_url || ''} 
+                          className="w-full h-full"
+                          title="Vista previa del PDF"
+                        />
+                      </div>
+                    ) : formData.archivo_url ? (
+                      <div className="flex justify-center">
+                        <img 
+                          src={formData.archivo_url}
+                          alt={formData.nombre_archivo || 'Vista previa'} 
+                          className="max-h-64 max-w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-gray-50">
+                        <div className="text-center p-4">
+                          <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                          <p className="mt-2 text-sm text-gray-500">
+                            Vista previa no disponible
+                          </p>
+                          <a
+                            href="#"
+                            className="mt-2 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 cursor-not-allowed"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <FiDownload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                            Guardando archivo...
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Sección para cargar archivo */}
+              {!formData.archivo_adjunto && !formData.nombre_archivo && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Adjuntar Documento
+                  </label>
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 h-24 w-24 border border-gray-200 rounded flex items-center justify-center mr-4">
+                      <FiUpload className="h-6 w-6 text-gray-300" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex text-sm text-gray-600">
+                        <label
+                          htmlFor="file-upload"
+                          className="relative cursor-pointer rounded-md bg-white font-medium text-blue-600 hover:text-blue-500"
+                        >
+                          <span>Cargar archivo</span>
+                          <input
+                            id="file-upload"
+                            name="file-upload"
+                            type="file"
+                            className="sr-only"
+                            onChange={handleFileChange}
+                            accept=".pdf,.jpg,.jpeg,.png"
+                          />
+                        </label>
+                        <p className="pl-1">o arrastrar y soltar</p>
+                      </div>
+                      <p className="text-xs text-gray-500">PDF, PNG, JPG hasta 10MB</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Si ya hay un archivo cargado pero queremos cambiarlo */}
+              {(formData.archivo_adjunto || formData.nombre_archivo) && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('file-upload-change')?.click()}
+                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <FiUpload className="mr-1.5 h-4 w-4" />
+                    Cambiar archivo
+                  </button>
+                  <input
+                    id="file-upload-change"
+                    name="file-upload-change"
+                    type="file"
+                    className="sr-only"
+                    onChange={handleFileChange}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                </div>
+              )}
             </div>
           </div>
           

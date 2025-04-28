@@ -85,7 +85,7 @@ export default function NewAlbaranPage() {
         // Cargar clientes
         const { data: clientesData, error: clientesError } = await supabase
           .from('clientes')
-          .select('id, nombre')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono')
           .order('nombre');
         
         if (clientesError) throw new Error(`Error al cargar clientes: ${clientesError.message}`);

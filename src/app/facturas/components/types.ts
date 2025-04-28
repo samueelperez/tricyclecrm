@@ -15,6 +15,8 @@ export interface Factura {
   proforma_id?: number | null;
   notas?: string | null;
   tipo?: 'cliente' | 'proveedor';
+  puerto_origen?: string | null;
+  puerto_destino?: string | null;
 }
 
 export type FacturaTab = 'customer' | 'supplier'; 

@@ -44,8 +44,7 @@ interface RelacionMaterial {
   negocio_id: number;
   material_id: number;
   cantidad: number;
-  precio_unitario: number;
-  subtotal: number;
+  material_nombre: string;
 }
 
 export default function EditarNegocioPage({ params }: { params: { id: string } }) {
@@ -293,13 +292,15 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
       
       // 2. Crear nuevas relaciones con los materiales seleccionados
       if (formData.material_ids.length > 0) {
-        const materialesInsert = formData.material_ids.map(material_id => ({
-          negocio_id: parseInt(params.id),
-          material_id,
-          cantidad: 1,
-          precio_unitario: parseFloat(formData.valor_total) / formData.material_ids.length || 0,
-          subtotal: parseFloat(formData.valor_total) / formData.material_ids.length || 0
-        }));
+        const materialesInsert = formData.material_ids.map(material_id => {
+          const material = materiales.find(m => m.id === material_id);
+          return {
+            negocio_id: parseInt(params.id),
+            material_id,
+            cantidad: 1,
+            material_nombre: material?.nombre || 'Material desconocido'
+          };
+        });
         
         const { error: insertMaterialesError } = await supabase
           .from('negocios_materiales')

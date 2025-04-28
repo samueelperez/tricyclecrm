@@ -115,7 +115,7 @@ export default function AlbaranesPage() {
         if (clienteIds.length > 0) {
           const { data: clientesData, error: clientesError } = await supabase
             .from('clientes')
-            .select('id, nombre')
+            .select('id, nombre, id_fiscal, email, ciudad, telefono')
             .in('id', clienteIds);
           
           if (clientesError) {

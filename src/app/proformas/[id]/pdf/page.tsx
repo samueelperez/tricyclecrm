@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from 'next/image';
-import { FiDownload, FiLoader, FiArrowLeft } from 'react-icons/fi';
+import { FiDownload, FiLoader, FiArrowLeft, FiEye } from 'react-icons/fi';
 
 // Interfaz para la proforma
 interface Proforma {
@@ -626,41 +626,48 @@ export default function ProformaPDFPage() {
   
   // Función para generar el PDF
   const generatePDF = async () => {
-    if (!printRef.current) return;
-    
     setGenerating(true);
     
     try {
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2, // Mayor calidad
-        logging: false,
-        useCORS: true
-      });
+      // Verificar si existe un archivo PDF almacenado para esta proforma
+      const supabase = getSupabaseClient();
+      const { data: storedPdf, error: fileError } = await supabase
+        .storage
+        .from('proformas')
+        .list(`${proforma?.id || ''}/`);
       
-      const imgData = canvas.toDataURL('image/png');
+      if (fileError) {
+        throw new Error(`Error al buscar el archivo PDF: ${fileError.message}`);
+      }
       
-      // Dimensiones A4
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+      // Filtrar archivos PDF
+      const pdfFiles = storedPdf?.filter(file => file.name.toLowerCase().endsWith('.pdf')) || [];
       
-      const imgWidth = 210;
-      const imgHeight = canvas.height * imgWidth / canvas.width;
+      if (pdfFiles.length === 0) {
+        setError('No hay ningún archivo PDF almacenado para esta proforma');
+        return;
+      }
       
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      // Obtener URL pública del primer archivo PDF encontrado
+      const { data: urlData, error: urlError } = await supabase
+        .storage
+        .from('proformas')
+        .createSignedUrl(`${proforma?.id || ''}/${pdfFiles[0].name}`, 60 * 60); // URL válida por 1 hora
       
-      // Nombre del archivo con el número de proforma
-      const fileName = proforma?.id_externo
-        ? `proforma_${proforma.id_externo.replace(/[\\/]/g, '_')}.pdf`
-        : 'proforma.pdf';
+      if (urlError) {
+        throw new Error(`Error al generar la URL del archivo: ${urlError.message}`);
+      }
       
-      // Descargar PDF
-      pdf.save(fileName);
+      if (!urlData?.signedUrl) {
+        throw new Error('No se pudo generar la URL del archivo PDF');
+      }
+      
+      // Abrir el PDF en una nueva pestaña
+      window.open(urlData.signedUrl, '_blank');
+      
     } catch (err) {
-      console.error('Error al generar PDF:', err);
-      setError('Error al generar el PDF');
+      console.error('Error al acceder al archivo PDF:', err);
+      setError('Error al acceder al archivo PDF');
     } finally {
       setGenerating(false);
     }
@@ -704,7 +711,7 @@ export default function ProformaPDFPage() {
                 >
                   <FiArrowLeft className="w-5 h-5" />
                 </a>
-                <h1 className="text-xl font-medium text-gray-800">Vista PDF Proforma</h1>
+                <h1 className="text-xl font-medium text-gray-800">Ver PDF Proforma</h1>
               </div>
               
               <button
@@ -715,12 +722,12 @@ export default function ProformaPDFPage() {
                 {generating ? (
                   <>
                     <FiLoader className="animate-spin mr-2 h-5 w-5" />
-                    Generando PDF...
+                    Cargando PDF...
                   </>
                 ) : (
                   <>
-                    <FiDownload className="mr-2 h-5 w-5" />
-                    Descargar PDF
+                    <FiEye className="mr-2 h-5 w-5" />
+                    Ver PDF
                   </>
                 )}
               </button>

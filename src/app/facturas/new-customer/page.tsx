@@ -16,6 +16,7 @@ import { Proforma } from '@/app/proformas/components/types';
 
 import { getSupabaseClient } from '@/lib/supabase';
 import { verifyFacturasClienteTable } from '@/lib/db-migrations';
+import ClienteSelector from '@/components/cliente-selector';
 
 // Definir interfaces para los tipos
 interface InvoiceItem {
@@ -101,7 +102,7 @@ export default function NewCustomerInvoicePage() {
         const supabaseClient = getSupabaseClient();
         const { data, error } = await supabaseClient
           .from('clientes')
-          .select('id, nombre')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono')
           .order('nombre');
           
         if (error) {
@@ -206,7 +207,9 @@ export default function NewCustomerInvoicePage() {
           deliveryTerms: invoice.deliveryTerms,
           notas: invoice.invoiceNotes,
           items: invoice.items,
-          descripcion: invoice.items[0]?.description || ''
+          descripcion: invoice.items[0]?.description || '',
+          puerto_origen: invoice.puerto_origen,
+          puerto_destino: invoice.puerto_destino
         }),
         notas: prepareNotes(),
         estado: 'pendiente',
@@ -514,48 +517,37 @@ export default function NewCustomerInvoicePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Cliente</label>
-              <div className="relative">
-                <select 
-                  className="w-full p-2 border rounded-md appearance-none"
-                  value={invoice.customerName}
-                  onChange={(e) => {
-                    const nombreCliente = e.target.value;
-                    setInvoice({...invoice, customerName: nombreCliente});
-                    
-                    // Buscar el ID fiscal del cliente seleccionado
-                    const clienteSeleccionado = clientesList.find(c => c.nombre === nombreCliente);
-                    if (clienteSeleccionado) {
-                      // Obtener el ID fiscal de este cliente
-                      const fetchClienteTaxId = async () => {
-                        try {
-                          const supabaseClient = getSupabaseClient();
-                          const { data, error } = await supabaseClient
-                            .from('clientes')
-                            .select('id_fiscal')
-                            .eq('id', clienteSeleccionado.id)
-                            .single();
-                            
-                          if (!error && data) {
-                            setInvoice(prev => ({...prev, taxId: data.id_fiscal || ''}));
-                          }
-                        } catch (err) {
-                          console.error('Error al obtener ID fiscal:', err);
+              <ClienteSelector 
+                value={invoice.customerName}
+                clientesList={clientesList}
+                onChange={(nombreCliente) => {
+                  setInvoice({...invoice, customerName: nombreCliente});
+                  
+                  // Buscar el ID fiscal del cliente seleccionado
+                  const clienteSeleccionado = clientesList.find(c => c.nombre === nombreCliente);
+                  if (clienteSeleccionado) {
+                    // Obtener el ID fiscal de este cliente
+                    const fetchClienteTaxId = async () => {
+                      try {
+                        const supabaseClient = getSupabaseClient();
+                        const { data, error } = await supabaseClient
+                          .from('clientes')
+                          .select('id_fiscal')
+                          .eq('id', clienteSeleccionado.id)
+                          .single();
+                          
+                        if (!error && data) {
+                          setInvoice(prev => ({...prev, taxId: data.id_fiscal || ''}));
                         }
-                      };
-                      
-                      fetchClienteTaxId();
-                    }
-                  }}
-                >
-                  <option value="">Seleccionar cliente</option>
-                  {clientesList.map((cliente) => (
-                    <option key={cliente.id} value={cliente.nombre}>{cliente.nombre}</option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <FiChevronDown className="w-5 h-5" />
-                </div>
-              </div>
+                      } catch (err) {
+                        console.error('Error al obtener ID fiscal:', err);
+                      }
+                    };
+                    
+                    fetchClienteTaxId();
+                  }
+                }}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ID Fiscal</label>
