@@ -23,7 +23,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import ProveedorSelector from '@/components/proveedor-selector';
 
 interface Proveedor {
-  id: number;
+  id: string;
   nombre: string;
   id_fiscal?: string;
   email?: string;
@@ -358,19 +358,18 @@ export default function EditFacturaProveedorPage() {
   const handleProveedorChange = (nombreProveedor: string) => {
     setProveedorNombre(nombreProveedor);
     
-    // Buscar el ID del proveedor por su nombre
-    const proveedorSeleccionado = proveedores.find(p => p.nombre === nombreProveedor);
+    // Buscar el proveedor por su nombre y obtener el ID
+    const proveedor = proveedores.find(p => p.nombre === nombreProveedor);
     
-    if (proveedorSeleccionado) {
-      setFormData(prev => ({
-        ...prev,
-        proveedor_id: proveedorSeleccionado.id
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        proveedor_id: null
-      }));
+    // Actualizar el ID del proveedor en el formulario (convertir a número)
+    setFormData(prev => ({
+      ...prev,
+      proveedor_id: proveedor ? Number(proveedor.id) : null
+    }));
+    
+    // Limpiar error si existe
+    if (errors.proveedor_id) {
+      setErrors(prev => ({ ...prev, proveedor_id: '' }));
     }
   };
 

@@ -35,7 +35,7 @@ interface Cliente {
 }
 
 interface Proveedor {
-  id: number;
+  id: string;
   nombre: string;
 }
 
