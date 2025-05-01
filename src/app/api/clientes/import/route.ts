@@ -145,9 +145,9 @@ export async function POST(req: Request) {
         if (existePorNombre) {
           clienteId = nombreExistente.get(cliente.nombre.toLowerCase());
         } else if (existePorEmail) {
-          clienteId = emailExistente.get(cliente.email.toLowerCase());
+          clienteId = emailExistente.get(cliente.email!.toLowerCase());
         } else {
-          clienteId = idFiscalExistente.get(cliente.id_fiscal.toLowerCase());
+          clienteId = idFiscalExistente.get(cliente.id_fiscal!.toLowerCase());
         }
         
         // Aplicar estrategia para duplicados
