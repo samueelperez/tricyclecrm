@@ -18,7 +18,8 @@ import {
   FiPackage,
   FiUpload,
   FiPaperclip,
-  FiCheck
+  FiCheck,
+  FiDownload
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import MaterialesSelector from '@/components/proveedores/materiales-selector';
@@ -93,6 +94,7 @@ export default function NewProveedorPage() {
       // Verificar el tamaño del archivo (10MB máximo)
       if (file.size > 10 * 1024 * 1024) {
         setError('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
+        e.target.value = ''; // Limpiar el input file
         return;
       }
       
@@ -101,23 +103,30 @@ export default function NewProveedorPage() {
       const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!validTypes.includes(fileType)) {
         setError('Tipo de archivo no válido. Solo se permiten PDF, PNG, JPG.');
+        e.target.value = ''; // Limpiar el input file
         return;
       }
       
-      // Crear un objeto URL para previsualizar el archivo si es necesario
+      // Crear un objeto URL para previsualizar el archivo
       const fileUrl = URL.createObjectURL(file);
       
-      setFormData({
-        ...formData,
+      // Liberamos la URL anterior si existe para evitar fugas de memoria
+      if (formData.archivo_url && formData.archivo_adjunto) {
+        URL.revokeObjectURL(formData.archivo_url);
+      }
+      
+      setFormData(prevData => ({
+        ...prevData,
         archivo_adjunto: file,
         nombre_archivo: file.name,
         archivo_url: fileUrl
-      });
+      }));
       
       console.log('Archivo seleccionado:', {
         nombre: file.name,
         tipo: file.type,
-        tamaño: `${Math.round(file.size / 1024)} KB`
+        tamaño: `${Math.round(file.size / 1024)} KB`,
+        previsualización: fileUrl
       });
       
       // Limpiar mensaje de error si existía
@@ -127,13 +136,18 @@ export default function NewProveedorPage() {
   
   // Eliminar archivo adjunto
   const handleClearFile = () => {
-    setFormData({
-      ...formData,
+    // Liberamos la URL de objeto antes de eliminar la referencia
+    if (formData.archivo_url && formData.archivo_adjunto) {
+      URL.revokeObjectURL(formData.archivo_url);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
       archivo_adjunto: null,
       nombre_archivo: null,
       ruta_archivo: null,
       archivo_url: null
-    });
+    }));
   };
 
   // Manejar envío del formulario
@@ -200,7 +214,8 @@ export default function NewProveedorPage() {
       if (formData.archivo_adjunto && data && data[0]) {
         const proveedorId = data[0].id;
         const fileExt = formData.archivo_adjunto.name.split('.').pop();
-        const filePath = `proveedores/${proveedorId}.${fileExt}`;
+        const timestamp = Date.now();
+        const filePath = `proveedores/${proveedorId}_${timestamp}.${fileExt}`;
         
         console.log('Iniciando carga del archivo a Supabase Storage...', {
           bucket: 'documentos',
@@ -601,9 +616,14 @@ export default function NewProveedorPage() {
                     <div className="p-4">
                       {/* Visualización según tipo de archivo */}
                       {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
-                        <div className="flex flex-col items-center">
-                          <FiFile className="h-16 w-16 text-red-500 mb-2" />
-                          <p className="text-sm text-gray-600">Documento PDF listo para subir</p>
+                        <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
+                          {formData.archivo_url && (
+                            <iframe 
+                              src={formData.archivo_url} 
+                              className="w-full h-full"
+                              title="Vista previa del PDF"
+                            />
+                          )}
                         </div>
                       ) : (
                         <div className="flex justify-center">
@@ -612,6 +632,22 @@ export default function NewProveedorPage() {
                             alt={formData.nombre_archivo || 'Vista previa'} 
                             className="max-h-64 max-w-full object-contain"
                           />
+                        </div>
+                      )}
+                      
+                      {/* Botón para descargar archivo si existe */}
+                      {formData.archivo_url && (
+                        <div className="mt-3 text-center">
+                          <a 
+                            href={formData.archivo_url} 
+                            download={formData.nombre_archivo || 'documento'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            <FiDownload className="mr-2 -ml-1 h-5 w-5 text-gray-500" />
+                            Descargar archivo
+                          </a>
                         </div>
                       )}
                     </div>

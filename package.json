@@ -69,6 +69,7 @@
     "react-trello-client": "^1.1.6",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {

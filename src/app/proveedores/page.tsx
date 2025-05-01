@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FiPlus, FiSearch, FiEdit, FiTrash2, FiUser, FiPackage, FiPhone, FiMail, FiMapPin } from 'react-icons/fi'
+import { FiPlus, FiSearch, FiEdit, FiTrash2, FiUser, FiPackage, FiPhone, FiMail, FiMapPin, FiEye } from 'react-icons/fi'
 import Link from 'next/link'
 import { getSupabaseClient } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { FiFile } from 'react-icons/fi'
 
 interface Proveedor {
   id: number
@@ -15,6 +17,8 @@ interface Proveedor {
   pais: string | null
   sitio_web: string | null
   comentarios: string | null
+  ruta_archivo: string | null
+  nombre_archivo: string | null
 }
 
 export default function ProveedoresPage() {
@@ -22,6 +26,7 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
+  const [filePreview, setFilePreview] = useState<{url: string, nombre: string} | null>(null)
 
   useEffect(() => {
     const fetchProveedores = async () => {
@@ -35,7 +40,7 @@ export default function ProveedoresPage() {
         
         // Si hay una búsqueda, filtrar por nombre o id fiscal
         if (searchQuery) {
-          query = query.or(`nombre.ilike.%${searchQuery}%,id_fiscal.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+          query = query.or(`nombre.ilike.%${searchQuery}%,id_fiscal.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,ciudad.ilike.%${searchQuery}%`)
         }
         
         // Ordenar por nombre
@@ -92,6 +97,41 @@ export default function ProveedoresPage() {
     } finally {
       setDeleteLoading(null);
     }
+  };
+
+  const handlePreviewFile = async (proveedor: Proveedor) => {
+    if (!proveedor.ruta_archivo || !proveedor.nombre_archivo) {
+      return;
+    }
+
+    try {
+      const supabase = createClientComponentClient();
+      
+      // Crear una URL firmada (válida por 1 hora) para el archivo
+      const { data, error } = await supabase
+        .storage
+        .from('documentos')
+        .createSignedUrl(proveedor.ruta_archivo, 3600);
+        
+      if (error) {
+        console.error('Error al obtener URL firmada:', error);
+        alert('No se pudo cargar el archivo para la vista previa');
+        return;
+      }
+      
+      setFilePreview({
+        url: data.signedUrl,
+        nombre: proveedor.nombre_archivo
+      });
+      
+    } catch (error) {
+      console.error('Error al generar vista previa:', error);
+      alert('Error al generar la vista previa del archivo');
+    }
+  };
+  
+  const closePreview = () => {
+    setFilePreview(null);
   };
 
   return (
@@ -229,6 +269,15 @@ export default function ProveedoresPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
+                          {proveedor.nombre_archivo && (
+                            <button
+                              onClick={() => handlePreviewFile(proveedor)}
+                              className="text-blue-500 hover:text-blue-700 transition-colors duration-150 p-1"
+                              title="Ver archivo adjunto"
+                            >
+                              <FiEye className="h-4 w-4" />
+                            </button>
+                          )}
                           <Link
                             href={`/proveedores/${proveedor.id}`}
                             className="text-indigo-600 hover:text-indigo-900 transition-colors duration-150 p-1"
@@ -261,6 +310,77 @@ export default function ProveedoresPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+        
+        {/* Modal de vista previa del archivo */}
+        {filePreview && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black bg-opacity-70" onClick={closePreview}>
+            <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {filePreview.nombre}
+                </h3>
+                <button onClick={closePreview} className="text-gray-400 hover:text-gray-500">
+                  <FiTrash2 className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-6 bg-gray-50">
+                {filePreview.nombre.toLowerCase().endsWith('.pdf') ? (
+                  <iframe 
+                    src={filePreview.url} 
+                    className="w-full h-full min-h-[70vh]" 
+                    title="Vista previa del PDF"
+                  />
+                ) : filePreview.nombre.toLowerCase().match(/\.(jpe?g|png|gif)$/i) ? (
+                  <div className="flex justify-center">
+                    <img 
+                      src={filePreview.url} 
+                      alt="Vista previa" 
+                      className="max-w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center p-12">
+                    <div className="text-center">
+                      <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                      <p className="mt-2 text-sm text-gray-500">
+                        No se puede mostrar la vista previa para este tipo de archivo
+                      </p>
+                      <a
+                        href={filePreview.url}
+                        download={filePreview.nombre}
+                        className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Descargar archivo
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <a
+                  href={filePreview.url}
+                  download={filePreview.nombre}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 mr-3"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Descargar
+                </a>
+                <button
+                  type="button"
+                  className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none"
+                  onClick={closePreview}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}

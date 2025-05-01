@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { FiEdit, FiEye, FiTrash2, FiSearch, FiFilter } from 'react-icons/fi'
+import { FiEdit, FiEye, FiTrash2, FiSearch, FiFilter, FiX, FiDownload, FiFile } from 'react-icons/fi'
 import Link from 'next/link'
 
 interface FacturaLogistica {
@@ -17,6 +17,7 @@ interface FacturaLogistica {
     nombre: string
   }
   nombre_archivo?: string
+  ruta_archivo?: string
 }
 
 export default function FacturasLogisticaPage() {
@@ -25,6 +26,7 @@ export default function FacturasLogisticaPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<string>('todos')
   const supabase = createClientComponentClient()
+  const [filePreview, setFilePreview] = useState<{url: string, nombre: string} | null>(null)
 
   useEffect(() => {
     async function loadFacturas() {
@@ -65,6 +67,43 @@ export default function FacturasLogisticaPage() {
     const date = new Date(dateStr)
     return date.toLocaleDateString('es-ES')
   }
+
+  const handlePreviewFile = async (factura: FacturaLogistica) => {
+    if (!factura.nombre_archivo) {
+      return;
+    }
+
+    try {
+      // Determinar la ruta del archivo basándose en el ID y nombre del archivo
+      const fileExtension = factura.nombre_archivo.split('.').pop();
+      const filePath = `facturas-logistica/${factura.id}.${fileExtension}`;
+      
+      // Obtener URL firmada
+      const { data, error } = await supabase
+        .storage
+        .from('documentos')
+        .createSignedUrl(filePath, 3600); // URL válida por 1 hora
+        
+      if (error) {
+        console.error('Error al obtener URL firmada:', error);
+        alert('No se pudo cargar el archivo para la vista previa');
+        return;
+      }
+      
+      setFilePreview({
+        url: data.signedUrl,
+        nombre: factura.nombre_archivo
+      });
+      
+    } catch (error) {
+      console.error('Error al generar vista previa:', error);
+      alert('Error al generar la vista previa del archivo');
+    }
+  };
+  
+  const closePreview = () => {
+    setFilePreview(null);
+  };
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -153,9 +192,19 @@ export default function FacturasLogisticaPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-3">
-                      <Link href={`/facturas-logistica/${factura.id}`} className="text-blue-500 hover:text-blue-700">
-                        <FiEye />
-                      </Link>
+                      {factura.nombre_archivo ? (
+                        <button 
+                          onClick={() => handlePreviewFile(factura)}
+                          className="text-blue-500 hover:text-blue-700"
+                          title="Ver documento adjunto"
+                        >
+                          <FiEye />
+                        </button>
+                      ) : (
+                        <Link href={`/facturas-logistica/${factura.id}`} className="text-blue-500 hover:text-blue-700">
+                          <FiEye />
+                        </Link>
+                      )}
                       <Link href={`/facturas-logistica/edit/${factura.id}`} className="text-green-500 hover:text-green-700">
                         <FiEdit />
                       </Link>
@@ -168,6 +217,78 @@ export default function FacturasLogisticaPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modal de vista previa del archivo */}
+      {filePreview && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black bg-opacity-70" onClick={closePreview}>
+          <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                {filePreview.nombre}
+              </h3>
+              <button onClick={closePreview} className="text-gray-400 hover:text-gray-500">
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-6 bg-gray-50">
+              {filePreview.nombre.toLowerCase().endsWith('.pdf') ? (
+                <iframe 
+                  src={filePreview.url} 
+                  className="w-full h-full min-h-[70vh]" 
+                  title="Vista previa del PDF"
+                />
+              ) : filePreview.nombre.toLowerCase().match(/\.(jpe?g|png|gif)$/i) ? (
+                <div className="flex justify-center">
+                  <img 
+                    src={filePreview.url} 
+                    alt="Vista previa" 
+                    className="max-w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center p-12">
+                  <div className="text-center">
+                    <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                    <p className="mt-2 text-sm text-gray-500">
+                      No se puede mostrar la vista previa para este tipo de archivo
+                    </p>
+                    <a
+                      href={filePreview.url}
+                      download={filePreview.nombre}
+                      className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Descargar archivo
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <a
+                href={filePreview.url}
+                download={filePreview.nombre}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 mr-3"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FiDownload className="mr-2 -ml-1 h-5 w-5" />
+                Descargar
+              </a>
+              <button
+                type="button"
+                className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none"
+                onClick={closePreview}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

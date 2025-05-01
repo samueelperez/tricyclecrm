@@ -120,18 +120,37 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
         // Si hay un archivo adjunto, obtener la URL firmada
         if (data.ruta_archivo) {
           try {
+            console.log('Obteniendo URL firmada para:', data.ruta_archivo);
             const { data: fileData, error: fileError } = await supabase
               .storage
               .from('documentos')
               .createSignedUrl(data.ruta_archivo, 3600); // URL válida por 1 hora
               
             if (!fileError && fileData) {
+              console.log('URL firmada obtenida correctamente');
               setFormData(prev => ({
                 ...prev,
                 archivo_url: fileData.signedUrl
               }));
             } else {
               console.error('Error al obtener URL firmada:', fileError);
+              // Intentar obtener URL pública como fallback
+              try {
+                const publicUrl = supabase
+                  .storage
+                  .from('documentos')
+                  .getPublicUrl(data.ruta_archivo);
+                
+                if (publicUrl && publicUrl.data) {
+                  console.log('URL pública obtenida como alternativa');
+                  setFormData(prev => ({
+                    ...prev,
+                    archivo_url: publicUrl.data.publicUrl
+                  }));
+                }
+              } catch (pubUrlErr) {
+                console.error('También falló al obtener URL pública:', pubUrlErr);
+              }
             }
           } catch (urlError) {
             console.error('Error al generar URL del archivo:', urlError);
@@ -174,6 +193,7 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
       // Verificar el tamaño del archivo (10MB máximo)
       if (file.size > 10 * 1024 * 1024) {
         setError('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
+        e.target.value = ''; // Limpiar el input file
         return;
       }
       
@@ -182,15 +202,28 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
       const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!validTypes.includes(fileType)) {
         setError('Tipo de archivo no válido. Solo se permiten PDF, PNG, JPG.');
+        e.target.value = ''; // Limpiar el input file
         return;
       }
       
       // Crear un objeto URL para previsualizar el archivo
       const fileUrl = URL.createObjectURL(file);
       
+      // Liberamos la URL anterior si existe para evitar fugas de memoria
+      if (formData.archivo_url && formData.archivo_adjunto) {
+        URL.revokeObjectURL(formData.archivo_url);
+      }
+      
+      // Crear una copia del archivo para asegurarnos que es un objeto File válido
+      const fileBlob = new Blob([file], { type: file.type });
+      const fileObject = new File([fileBlob], file.name, { 
+        type: file.type,
+        lastModified: new Date().getTime()
+      });
+      
       setFormData(prevData => ({
         ...prevData,
-        archivo_adjunto: file,
+        archivo_adjunto: fileObject,
         nombre_archivo: file.name,
         archivo_url: fileUrl
       }));
@@ -198,7 +231,8 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
       console.log('Archivo seleccionado:', {
         nombre: file.name,
         tipo: file.type,
-        tamaño: `${Math.round(file.size / 1024)} KB`
+        tamaño: `${Math.round(file.size / 1024)} KB`,
+        previsualización: fileUrl
       });
       
       // Limpiar mensaje de error si existía
@@ -208,13 +242,18 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
   
   // Eliminar archivo adjunto
   const handleClearFile = () => {
-    setFormData({
-      ...formData,
+    // Liberamos la URL de objeto antes de eliminar la referencia
+    if (formData.archivo_url && formData.archivo_adjunto) {
+      URL.revokeObjectURL(formData.archivo_url);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
       archivo_adjunto: null,
       nombre_archivo: null,
       ruta_archivo: null,
       archivo_url: null
-    });
+    }));
   };
 
   // Manejar envío del formulario
@@ -273,36 +312,83 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             }
           }
           
-          // Generar nombre único para el archivo
-          const fileExt = formData.archivo_adjunto.name.split('.').pop();
-          const filePath = `proveedores/${proveedorId}.${fileExt}`;
+          // Generar nombre único para el archivo usando timestamp para evitar colisiones
+          const fileExt = formData.archivo_adjunto.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const timestamp = Date.now();
+          const filePath = `proveedores/${proveedorId}_${timestamp}.${fileExt}`;
           console.log('Ruta del archivo generada:', filePath);
+          
+          // Convertir el archivo a ArrayBuffer para evitar problemas de serialización
+          const arrayBuffer = await formData.archivo_adjunto.arrayBuffer();
+          const fileData = new Uint8Array(arrayBuffer);
           
           // Subir el nuevo archivo
           console.log('Iniciando carga del archivo a Supabase Storage...');
-          const { data: uploadData, error: uploadError } = await supabase
-            .storage
-            .from('documentos')
-            .upload(filePath, formData.archivo_adjunto, {
-              upsert: true,
-              contentType: formData.archivo_adjunto.type
+          console.log('Información del archivo a subir:', {
+            nombre: formData.archivo_adjunto.name,
+            tipo: formData.archivo_adjunto.type,
+            tamaño: `${Math.round(formData.archivo_adjunto.size / 1024)} KB`,
+            bucket: 'documentos',
+            ruta: filePath
+          });
+          
+          // Imprimir información detallada del archivo
+          console.log('Detalles del archivo:', {
+            isFile: formData.archivo_adjunto instanceof File,
+            constructor: formData.archivo_adjunto.constructor.name,
+            properties: Object.keys(formData.archivo_adjunto)
+          });
+          
+          try {
+            const { data: uploadData, error: uploadError } = await supabase
+              .storage
+              .from('documentos')
+              .upload(filePath, fileData, {
+                upsert: true,
+                contentType: formData.archivo_adjunto.type
+              });
+            
+            console.log('Resultado de la carga:', { 
+              uploadData, 
+              error: uploadError ? uploadError.message : null, 
+              status: uploadError ? 'Error' : 'OK' 
             });
-          
-          console.log('Resultado de la carga:', { uploadData, error: uploadError ? uploadError.message : null });
-          
-          if (uploadError) {
-            console.error('Error al subir el archivo a Supabase:', uploadError);
-            throw new Error(`Error al subir el archivo: ${uploadError.message}`);
+            
+            if (uploadError) {
+              console.error('Error al subir el archivo a Supabase:', uploadError);
+              throw new Error(`Error al subir el archivo: ${uploadError.message}`);
+            }
+          } catch (e) {
+            console.error('Excepción durante la carga del archivo:', e);
+            if (e instanceof Error) {
+              console.error('Mensaje de error:', e.message);
+              console.error('Stack trace:', e.stack);
+            }
+            throw e;
           }
-          
-          console.log('Archivo subido correctamente a Storage');
           
           // Actualizar referencias en la base de datos
           updateData.nombre_archivo = formData.archivo_adjunto.name;
           updateData.ruta_archivo = filePath;
           
-          // No guardamos la URL pública, la obtendremos al cargar la página
-          // Esto evita problemas con URLs temporales que pueden expirar
+          // Obtener URL firmada para previsualización inmediata después de guardado
+          try {
+            const { data: fileData, error: fileError } = await supabase
+              .storage
+              .from('documentos')
+              .createSignedUrl(filePath, 3600); // URL válida por 1 hora
+              
+            if (!fileError && fileData) {
+              console.log('URL firmada generada correctamente:', fileData.signedUrl);
+              // No actualizamos formData.archivo_url aquí, ya que vamos a redirigir
+            } else {
+              console.error('Error al obtener URL firmada después del upload:', fileError);
+            }
+          } catch (urlError) {
+            console.error('Error al generar URL del archivo después del upload:', urlError);
+            // No bloqueamos el guardado por este error
+          }
+          
         } catch (uploadError) {
           console.error('Error durante la carga del archivo:', uploadError);
           throw new Error(`Error al procesar el archivo adjunto: ${uploadError instanceof Error ? uploadError.message : 'Error desconocido'}`);
@@ -322,6 +408,7 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             console.warn('No se pudo eliminar el archivo:', removeError);
           }
         }
+        updateData.nombre_archivo = null;
         updateData.ruta_archivo = null;
       }
       
@@ -718,11 +805,29 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
                     {/* Visualización según tipo de archivo */}
                     {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
                       <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
-                        <iframe 
-                          src={formData.archivo_url || ''} 
-                          className="w-full h-full"
-                          title="Vista previa del PDF"
-                        />
+                        {formData.archivo_url ? (
+                          <iframe 
+                            src={formData.archivo_url} 
+                            className="w-full h-full"
+                            title="Vista previa del PDF"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full bg-gray-50">
+                            <div className="text-center p-4">
+                              <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                              <p className="mt-2 text-sm text-gray-500">
+                                Cargando documento PDF...
+                              </p>
+                              <div className="mt-2 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-gray-700">
+                                <svg className="animate-spin mr-2 h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Cargando...
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : formData.archivo_url ? (
                       <div className="flex justify-center">
@@ -737,17 +842,32 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
                         <div className="text-center p-4">
                           <FiFile className="mx-auto h-12 w-12 text-gray-400" />
                           <p className="mt-2 text-sm text-gray-500">
-                            Vista previa no disponible
+                            Cargando vista previa...
                           </p>
-                          <a
-                            href="#"
-                            className="mt-2 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 cursor-not-allowed"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <FiDownload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
-                            Guardando archivo...
-                          </a>
+                          <div className="mt-2 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-gray-700">
+                            <svg className="animate-spin mr-2 h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Cargando...
+                          </div>
                         </div>
+                      </div>
+                    )}
+                    
+                    {/* Botón para descargar archivo si existe */}
+                    {formData.archivo_url && (
+                      <div className="mt-3 text-center">
+                        <a 
+                          href={formData.archivo_url} 
+                          download={formData.nombre_archivo || 'documento'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <FiDownload className="mr-2 -ml-1 h-5 w-5 text-gray-500" />
+                          Descargar archivo
+                        </a>
                       </div>
                     )}
                   </div>

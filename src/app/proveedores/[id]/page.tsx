@@ -20,7 +20,9 @@ import {
   FiHome,
   FiFile,
   FiDownload,
-  FiPaperclip
+  FiPaperclip,
+  FiEye,
+  FiX
 } from 'react-icons/fi';
 
 interface Proveedor {
@@ -52,6 +54,7 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
   const [materiales, setMateriales] = useState<any[]>([]);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showFilePreview, setShowFilePreview] = useState(false);
 
   useEffect(() => {
     const fetchProveedor = async () => {
@@ -198,6 +201,11 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
         </div>
       </div>
     );
+  };
+
+  // Añadir botón para mostrar/ocultar el modal de vista previa
+  const toggleFilePreview = () => {
+    setShowFilePreview(!showFilePreview);
   };
 
   if (loading) {
@@ -432,6 +440,81 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
 
         {/* Mostrar documento adjunto si existe */}
         {renderArchivoAdjunto()}
+
+        {/* Mostrar botón de vista previa independiente */}
+        {proveedor?.nombre_archivo && fileUrl && (
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={toggleFilePreview}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <FiEye className="mr-2 -ml-1 h-5 w-5" /> Ver documento completo
+            </button>
+          </div>
+        )}
+
+        {/* Modal de vista previa del archivo */}
+        {showFilePreview && proveedor?.nombre_archivo && fileUrl && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black bg-opacity-70" onClick={toggleFilePreview}>
+            <div className="bg-white rounded-lg overflow-hidden shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {proveedor.nombre_archivo}
+                </h3>
+                <button onClick={toggleFilePreview} className="text-gray-400 hover:text-gray-500">
+                  <FiX className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-6 bg-gray-50">
+                {proveedor.nombre_archivo.toLowerCase().endsWith('.pdf') ? (
+                  <iframe 
+                    src={fileUrl} 
+                    className="w-full h-full min-h-[70vh]" 
+                    title="Vista previa del PDF"
+                  />
+                ) : proveedor.nombre_archivo.toLowerCase().match(/\.(jpe?g|png|gif)$/i) ? (
+                  <div className="flex justify-center">
+                    <img 
+                      src={fileUrl} 
+                      alt="Vista previa" 
+                      className="max-w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center p-12">
+                    <div className="text-center">
+                      <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                      <p className="mt-2 text-sm text-gray-500">
+                        No se puede mostrar la vista previa para este tipo de archivo
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <a
+                  href={fileUrl}
+                  download={proveedor.nombre_archivo}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 mr-3"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FiDownload className="mr-2 -ml-1 h-5 w-5" />
+                  Descargar
+                </a>
+                <button
+                  type="button"
+                  className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none"
+                  onClick={toggleFilePreview}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Botones de acción */}
         <div className="flex justify-between items-center pt-6">
