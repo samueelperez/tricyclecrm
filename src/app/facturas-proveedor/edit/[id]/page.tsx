@@ -255,9 +255,11 @@ export default function EditFacturaProveedorPage() {
           fecha: formData.fecha.toISOString(),
           proveedor_id: formData.proveedor_id,
           numero_factura: formData.numero_factura,
-          descripcion: formData.descripcion,
-          importe: formData.importe,
-          nombre_archivo: formData.nombre_archivo
+          monto: formData.importe,
+          material: JSON.stringify({
+            descripcion: formData.descripcion,
+            nombre_archivo: formData.nombre_archivo
+          })
         })
         .eq('id', id);
         
@@ -567,11 +569,13 @@ export default function EditFacturaProveedorPage() {
                     {fileUrl && (
                       <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
                         {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
-                          <iframe 
-                            src={fileUrl} 
-                            className="w-full h-full"
-                            title="Vista previa del PDF"
-                          />
+                          <div className="w-full h-full">
+                            <iframe 
+                              src={fileUrl} 
+                              className="w-full h-full"
+                              title="Vista previa del archivo adjunto"
+                            />
+                          </div>
                         ) : (
                           <div className="flex items-center justify-center h-full bg-gray-50">
                             <div className="text-center p-4">

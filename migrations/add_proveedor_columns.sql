@@ -1,1 +1,0 @@
-ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS sitio_web TEXT, ADD COLUMN IF NOT EXISTS comentarios TEXT;

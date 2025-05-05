@@ -151,7 +151,7 @@ const ProformaCard = memo(({
         
         <div className="mt-4 md:mt-0 flex space-x-4">
           <Link 
-            href={`/proformas/${proforma.id}/pdf`}
+            href={`/proformas/${proforma.id}/view-document`}
             className="flex items-center text-green-600 hover:text-green-800"
           >
             <FiFileText className="mr-1 h-4 w-4" />

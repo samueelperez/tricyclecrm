@@ -106,31 +106,29 @@ export default function NewSupplierProformaPage() {
     e.preventDefault();
     
     setLoading(true);
-    const supabase = getSupabaseClient();
-    
     try {
-      // Validar campos obligatorios
+      // Validación básica
       if (!proforma.supplierName || !proforma.totalAmount) {
         alert('Por favor complete todos los campos obligatorios');
         setLoading(false);
         return;
       }
       
-      // Generar un ID externo con formato claro de proforma de proveedor
-      const idExterno = proforma.number || `PRO-SUPP-${new Date().getFullYear().toString().substring(2)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      const supabase = getSupabaseClient();
       
       // Preparar datos para guardar en Supabase
       const proformaData = {
-        id_externo: idExterno,
+        id_externo: proforma.number,
         fecha: proforma.date,
         monto: proforma.totalAmount,
-        notas: prepareNotes()
+        notas: prepareNotes(),
+        nombre_archivo: proforma.attachment ? proforma.attachment.name : null
       };
       
-      console.log('Guardando proforma de proveedor:', proformaData);
+      console.log('Guardando proforma:', proformaData);
       
-      // Insertar proforma en Supabase
-      const { data, error } = await supabase
+      // Guardar la proforma en Supabase
+      const { data: newProforma, error } = await supabase
         .from('proformas')
         .insert(proformaData)
         .select('id')
@@ -140,12 +138,32 @@ export default function NewSupplierProformaPage() {
         throw new Error(`Error al guardar la proforma: ${error.message}`);
       }
       
-      // Si hay un archivo adjunto, podríamos subirlo a Storage pero eso requiere configuración adicional
-      if (proforma.attachment) {
-        console.log('Se podría implementar la carga del archivo adjunto en una funcionalidad futura');
+      // Si se creó la proforma correctamente y hay un archivo adjunto, subirlo al storage
+      if (newProforma && proforma.attachment) {
+        console.log('Subiendo archivo adjunto:', proforma.attachment.name);
+        
+        // Obtener la extensión del archivo
+        const fileExt = proforma.attachment.name.split('.').pop();
+        // Construir la ruta del archivo en storage
+        const filePath = `proformas/${newProforma.id}.${fileExt}`;
+        
+        // Subir archivo
+        const { error: uploadError, data: uploadData } = await supabase
+          .storage
+          .from('documentos')
+          .upload(filePath, proforma.attachment, { 
+            contentType: proforma.attachment.type 
+          });
+          
+        if (uploadError) {
+          console.error('Error al subir el archivo:', uploadError);
+          alert('Se creó la proforma, pero hubo un error al subir el archivo adjunto');
+        } else {
+          console.log('Archivo subido correctamente:', uploadData);
+        }
       }
       
-      alert('Proforma guardada correctamente');
+      alert('Proforma creada correctamente');
       
       // Redirigir a la página de proformas con la pestaña de proveedores activa
       router.push('/proformas?tab=supplier');

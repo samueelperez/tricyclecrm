@@ -152,7 +152,7 @@ export default function FacturasProveedorPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-3">
-                      <Link href={`/facturas-proveedor/${factura.id}`} className="text-blue-500 hover:text-blue-700">
+                      <Link href={`/facturas-proveedor/${factura.id}/pdf`} className="text-blue-500 hover:text-blue-700">
                         <FiEye />
                       </Link>
                       <Link href={`/facturas-proveedor/${factura.id}/edit`} className="text-green-500 hover:text-green-700">

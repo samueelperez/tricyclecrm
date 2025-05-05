@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from 'next/image';
-import { FiDownload, FiLoader, FiArrowLeft, FiEye } from 'react-icons/fi';
+import { FiDownload, FiLoader, FiArrowLeft } from 'react-icons/fi';
 
 // Interfaz para la factura
 interface Factura {
@@ -698,45 +698,72 @@ export default function FacturaPDFPage() {
     setGenerating(true);
     
     try {
-      // Verificar si existe un archivo PDF almacenado para esta factura
-      const supabase = getSupabaseClient();
-      const { data: storedPdf, error: fileError } = await supabase
-        .storage
-        .from('facturas')
-        .list(`${factura?.id || ''}/`);
-      
-      if (fileError) {
-        throw new Error(`Error al buscar el archivo PDF: ${fileError.message}`);
+      if (!factura) {
+        throw new Error('No hay datos de factura disponibles');
       }
       
-      // Filtrar archivos PDF
-      const pdfFiles = storedPdf?.filter(file => file.name.toLowerCase().endsWith('.pdf')) || [];
+      // Verificar si existe un archivo PDF almacenado para esta factura
+      const supabase = getSupabaseClient();
       
-      if (pdfFiles.length === 0) {
-        setError('No hay ningún archivo PDF almacenado para esta factura');
+      // Extraer información del material para obtener el nombre del archivo
+      let material: any = {};
+      try {
+        material = JSON.parse(factura.material as string || '{}');
+      } catch (e) {
+        console.error('Error al parsear material JSON:', e);
+        material = {};
+      }
+      
+      // Obtener el nombre del archivo del material o de la factura
+      const nombreArchivo = material?.nombre_archivo || factura?.nombre_archivo;
+      
+      if (!nombreArchivo) {
+        throw new Error('No hay archivo adjunto para esta factura');
+      }
+      
+      // Obtener la extensión del archivo para construir la ruta
+      const fileExtension = nombreArchivo.split('.').pop() || 'pdf';
+      
+      // Construir la ruta del archivo según el tipo de factura
+      const filePath = `facturas-${factura.tipo === 'cliente' ? 'cliente' : 'proveedor'}/${factura.id}.${fileExtension}`;
+      
+      // Intentar obtener la URL firmada del archivo
+      const { data: urlData, error: urlError } = await supabase
+        .storage
+        .from('documentos')
+        .createSignedUrl(filePath, 60 * 60); // URL válida por 1 hora
+      
+      if (urlError) {
+        // Si el archivo no existe en la carpeta específica, buscar en documentos
+        const alternativeFilePath = `documentos/${factura.id}.${fileExtension}`;
+        const { data: altUrlData, error: altUrlError } = await supabase
+          .storage
+          .from('documentos')
+          .createSignedUrl(alternativeFilePath, 60 * 60);
+        
+        if (altUrlError) {
+          throw new Error(`No se encontró ningún archivo adjunto para esta factura`);
+        }
+        
+        if (!altUrlData?.signedUrl) {
+          throw new Error('No se pudo generar la URL del archivo adjunto');
+        }
+        
+        // Abrir el archivo en una nueva pestaña
+        window.open(altUrlData.signedUrl, '_blank');
         return;
       }
       
-      // Obtener URL pública del primer archivo PDF encontrado
-      const { data: urlData, error: urlError } = await supabase
-        .storage
-        .from('facturas')
-        .createSignedUrl(`${factura?.id || ''}/${pdfFiles[0].name}`, 60 * 60); // URL válida por 1 hora
-      
-      if (urlError) {
-        throw new Error(`Error al generar la URL del archivo: ${urlError.message}`);
-      }
-      
       if (!urlData?.signedUrl) {
-        throw new Error('No se pudo generar la URL del archivo PDF');
+        throw new Error('No se pudo generar la URL del archivo adjunto');
       }
       
-      // Abrir el PDF en una nueva pestaña
+      // Abrir el archivo en una nueva pestaña
       window.open(urlData.signedUrl, '_blank');
       
     } catch (err) {
-      console.error('Error al acceder al archivo PDF:', err);
-      setError('Error al acceder al archivo PDF');
+      console.error('Error al acceder al archivo adjunto:', err);
+      setError('No se encontró ningún archivo adjunto. Si desea visualizar un PDF, debe adjuntarlo primero en el formulario de la factura.');
     } finally {
       setGenerating(false);
     }
@@ -780,7 +807,7 @@ export default function FacturaPDFPage() {
                 >
                   <FiArrowLeft className="w-5 h-5" />
                 </a>
-                <h1 className="text-xl font-medium text-gray-800">Ver PDF Factura</h1>
+                <h1 className="text-xl font-medium text-gray-800">Vista PDF Factura</h1>
               </div>
               
               <button
@@ -791,12 +818,12 @@ export default function FacturaPDFPage() {
                 {generating ? (
                   <>
                     <FiLoader className="animate-spin mr-2 h-5 w-5" />
-                    Cargando PDF...
+                    Generando PDF...
                   </>
                 ) : (
                   <>
-                    <FiEye className="mr-2 h-5 w-5" />
-                    Ver PDF
+                    <FiDownload className="mr-2 h-5 w-5" />
+                    Descargar PDF
                   </>
                 )}
               </button>

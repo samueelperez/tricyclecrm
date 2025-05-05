@@ -28,6 +28,7 @@ interface Proforma {
   peso_total?: number;
   cantidad_contenedores?: number;
   clientes_adicionales?: ProformaCliente[];
+  nombre_archivo?: string;
 }
 
 interface ProformaProducto {
@@ -631,43 +632,46 @@ export default function ProformaPDFPage() {
     try {
       // Verificar si existe un archivo PDF almacenado para esta proforma
       const supabase = getSupabaseClient();
-      const { data: storedPdf, error: fileError } = await supabase
+      const fileExtension = proforma?.nombre_archivo?.split('.').pop() || 'pdf';
+      const filePath = `proformas/${proforma?.id}.${fileExtension}`;
+      
+      // Intentar obtener la URL firmada del archivo
+      const { data: urlData, error: urlError } = await supabase
         .storage
-        .from('proformas')
-        .list(`${proforma?.id || ''}/`);
+        .from('documentos')
+        .createSignedUrl(filePath, 60 * 60); // URL válida por 1 hora
       
-      if (fileError) {
-        throw new Error(`Error al buscar el archivo PDF: ${fileError.message}`);
-      }
-      
-      // Filtrar archivos PDF
-      const pdfFiles = storedPdf?.filter(file => file.name.toLowerCase().endsWith('.pdf')) || [];
-      
-      if (pdfFiles.length === 0) {
-        setError('No hay ningún archivo PDF almacenado para esta proforma');
+      if (urlError) {
+        // Si el archivo no existe en la carpeta proformas, buscar en documentos
+        const alternativeFilePath = `documentos/proformas/${proforma?.id}.${fileExtension}`;
+        const { data: altUrlData, error: altUrlError } = await supabase
+          .storage
+          .from('documentos')
+          .createSignedUrl(alternativeFilePath, 60 * 60);
+        
+        if (altUrlError) {
+          throw new Error(`No se encontró ningún archivo adjunto para esta proforma`);
+        }
+        
+        if (!altUrlData?.signedUrl) {
+          throw new Error('No se pudo generar la URL del archivo adjunto');
+        }
+        
+        // Abrir el archivo en una nueva pestaña
+        window.open(altUrlData.signedUrl, '_blank');
         return;
       }
       
-      // Obtener URL pública del primer archivo PDF encontrado
-      const { data: urlData, error: urlError } = await supabase
-        .storage
-        .from('proformas')
-        .createSignedUrl(`${proforma?.id || ''}/${pdfFiles[0].name}`, 60 * 60); // URL válida por 1 hora
-      
-      if (urlError) {
-        throw new Error(`Error al generar la URL del archivo: ${urlError.message}`);
-      }
-      
       if (!urlData?.signedUrl) {
-        throw new Error('No se pudo generar la URL del archivo PDF');
+        throw new Error('No se pudo generar la URL del archivo adjunto');
       }
       
-      // Abrir el PDF en una nueva pestaña
+      // Abrir el archivo en una nueva pestaña
       window.open(urlData.signedUrl, '_blank');
       
     } catch (err) {
-      console.error('Error al acceder al archivo PDF:', err);
-      setError('Error al acceder al archivo PDF');
+      console.error('Error al acceder al archivo adjunto:', err);
+      setError('No se encontró ningún archivo adjunto. Si desea visualizar un PDF, debe adjuntarlo primero en el formulario de la proforma.');
     } finally {
       setGenerating(false);
     }

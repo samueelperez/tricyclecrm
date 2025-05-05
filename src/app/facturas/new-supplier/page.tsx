@@ -73,56 +73,63 @@ export default function NewSupplierInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     setLoading(true);
+
+    // Validar campos obligatorios
+    if (!invoice.invoiceId || !invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
+      alert('Por favor, complete todos los campos obligatorios');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      // Validar campos obligatorios
-      if (!invoice.dealNumber || !invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
-        alert('Por favor, complete todos los campos obligatorios');
-        setLoading(false);
-        return;
-      }
-      
-      // Obtener cliente de Supabase
       const supabase = getSupabaseClient();
       
-      // Preparar datos para guardar en Supabase
+      // Si hay un proveedor seleccionado, encontrar su ID
+      let proveedorId = null;
+      if (invoice.supplierName) {
+        const proveedor = proveedores.find(p => p.nombre === invoice.supplierName);
+        if (proveedor) {
+          proveedorId = proveedor.id;
+        }
+      }
+      
+      // Preparar datos para la base de datos
       const facturaData = {
-        invoice_id: invoice.invoiceId,
+        numero_factura: invoice.invoiceId,
         id_externo: invoice.dealNumber,
-        fecha: invoice.date,
-        monto: invoice.totalAmount,
+        fecha: new Date(invoice.date).toISOString(),
+        proveedor_id: proveedorId,
         proveedor_nombre: invoice.supplierName,
+        monto: invoice.totalAmount,
         estado: 'pendiente',
         material: JSON.stringify({
           nombre_material: invoice.materialName,
           moneda: invoice.currency,
           notas: '',
-          attachment_name: invoice.attachment?.name || ''
+          attachment_name: invoice.attachment ? invoice.attachment.name : ''
         })
       };
       
-      console.log('Guardando factura de proveedor:', facturaData);
-      
-      // Insertar factura en Supabase
-      const { data: facturaInsertada, error: facturaError } = await supabase
+      // Insertar factura en la base de datos
+      const { data: newFactura, error: insertError } = await supabase
         .from('facturas_proveedor')
         .insert(facturaData)
-        .select('id')
+        .select()
         .single();
       
-      if (facturaError) {
-        throw new Error(`Error al guardar la factura: ${facturaError.message}`);
+      if (insertError) {
+        throw new Error(`Error al crear la factura: ${insertError.message}`);
       }
       
       // Si hay un archivo adjunto, subirlo a Storage
       if (invoice.attachment) {
         const fileExt = invoice.attachment.name.split('.').pop();
-        const fileName = `facturas-proveedor/${facturaInsertada.id}.${fileExt}`;
+        const fileName = `facturas-proveedor/${newFactura.id}.${fileExt}`;
         
         const { error: uploadError } = await supabase
           .storage
-          .from('facturas')
+          .from('documentos')
           .upload(fileName, invoice.attachment);
         
         if (uploadError) {
@@ -131,13 +138,13 @@ export default function NewSupplierInvoicePage() {
         }
       }
       
-      alert('Factura guardada correctamente');
+      alert('Factura creada correctamente');
       
       // Redirigir a la página de facturas con la pestaña proveedor activa
       router.push('/facturas?tab=supplier');
     } catch (error) {
       console.error('Error al guardar la factura:', error);
-      alert(`Error al guardar la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      alert(`Error al crear la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       setLoading(false);
     }
   };

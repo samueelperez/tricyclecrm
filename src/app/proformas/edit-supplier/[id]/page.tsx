@@ -171,7 +171,8 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
         id_externo: proforma.dealNumber,
         fecha: proforma.date,
         monto: proforma.totalAmount,
-        notas: `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`
+        notas: `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`,
+        nombre_archivo: proforma.attachment ? proforma.attachment.name : null
       };
       
       console.log('Actualizando proforma:', proformaData);
@@ -186,9 +187,53 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
         throw new Error(`Error al guardar la proforma: ${error.message}`);
       }
       
-      // Si hay un archivo adjunto, podría implementarse la carga aquí
+      // Subir el archivo adjunto si existe
       if (proforma.attachment) {
-        console.log('Se podría implementar la carga del archivo adjunto en una funcionalidad futura');
+        console.log('Subiendo archivo adjunto:', proforma.attachment.name);
+        
+        // Obtener la extensión del archivo
+        const fileExt = proforma.attachment.name.split('.').pop();
+        // Construir la ruta del archivo en storage
+        const filePath = `proformas/${proforma.id}.${fileExt}`;
+        
+        // Eliminar archivo anterior si existe
+        await supabase
+          .storage
+          .from('documentos')
+          .remove([filePath]);
+        
+        // Subir nuevo archivo
+        const { error: uploadError, data: uploadData } = await supabase
+          .storage
+          .from('documentos')
+          .upload(filePath, proforma.attachment, { 
+            upsert: true,
+            contentType: proforma.attachment.type
+          });
+          
+        if (uploadError) {
+          console.error('Error al subir el archivo:', uploadError);
+          alert('Se guardó la proforma, pero hubo un error al subir el archivo adjunto');
+        } else {
+          console.log('Archivo subido correctamente:', uploadData);
+        }
+      } else if (proformaData.nombre_archivo === null) {
+        // Si se eliminó el archivo, eliminarlo del storage
+        const { data: proformaData } = await supabase
+          .from('proformas')
+          .select('nombre_archivo')
+          .eq('id', proforma.id)
+          .single();
+          
+        if (proformaData && proformaData.nombre_archivo) {
+          const fileExt = proformaData.nombre_archivo.split('.').pop();
+          const filePath = `proformas/${proforma.id}.${fileExt}`;
+          
+          await supabase
+            .storage
+            .from('documentos')
+            .remove([filePath]);
+        }
       }
       
       alert('Proforma actualizada correctamente');

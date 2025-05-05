@@ -97,7 +97,7 @@ export default function EditSupplierInvoicePage() {
         // Transformar datos al formato esperado
         setInvoice({
           id: id,
-          invoiceId: data.invoice_id || '',
+          invoiceId: data.numero_factura || '',
           dealNumber: data.id_externo || '',
           date: data.fecha || new Date().toISOString().split('T')[0],
           supplierName: data.proveedor_nombre || '',
@@ -191,31 +191,32 @@ export default function EditSupplierInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     setSaving(true);
+    
     try {
-      // Validar campos obligatorios
-      if (!invoice.dealNumber || !invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
-        alert('Por favor, complete todos los campos obligatorios');
-        setSaving(false);
-        return;
-      }
-      
       const supabase = getSupabaseClient();
       
-      // Preparar datos para actualizar en Supabase
+      // Si hay un proveedor seleccionado, encontrar su ID
+      let proveedorId = null;
+      if (invoice.supplierName) {
+        const proveedor = proveedores.find(p => p.nombre === invoice.supplierName);
+        if (proveedor) {
+          proveedorId = proveedor.id;
+        }
+      }
+      
+      // Preparar datos para actualizar
       const facturaData = {
-        id_externo: invoice.dealNumber,
-        invoice_id: invoice.invoiceId,
-        fecha: invoice.date,
-        monto: invoice.totalAmount,
+        fecha: new Date(invoice.date).toISOString(),
+        proveedor_id: proveedorId,
+        numero_factura: invoice.invoiceId,
         proveedor_nombre: invoice.supplierName,
-        estado: 'pendiente',
+        monto: invoice.totalAmount,
         material: JSON.stringify({
           nombre_material: invoice.materialName,
           moneda: invoice.currency,
           notas: '',
-          attachment_name: invoice.attachment ? invoice.attachment.name : invoice.fileName
+          attachment_name: invoice.fileName
         })
       };
       
@@ -239,13 +240,13 @@ export default function EditSupplierInvoicePage() {
         // Primero eliminamos el archivo existente
         await supabase
           .storage
-          .from('facturas')
+          .from('documentos')
           .remove([fileName]);
         
         // Subimos el nuevo archivo
         const { error: uploadError } = await supabase
           .storage
-          .from('facturas')
+          .from('documentos')
           .upload(fileName, invoice.attachment);
         
         if (uploadError) {
