@@ -5,12 +5,13 @@ import * as XLSX from 'xlsx';
 import { FiUpload, FiX, FiDownload, FiCheck, FiTrash2, FiInfo, FiAlertCircle } from 'react-icons/fi';
 
 interface ImportExcelProps {
-  onDataImported: (data: any[]) => Promise<{
+  onDataImported: (data: any[] | { data: any[]; updateStrategy: "update" | "skip" | "create_new" }) => Promise<{
     success: boolean;
     nuevos?: number;
     actualizados?: number;
     duplicados?: any[];
     message?: string;
+    resultados?: any;
   }>;
   columnsMapping: {
     excelColumn: string;

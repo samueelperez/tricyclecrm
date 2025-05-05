@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FiChevronDown, FiSearch, FiX, FiUser, FiMail, FiMapPin } from 'react-icons/fi';
 
 interface Proveedor {
-  id: string;
+  id: string | number;
   nombre: string;
   id_fiscal?: string;
   email?: string;

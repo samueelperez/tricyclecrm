@@ -29,7 +29,14 @@ interface Proveedor {
 interface Material {
   id: number;
   nombre: string;
-  descripcion?: string;
+}
+
+interface MaterialNegocio {
+  id?: number;
+  negocio_id: number;
+  material_id: number;
+  cantidad: number;
+  material_nombre: string;
 }
 
 interface RelacionProveedor {
@@ -44,7 +51,8 @@ interface RelacionMaterial {
   negocio_id: number;
   material_id: number;
   cantidad: number;
-  material_nombre: string;
+  precio_unitario: number;
+  subtotal: number;
 }
 
 export default function EditarNegocioPage({ params }: { params: { id: string } }) {
@@ -263,11 +271,11 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
         // Luego crear nuevas relaciones
         const proveedoresInsert = formData.proveedor_ids.map(proveedor_id => {
           // Buscar el nombre del proveedor
-          const proveedorSeleccionado = proveedores.find(p => p.id === proveedor_id);
+          const proveedorSeleccionado = proveedores.find(p => Number(p.id) === proveedor_id);
           return {
             negocio_id: parseInt(params.id),
             proveedor_id,
-            proveedor_nombre: proveedorSeleccionado?.nombre || 'Proveedor sin nombre', // Añadir nombre del proveedor
+            proveedor_nombre: proveedorSeleccionado?.nombre || 'Proveedor sin nombre',
             monto_estimado: parseFloat(formData.valor_total) / formData.proveedor_ids.length || 0
           };
         });

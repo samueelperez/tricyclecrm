@@ -22,20 +22,10 @@ import { getSupabaseClient } from '@/lib/supabase';
 interface Cliente {
   id: number;
   nombre: string;
-  id_fiscal?: string | null;
-  direccion?: string | null;
-  ciudad?: string | null;
-  codigo_postal?: string | null;
-  pais?: string | null;
-  contacto_nombre?: string | null;
-  email?: string | null;
-  telefono?: string | null;
-  sitio_web?: string | null;
-  comentarios?: string | null;
 }
 
 interface Proveedor {
-  id: string;
+  id: number;
   nombre: string;
 }
 
@@ -172,7 +162,7 @@ export default function EditAlbaranPage({ params }: { params: { id: string } }) 
       setFormData({
         ...formData,
         id_cliente: tipo === 'cliente' ? (clientes.length > 0 ? clientes[0].id : null) : null,
-        id_proveedor: tipo === 'proveedor' ? (proveedores.length > 0 ? proveedores[0].id : null) : null
+        id_proveedor: tipo === 'proveedor' ? (proveedores.length > 0 ? Number(proveedores[0].id) : null) : null
       });
       return;
     }
