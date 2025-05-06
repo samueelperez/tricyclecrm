@@ -8,14 +8,13 @@ import { getSupabaseClient } from '@/lib/supabase';
 import ProveedorSelector from '@/components/proveedor-selector';
 
 interface SupplierInvoice {
-  invoiceId: string;
-  dealNumber: string;
   date: string;
   supplierName: string;
   totalAmount: number;
   materialName: string;
   currency: string;
   attachment?: File | null;
+  fileName?: string;
 }
 
 interface Proveedor {
@@ -32,16 +31,16 @@ export default function NewSupplierInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState<SupplierInvoice>({
-    invoiceId: '',
-    dealNumber: '',
     date: new Date().toISOString().split('T')[0],
     supplierName: '',
     totalAmount: 0,
     materialName: '',
     currency: 'EUR',
-    attachment: null
+    attachment: null,
+    fileName: ''
   });
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -55,7 +54,8 @@ export default function NewSupplierInvoicePage() {
     if (e.target.files && e.target.files[0]) {
       setInvoice(prev => ({
         ...prev,
-        attachment: e.target.files![0]
+        attachment: e.target.files![0],
+        fileName: e.target.files![0].name
       }));
     }
   };
@@ -63,7 +63,8 @@ export default function NewSupplierInvoicePage() {
   const handleClearAttachment = () => {
     setInvoice(prev => ({
       ...prev,
-      attachment: null
+      attachment: null,
+      fileName: ''
     }));
   };
 
@@ -73,78 +74,88 @@ export default function NewSupplierInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Validar campos obligatorios
-    if (!invoice.invoiceId || !invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
-      alert('Por favor, complete todos los campos obligatorios');
-      setLoading(false);
-      return;
-    }
     
+    setLoading(true);
     try {
-      const supabase = getSupabaseClient();
-      
-      // Si hay un proveedor seleccionado, encontrar su ID
-      let proveedorId = null;
-      if (invoice.supplierName) {
-        const proveedor = proveedores.find(p => p.nombre === invoice.supplierName);
-        if (proveedor) {
-          proveedorId = proveedor.id;
-        }
+      // Validar campos obligatorios
+      if (!invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
+        alert('Por favor, complete todos los campos obligatorios');
+        setLoading(false);
+        return;
       }
       
-      // Preparar datos para la base de datos
+      // Validar que exista un archivo adjunto
+      if (!invoice.attachment) {
+        alert('Por favor, adjunte un documento de factura');
+        setLoading(false);
+        return;
+      }
+      
+      // Obtener cliente de Supabase
+      const supabase = getSupabaseClient();
+      
+      console.log('Procesando factura con archivo adjunto:', invoice.attachment.name);
+      
+      // Preparar datos para guardar en Supabase
       const facturaData = {
-        numero_factura: invoice.invoiceId,
-        id_externo: invoice.dealNumber,
-        fecha: new Date(invoice.date).toISOString(),
-        proveedor_id: proveedorId,
-        proveedor_nombre: invoice.supplierName,
+        fecha: invoice.date,
         monto: invoice.totalAmount,
+        proveedor_nombre: invoice.supplierName,
         estado: 'pendiente',
         material: JSON.stringify({
           nombre_material: invoice.materialName,
           moneda: invoice.currency,
           notas: '',
-          attachment_name: invoice.attachment ? invoice.attachment.name : ''
+          attachment_name: invoice.attachment.name
         })
       };
       
-      // Insertar factura en la base de datos
-      const { data: newFactura, error: insertError } = await supabase
+      console.log('Guardando factura de proveedor:', facturaData);
+      
+      // Insertar factura en Supabase
+      const { data: facturaInsertada, error: facturaError } = await supabase
         .from('facturas_proveedor')
         .insert(facturaData)
-        .select()
+        .select('id')
         .single();
       
-      if (insertError) {
-        throw new Error(`Error al crear la factura: ${insertError.message}`);
+      if (facturaError) {
+        throw new Error(`Error al guardar la factura: ${facturaError.message}`);
       }
+      
+      console.log('Factura insertada correctamente con ID:', facturaInsertada.id);
       
       // Si hay un archivo adjunto, subirlo a Storage
       if (invoice.attachment) {
+        // Obtener la extensión del archivo
         const fileExt = invoice.attachment.name.split('.').pop();
-        const fileName = `facturas-proveedor/${newFactura.id}.${fileExt}`;
+        // Construir la ruta del archivo en storage
+        const filePath = `facturas-proveedor/${facturaInsertada.id}.${fileExt}`;
         
-        const { error: uploadError } = await supabase
+        console.log('Subiendo archivo a Supabase Storage:', filePath);
+        
+        // Subir archivo directamente al bucket "documentos"
+        const { data: uploadData, error: uploadError } = await supabase
           .storage
           .from('documentos')
-          .upload(fileName, invoice.attachment);
+          .upload(filePath, invoice.attachment, { 
+            contentType: invoice.attachment.type 
+          });
         
         if (uploadError) {
           console.error('Error al subir el archivo adjunto:', uploadError);
-          // No bloqueamos el flujo por un error en la subida del archivo
+          alert(`La factura se guardó correctamente, pero hubo un problema al subir el archivo adjunto: ${uploadError.message}`);
+        } else {
+          console.log('Archivo subido correctamente:', uploadData?.path);
+          alert('Factura guardada correctamente con documento adjunto');
         }
       }
-      
-      alert('Factura creada correctamente');
       
       // Redirigir a la página de facturas con la pestaña proveedor activa
       router.push('/facturas?tab=supplier');
     } catch (error) {
       console.error('Error al guardar la factura:', error);
-      alert(`Error al crear la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      alert(`Error al guardar la factura: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       setLoading(false);
     }
   };
@@ -201,42 +212,6 @@ export default function NewSupplierInvoicePage() {
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4">
-            {/* ID de Factura */}
-            <div>
-              <label htmlFor="invoiceId" className="block text-sm font-medium text-gray-700 mb-1">
-                ID de Factura
-                <span className="ml-1 text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="invoiceId"
-                name="invoiceId"
-                value={invoice.invoiceId}
-                onChange={handleInputChange}
-                required
-                placeholder="Ej: FACT-2023-001"
-                className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-              />
-            </div>
-
-            {/* Número de Operación */}
-            <div>
-              <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                Número de Operación
-                <span className="ml-1 text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="dealNumber"
-                name="dealNumber"
-                value={invoice.dealNumber}
-                onChange={handleInputChange}
-                required
-                placeholder="Ej: OP-2023-001"
-                className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-              />
-            </div>
-
             {/* Fecha de Factura */}
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">

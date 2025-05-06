@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from 'next/image';
-import { FiDownload, FiLoader, FiArrowLeft } from 'react-icons/fi';
+import { FiDownload, FiLoader, FiArrowLeft, FiEye } from 'react-icons/fi';
 
 // Interfaz para la factura
 interface Factura {
@@ -34,6 +34,7 @@ interface Factura {
   cuenta_bancaria?: string;
   puerto_origen?: string;
   puerto_destino?: string;
+  nombre_archivo?: string;
 }
 
 interface FacturaItem {
@@ -698,34 +699,10 @@ export default function FacturaPDFPage() {
     setGenerating(true);
     
     try {
-      if (!factura) {
-        throw new Error('No hay datos de factura disponibles');
-      }
-      
       // Verificar si existe un archivo PDF almacenado para esta factura
       const supabase = getSupabaseClient();
-      
-      // Extraer información del material para obtener el nombre del archivo
-      let material: any = {};
-      try {
-        material = JSON.parse(factura.material as string || '{}');
-      } catch (e) {
-        console.error('Error al parsear material JSON:', e);
-        material = {};
-      }
-      
-      // Obtener el nombre del archivo del material o de la factura
-      const nombreArchivo = material?.nombre_archivo || factura?.nombre_archivo;
-      
-      if (!nombreArchivo) {
-        throw new Error('No hay archivo adjunto para esta factura');
-      }
-      
-      // Obtener la extensión del archivo para construir la ruta
-      const fileExtension = nombreArchivo.split('.').pop() || 'pdf';
-      
-      // Construir la ruta del archivo según el tipo de factura
-      const filePath = `facturas-${factura.tipo === 'cliente' ? 'cliente' : 'proveedor'}/${factura.id}.${fileExtension}`;
+      const fileExtension = factura?.nombre_archivo?.split('.').pop() || 'pdf';
+      const filePath = `facturas-${factura?.tipo === 'cliente' ? 'cliente' : 'proveedor'}/${factura?.id}.${fileExtension}`;
       
       // Intentar obtener la URL firmada del archivo
       const { data: urlData, error: urlError } = await supabase
@@ -735,7 +712,7 @@ export default function FacturaPDFPage() {
       
       if (urlError) {
         // Si el archivo no existe en la carpeta específica, buscar en documentos
-        const alternativeFilePath = `documentos/${factura.id}.${fileExtension}`;
+        const alternativeFilePath = `documentos/${factura?.id}.${fileExtension}`;
         const { data: altUrlData, error: altUrlError } = await supabase
           .storage
           .from('documentos')
@@ -765,6 +742,95 @@ export default function FacturaPDFPage() {
       console.error('Error al acceder al archivo adjunto:', err);
       setError('No se encontró ningún archivo adjunto. Si desea visualizar un PDF, debe adjuntarlo primero en el formulario de la factura.');
     } finally {
+      setGenerating(false);
+    }
+  };
+  
+  // Guardar PDF en el storage de Supabase
+  const handleSavePDF = async () => {
+    if (!factura) return;
+    
+    try {
+      const supabase = getSupabaseClient();
+      
+      // Generar el PDF usando html2canvas y jsPDF
+      if (!printRef.current) {
+        setError("Error al acceder al documento");
+        return;
+      }
+      
+      setGenerating(true);
+      
+      try {
+        // Convertir el componente a imagen
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2, // Mayor calidad
+          useCORS: true, // Para imágenes externas
+          logging: false
+        });
+        
+        // Calcular dimensiones A4
+        const imgWidth = 210;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        
+        // Crear PDF
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        // Añadir imagen al PDF
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        
+        // Obtener el PDF como blob
+        const pdfBlob = pdf.output('blob');
+      
+        console.log("Subiendo PDF al bucket documentos...");
+        
+        // Convertir Blob a File para subir a Supabase
+        const pdfFile = new File([pdfBlob], `factura-${id}.pdf`, { type: 'application/pdf' });
+        
+        // Subir a Supabase Storage
+        const { data, error: uploadError } = await supabase
+          .storage
+          .from('documentos')
+          .upload(`facturas/${id}.pdf`, pdfFile, {
+            cacheControl: '3600',
+            upsert: true
+          });
+          
+        if (uploadError) {
+          console.error("Error al subir PDF:", uploadError);
+          setError("Error al guardar el PDF");
+          return;
+        }
+        
+        console.log("PDF subido correctamente:", data?.path);
+        
+        // Actualizar la referencia en la base de datos
+        const { error: updateError } = await supabase
+          .from(factura.tipo === 'cliente' ? 'facturas_cliente' : 'facturas_proveedor')
+          .update({ 
+            pdf_url: `facturas/${id}.pdf` 
+          })
+          .eq('id', id);
+            
+        if (updateError) {
+          console.error("Error al actualizar referencia PDF:", updateError);
+          setError("Error al actualizar la referencia del PDF");
+        } else {
+          console.log("Referencia PDF actualizada en la base de datos");
+          alert("PDF guardado correctamente");
+        }
+      } finally {
+        setGenerating(false);
+      }
+      
+    } catch (e) {
+      console.error("Error al guardar PDF:", e);
+      setError("Error al guardar el PDF");
       setGenerating(false);
     }
   };
@@ -807,7 +873,7 @@ export default function FacturaPDFPage() {
                 >
                   <FiArrowLeft className="w-5 h-5" />
                 </a>
-                <h1 className="text-xl font-medium text-gray-800">Vista PDF Factura</h1>
+                <h1 className="text-xl font-medium text-gray-800">Ver PDF Factura</h1>
               </div>
               
               <button
@@ -818,12 +884,12 @@ export default function FacturaPDFPage() {
                 {generating ? (
                   <>
                     <FiLoader className="animate-spin mr-2 h-5 w-5" />
-                    Generando PDF...
+                    Cargando PDF...
                   </>
                 ) : (
                   <>
-                    <FiDownload className="mr-2 h-5 w-5" />
-                    Descargar PDF
+                    <FiEye className="mr-2 h-5 w-5" />
+                    Ver PDF
                   </>
                 )}
               </button>

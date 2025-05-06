@@ -1,152 +1,218 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { FiArrowLeft, FiDownload, FiLoader } from 'react-icons/fi';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { FiArrowLeft, FiExternalLink, FiDownload, FiFile } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import LoadingSpinner from '@/components/ui/loading-spinner';
 
 export default function ViewDocumentPage() {
   const params = useParams();
   const router = useRouter();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  
+  const searchParams = useSearchParams();
+  const id = params.id as string;
+  const tab = searchParams.get('tab') || 'customer';
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const [proformaInfo, setProformaInfo] = useState<{
-    numero: string;
-    nombre_archivo: string | null;
-  } | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchDocumentInfo = async () => {
+    const fetchDocument = async () => {
       try {
+        setLoading(true);
         const supabase = getSupabaseClient();
         
         // Obtener información de la proforma
-        const { data: proformaData, error: proformaError } = await supabase
+        const { data: proforma, error: proformaError } = await supabase
           .from('proformas')
-          .select('id_externo, nombre_archivo')
+          .select('*')
           .eq('id', id)
           .single();
-        
+          
         if (proformaError) {
-          setError('No se encontró la proforma solicitada');
-          setLoading(false);
-          return;
+          throw new Error(`No se pudo obtener la información de la proforma: ${proformaError.message}`);
         }
         
-        setProformaInfo({
-          numero: proformaData.id_externo || `Proforma #${id}`,
-          nombre_archivo: proformaData.nombre_archivo
+        // Debug: imprimir información de la proforma
+        console.log('Proforma obtenida:', { 
+          id: proforma.id,
+          id_externo: proforma.id_externo,
+          notas: proforma.notas,
+          campos: Object.keys(proforma),
+          nombre_archivo: proforma.nombre_archivo
         });
         
-        // Obtener URL del documento
-        const fileExtension = proformaData.nombre_archivo?.split('.').pop() || 'pdf';
-        const filePath = `proformas/${id}.${fileExtension}`;
+        // Extraer nombre del archivo del campo material (que es un JSON stringificado)
+        let nombreArchivo = null;
+        if (proforma.notas) {
+          // Intentar extraer el nombre del archivo desde las notas
+          console.log('Buscando attachment_name en notas:', proforma.notas);
+          const materialMatch = proforma.notas.match(/attachment_name: (.+?)($|\n)/);
+          if (materialMatch && materialMatch[1]) {
+            nombreArchivo = materialMatch[1].trim();
+            console.log('Nombre de archivo encontrado en notas:', nombreArchivo);
+            setFileName(nombreArchivo);
+            
+            // Determinar tipo de archivo
+            const extension = nombreArchivo?.split('.').pop()?.toLowerCase();
+            if (extension) {
+              if (['pdf'].includes(extension)) {
+                setFileType('pdf');
+              } else if (['png', 'jpg', 'jpeg', 'gif'].includes(extension)) {
+                setFileType('image');
+              } else {
+                setFileType('other');
+              }
+            }
+          }
+        }
+        
+        if (!nombreArchivo) {
+          throw new Error('No hay documento adjunto para esta proforma');
+        }
+        
+        // Crear una URL firmada para el archivo
+        const fileExt = nombreArchivo.split('.').pop();
+        const filePath = `proformas/${id}.${fileExt}`;
         
         const { data: urlData, error: urlError } = await supabase
           .storage
           .from('documentos')
-          .createSignedUrl(filePath, 60 * 60); // URL válida por 1 hora
-        
-        if (urlError) {
-          // Intentar ruta alternativa
-          const altPath = `documentos/proformas/${id}.${fileExtension}`;
-          const { data: altData, error: altError } = await supabase
-            .storage
-            .from('documentos')
-            .createSignedUrl(altPath, 60 * 60);
+          .createSignedUrl(filePath, 3600); // URL válida por 1 hora
           
-          if (!altError && altData?.signedUrl) {
-            setDocumentUrl(altData.signedUrl);
-          } else {
-            setError('No se encontró el documento adjunto para esta proforma');
-          }
-        } else if (urlData?.signedUrl) {
-          setDocumentUrl(urlData.signedUrl);
+        if (urlError) {
+          throw new Error(`No se pudo acceder al documento: ${urlError.message}`);
         }
         
-        setLoading(false);
-        
+        setDocumentUrl(urlData?.signedUrl || null);
       } catch (err) {
-        console.error('Error al cargar información del documento:', err);
-        setError('Error al cargar el documento');
+        console.error('Error al obtener el documento:', err);
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      } finally {
         setLoading(false);
       }
     };
     
-    fetchDocumentInfo();
+    fetchDocument();
   }, [id]);
-  
-  const handleDownload = () => {
+
+  const handleBack = () => {
+    router.push(`/proformas?tab=${tab}`);
+  };
+
+  const handleOpenExternal = () => {
     if (documentUrl) {
       window.open(documentUrl, '_blank');
     }
   };
-  
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="animate-spin mb-4">
-          <FiLoader className="h-8 w-8 text-indigo-600" />
-        </div>
-        <p className="text-gray-600">Cargando documento...</p>
-      </div>
-    );
-  }
-  
-  if (error || !documentUrl) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 w-full max-w-xl">
-          <p className="text-red-700">{error || 'Error al cargar el documento'}</p>
-        </div>
-        <a href="/proformas" className="text-indigo-600 hover:text-indigo-800 flex items-center">
-          <FiArrowLeft className="mr-2" />
-          Volver a proformas
-        </a>
-      </div>
-    );
-  }
-  
+
+  const handleDownload = () => {
+    if (documentUrl && fileName) {
+      const a = document.createElement('a');
+      a.href = documentUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   return (
-    <div className="bg-gray-100 min-h-screen flex flex-col">
-      {/* Cabecera */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <button 
-                onClick={() => router.back()}
-                className="mr-3 text-gray-600 hover:text-gray-800"
-              >
-                <FiArrowLeft className="w-5 h-5" />
-              </button>
-              <h1 className="text-xl font-medium text-gray-800">
-                {proformaInfo?.numero || 'Documento'}
-              </h1>
-            </div>
-            
-            <button
-              onClick={handleDownload}
-              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <FiDownload className="mr-2 h-5 w-5" />
-              Descargar
-            </button>
-          </div>
-        </div>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex items-center mb-6">
+        <button 
+          onClick={handleBack} 
+          className="mr-4 text-blue-600 hover:text-blue-800"
+        >
+          <FiArrowLeft className="h-5 w-5" />
+        </button>
+        <h1 className="text-2xl font-bold">
+          Documento Adjunto - Proforma {id}
+        </h1>
       </div>
       
-      {/* Contenido */}
-      <div className="flex-grow flex flex-col">
-        <iframe 
-          src={documentUrl} 
-          className="w-full flex-grow"
-          title={`Documento de proforma ${proformaInfo?.numero}`}
-        />
-      </div>
+      {loading && (
+        <div className="flex justify-center items-center h-96">
+          <LoadingSpinner />
+        </div>
+      )}
+      
+      {error && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+          <p className="text-red-700">{error}</p>
+          <p className="text-red-600 mt-2">
+            Verifique que la proforma tenga un documento adjunto o intente nuevamente.
+          </p>
+          <button 
+            onClick={handleBack} 
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Volver a Proformas
+          </button>
+        </div>
+      )}
+      
+      {documentUrl && !loading && !error && (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+            <div>
+              <h2 className="font-medium text-lg">{fileName || 'Documento'}</h2>
+            </div>
+            <div className="flex space-x-3">
+              <button 
+                onClick={handleOpenExternal}
+                className="flex items-center text-blue-600 hover:text-blue-800"
+                title="Abrir en nueva ventana"
+              >
+                <FiExternalLink className="h-5 w-5" />
+              </button>
+              <button 
+                onClick={handleDownload}
+                className="flex items-center text-green-600 hover:text-green-800"
+                title="Descargar"
+              >
+                <FiDownload className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-0 h-[70vh]">
+            {fileType === 'pdf' ? (
+              <iframe 
+                src={`${documentUrl}#toolbar=0`} 
+                className="w-full h-full" 
+                title="Documento PDF"
+              />
+            ) : fileType === 'image' ? (
+              <div className="flex items-center justify-center h-full bg-gray-100">
+                <img 
+                  src={documentUrl} 
+                  alt="Documento adjunto" 
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full bg-gray-50">
+                <div className="text-center p-4">
+                  <FiFile className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Este tipo de archivo no se puede previsualizar aquí.
+                  </p>
+                  <button
+                    onClick={handleDownload}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Descargar archivo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

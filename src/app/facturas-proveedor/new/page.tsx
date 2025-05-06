@@ -208,11 +208,8 @@ export default function NewFacturaProveedorPage() {
           fecha: formData.fecha.toISOString(),
           proveedor_id: formData.proveedor_id,
           numero_factura: formData.numero_factura,
-          monto: formData.importe,
-          material: JSON.stringify({
-            descripcion: formData.descripcion,
-            nombre_archivo: formData.nombre_archivo
-          })
+          descripcion: formData.descripcion,
+          importe: formData.importe
         })
         .select('id')
         .single();
@@ -236,6 +233,14 @@ export default function NewFacturaProveedorPage() {
         if (uploadError) {
           console.error('Error al subir el archivo:', uploadError);
           toast.error('Se creó la factura, pero hubo un error al subir el archivo');
+        } else {
+          // Actualizar la factura con el nombre del archivo
+          await supabase
+            .from('facturas_proveedor')
+            .update({
+              nombre_archivo: formData.archivo_adjunto.name
+            })
+            .eq('id', facturaId);
         }
       }
       

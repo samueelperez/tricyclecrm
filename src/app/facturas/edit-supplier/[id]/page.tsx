@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiUpload, FiX, FiEye } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import ProveedorSelector from '@/components/proveedor-selector';
 
@@ -16,8 +16,6 @@ interface MaterialData {
 
 interface SupplierInvoice {
   id: string;
-  invoiceId: string;
-  dealNumber: string;
   date: string;
   supplierName: string;
   totalAmount: number;
@@ -46,8 +44,6 @@ export default function EditSupplierInvoicePage() {
   const [saving, setSaving] = useState(false);
   const [invoice, setInvoice] = useState<SupplierInvoice>({
     id: '',
-    invoiceId: '',
-    dealNumber: '',
     date: new Date().toISOString().split('T')[0],
     supplierName: '',
     totalAmount: 0,
@@ -57,6 +53,7 @@ export default function EditSupplierInvoicePage() {
     fileName: ''
   });
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Cargar datos de la factura
   useEffect(() => {
@@ -97,8 +94,6 @@ export default function EditSupplierInvoicePage() {
         // Transformar datos al formato esperado
         setInvoice({
           id: id,
-          invoiceId: data.numero_factura || '',
-          dealNumber: data.id_externo || '',
           date: data.fecha || new Date().toISOString().split('T')[0],
           supplierName: data.proveedor_nombre || '',
           totalAmount: data.monto || 0,
@@ -111,8 +106,6 @@ export default function EditSupplierInvoicePage() {
         // En caso de error, inicializar con datos vacíos
         setInvoice({
           id: id,
-          invoiceId: '',
-          dealNumber: '',
           date: new Date().toISOString().split('T')[0],
           supplierName: '',
           totalAmount: 0,
@@ -191,32 +184,29 @@ export default function EditSupplierInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     
+    setSaving(true);
     try {
-      const supabase = getSupabaseClient();
-      
-      // Si hay un proveedor seleccionado, encontrar su ID
-      let proveedorId = null;
-      if (invoice.supplierName) {
-        const proveedor = proveedores.find(p => p.nombre === invoice.supplierName);
-        if (proveedor) {
-          proveedorId = proveedor.id;
-        }
+      // Validar campos obligatorios
+      if (!invoice.supplierName || !invoice.date || !invoice.totalAmount || !invoice.materialName) {
+        alert('Por favor, complete todos los campos obligatorios');
+        setSaving(false);
+        return;
       }
       
-      // Preparar datos para actualizar
+      const supabase = getSupabaseClient();
+      
+      // Preparar datos para actualizar en Supabase
       const facturaData = {
-        fecha: new Date(invoice.date).toISOString(),
-        proveedor_id: proveedorId,
-        numero_factura: invoice.invoiceId,
-        proveedor_nombre: invoice.supplierName,
+        fecha: invoice.date,
         monto: invoice.totalAmount,
+        proveedor_nombre: invoice.supplierName,
+        estado: 'pendiente',
         material: JSON.stringify({
           nombre_material: invoice.materialName,
           moneda: invoice.currency,
           notas: '',
-          attachment_name: invoice.fileName
+          attachment_name: invoice.attachment ? invoice.attachment.name : invoice.fileName
         })
       };
       
@@ -232,30 +222,40 @@ export default function EditSupplierInvoicePage() {
         throw new Error(`Error al actualizar la factura: ${updateError.message}`);
       }
       
-      // Si hay un archivo adjunto nuevo, subirlo a Storage
-      if (invoice.attachment) {
+      console.log('Factura actualizada correctamente en la base de datos');
+      
+      // Si hay un nuevo archivo, subirlo
+      if (invoice.attachment instanceof File) {
         const fileExt = invoice.attachment.name.split('.').pop();
         const fileName = `facturas-proveedor/${invoice.id}.${fileExt}`;
         
-        // Primero eliminamos el archivo existente
-        await supabase
-          .storage
-          .from('documentos')
-          .remove([fileName]);
+        console.log('Subiendo nuevo archivo a Storage:', fileName);
         
-        // Subimos el nuevo archivo
-        const { error: uploadError } = await supabase
-          .storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('documentos')
-          .upload(fileName, invoice.attachment);
+          .upload(fileName, invoice.attachment, {
+            upsert: true, // Sobrescribir si existe
+            contentType: invoice.attachment.type // Tipo MIME
+          });
         
         if (uploadError) {
-          console.error('Error al subir el archivo adjunto:', uploadError);
-          // No bloqueamos el flujo por un error en la subida del archivo
+          console.error('Error al subir archivo:', uploadError);
+          alert('Error al adjuntar archivo');
+        } else {
+          console.log('Archivo subido correctamente:', uploadData?.path);
+          
+          // Actualizar la ruta del archivo en la base de datos
+          await supabase
+            .from('facturas_proveedor')
+            .update({ 
+              attachment_url: fileName 
+            })
+            .eq('id', invoice.id);
         }
+      } else {
+        console.log('No se ha adjuntado un nuevo archivo, manteniendo el existente');
+        alert('Factura actualizada correctamente');
       }
-      
-      alert('Factura actualizada correctamente');
       
       // Redirigir a la página de facturas con la pestaña proveedor activa
       router.push('/facturas?tab=supplier');
@@ -307,46 +307,6 @@ export default function EditSupplierInvoicePage() {
                   disabled
                   className="block w-full rounded-md border border-gray-300 bg-gray-100 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
                 />
-              </div>
-
-              {/* ID de Factura */}
-              <div>
-                <label htmlFor="invoiceId" className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de Factura <span className="text-red-500">*</span>
-                  <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="invoiceId"
-                    name="invoiceId"
-                    value={invoice.invoiceId}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Ej: FACT-2023-001"
-                    className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Número de Operación */}
-              <div>
-                <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de Operación <span className="text-red-500">*</span>
-                  <span className="ml-1 text-blue-500 text-xs font-normal">(editable)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="dealNumber"
-                    name="dealNumber"
-                    value={invoice.dealNumber}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Ej: OP-2023-001"
-                    className="block w-full rounded-md border border-blue-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                  />
-                </div>
               </div>
 
               {/* Fecha de Factura */}
@@ -484,9 +444,20 @@ export default function EditSupplierInvoicePage() {
                     </div>
                     <p className="text-xs text-gray-500">PDF, PNG, JPG hasta 10MB</p>
                     {invoice.fileName && !invoice.attachment && (
-                      <p className="mt-1 text-xs text-gray-500">
-                        Documento actual: <span className="font-medium">{invoice.fileName}</span>
-                      </p>
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500">
+                          Documento actual: <span className="font-medium">{invoice.fileName}</span>
+                        </p>
+                        <Link 
+                          href={`/facturas/view-document?id=${invoice.id}&tab=supplier`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          <FiEye className="mr-1 h-4 w-4" />
+                          Ver documento adjunto
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </div>

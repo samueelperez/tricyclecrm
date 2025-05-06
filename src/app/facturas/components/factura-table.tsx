@@ -100,13 +100,23 @@ const FacturaCard = memo(({
         </div>
         
         <div className="mt-4 md:mt-0 flex space-x-4">
-          <Link 
-            href={`/facturas/${factura.id}/view-document`}
-            className="flex items-center text-green-600 hover:text-green-800"
-          >
-            <FiFileText className="mr-1 h-4 w-4" />
-            <span>PDF</span>
-          </Link>
+          {activeTab === 'supplier' ? (
+            <Link 
+              href={`/facturas/view-document?id=${factura.id}&tab=${activeTab}`}
+              className="flex items-center text-green-600 hover:text-green-800"
+            >
+              <FiFileText className="mr-1 h-4 w-4" />
+              <span>Documento</span>
+            </Link>
+          ) : (
+            <Link 
+              href={`/facturas/${factura.id}/pdf`}
+              className="flex items-center text-green-600 hover:text-green-800"
+            >
+              <FiFileText className="mr-1 h-4 w-4" />
+              <span>PDF</span>
+            </Link>
+          )}
           
           <Link 
             href={editLink}

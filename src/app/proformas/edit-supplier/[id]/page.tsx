@@ -16,6 +16,7 @@ interface SupplierProforma {
   materialName: string;
   currency: string;
   attachment?: File | null;
+  existingFileName?: string | null;
 }
 
 interface Proveedor {
@@ -64,6 +65,11 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
         const proveedorMatch = data.notas?.match(/Proveedor: (.+?)(\n|$)/);
         const materialMatch = data.notas?.match(/Material: (.+?)(\n|$)/);
         const monedaMatch = data.notas?.match(/Moneda: (.+?)(\n|$)/);
+        const attachmentMatch = data.notas?.match(/attachment_name: (.+?)(\n|$)/);
+        
+        // Crear objeto para mostrar nombre del archivo
+        const attachmentName = attachmentMatch ? attachmentMatch[1] : null;
+        let existingFileInfo = null;
         
         // Actualizar el estado
         setProforma({
@@ -74,8 +80,31 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
           totalAmount: data.monto || 0,
           materialName: materialMatch ? materialMatch[1] : '',
           currency: monedaMatch ? monedaMatch[1] : 'EUR',
-          attachment: null
+          attachment: null,
+          existingFileName: attachmentName
         });
+        
+        // Intentar obtener URL del archivo si existe
+        if (attachmentName) {
+          try {
+            // Obtener la extensión del archivo
+            const fileExt = attachmentName.split('.').pop();
+            // Construir la ruta del archivo en storage
+            const filePath = `proformas/${params.id}.${fileExt}`;
+            
+            // Obtener URL firmada del archivo
+            const { data: urlData } = await supabase
+              .storage
+              .from('documentos')
+              .createSignedUrl(filePath, 60); // URL válida por 1 minuto (solo para verificar existencia)
+              
+            if (urlData) {
+              console.log('Archivo existente encontrado:', attachmentName);
+            }
+          } catch (e) {
+            console.warn('No se pudo verificar el archivo existente:', e);
+          }
+        }
         
       } catch (error) {
         console.error('Error loading proforma:', error);
@@ -166,13 +195,25 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
       
       const supabase = getSupabaseClient();
       
+      // Preparar notas con la información básica
+      let notasProforma = `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`;
+      
+      // Mantener el nombre del archivo adjunto actual
+      const nombreArchivo = proforma.attachment 
+        ? proforma.attachment.name 
+        : proforma.existingFileName;
+        
+      // Si hay un nombre de archivo, añadirlo a las notas
+      if (nombreArchivo) {
+        notasProforma += `\nattachment_name: ${nombreArchivo}`;
+      }
+      
       // Preparar datos para guardar en Supabase
       const proformaData = {
         id_externo: proforma.dealNumber,
         fecha: proforma.date,
         monto: proforma.totalAmount,
-        notas: `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`,
-        nombre_archivo: proforma.attachment ? proforma.attachment.name : null
+        notas: notasProforma
       };
       
       console.log('Actualizando proforma:', proformaData);
@@ -384,7 +425,7 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
           {/* Attachment */}
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Attachment
+              Adjunto
             </label>
             <div className="flex items-start">
               <div className="flex-shrink-0 h-24 w-24 border border-gray-200 rounded flex items-center justify-center mr-4">
@@ -401,8 +442,17 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
                       <FiX className="h-4 w-4" />
                     </button>
                   </div>
+                ) : proforma.existingFileName ? (
+                  <div className="text-center p-1">
+                    <div className="text-xs text-gray-500 truncate w-full">
+                      {proforma.existingFileName}
+                    </div>
+                    <div className="mt-1 text-xs text-blue-500">
+                      Archivo existente
+                    </div>
+                  </div>
                 ) : (
-                  <span className="text-gray-300 text-sm">File</span>
+                  <span className="text-gray-300 text-sm">Sin archivo</span>
                 )}
               </div>
               <div>
@@ -411,7 +461,7 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-500" />
-                  Upload Attachment
+                  {proforma.existingFileName ? 'Reemplazar archivo' : 'Subir archivo'}
                 </label>
                 <input
                   id="file-upload"
@@ -421,8 +471,13 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
                   onChange={handleFileChange}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  PDF, JPEG, PNG, JPG, Max 4MB
+                  PDF, JPEG, PNG, JPG, Máximo 4MB
                 </p>
+                {proforma.existingFileName && !proforma.attachment && (
+                  <p className="mt-1 text-xs text-gray-600">
+                    * El archivo existente se mantendrá a menos que suba uno nuevo
+                  </p>
+                )}
               </div>
             </div>
           </div>

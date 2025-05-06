@@ -255,11 +255,9 @@ export default function EditFacturaProveedorPage() {
           fecha: formData.fecha.toISOString(),
           proveedor_id: formData.proveedor_id,
           numero_factura: formData.numero_factura,
-          monto: formData.importe,
-          material: JSON.stringify({
-            descripcion: formData.descripcion,
-            nombre_archivo: formData.nombre_archivo
-          })
+          descripcion: formData.descripcion,
+          importe: formData.importe,
+          nombre_archivo: formData.nombre_archivo
         })
         .eq('id', id);
         

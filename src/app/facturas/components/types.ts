@@ -17,7 +17,6 @@ export interface Factura {
   tipo?: 'cliente' | 'proveedor';
   puerto_origen?: string | null;
   puerto_destino?: string | null;
-  nombre_archivo?: string | null;
 }
 
 export type FacturaTab = 'customer' | 'supplier'; 

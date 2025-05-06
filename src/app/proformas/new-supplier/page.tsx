@@ -177,7 +177,14 @@ export default function NewSupplierProformaPage() {
   
   // Preparar notas con la información básica
   const prepareNotes = () => {
-    return `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`;
+    let notes = `Proveedor: ${proforma.supplierName}\nMaterial: ${proforma.materialName}\nMoneda: ${proforma.currency}`;
+    
+    // Añadir información del archivo adjunto si existe
+    if (proforma.attachment) {
+      notes += `\nattachment_name: ${proforma.attachment.name}`;
+    }
+    
+    return notes;
   };
 
   return (
