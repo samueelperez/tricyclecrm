@@ -258,22 +258,31 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
         } else {
           console.log('Archivo subido correctamente:', uploadData);
         }
-      } else if (proformaData.nombre_archivo === null) {
-        // Si se eliminó el archivo, eliminarlo del storage
-        const { data: proformaData } = await supabase
+      } else if (proforma.existingFileName === null) {
+        // Si se eliminó el archivo (el archivo existente era no nulo y se cambió a nulo),
+        // necesitamos buscar el nombre del archivo en la base de datos y eliminarlo
+        const { data: existingProforma } = await supabase
           .from('proformas')
-          .select('nombre_archivo')
+          .select('notas')
           .eq('id', proforma.id)
           .single();
           
-        if (proformaData && proformaData.nombre_archivo) {
-          const fileExt = proformaData.nombre_archivo.split('.').pop();
-          const filePath = `proformas/${proforma.id}.${fileExt}`;
+        if (existingProforma && existingProforma.notas) {
+          // Intentar extraer el nombre del archivo de las notas
+          const match = existingProforma.notas.match(/attachment_name: (.*?)(?:\n|$)/);
+          const nombreArchivo = match ? match[1] : null;
           
-          await supabase
-            .storage
-            .from('documentos')
-            .remove([filePath]);
+          if (nombreArchivo) {
+            const fileExt = nombreArchivo.split('.').pop();
+            const filePath = `proformas/${proforma.id}.${fileExt}`;
+            
+            await supabase
+              .storage
+              .from('documentos')
+              .remove([filePath]);
+              
+            console.log('Archivo eliminado del storage:', filePath);
+          }
         }
       }
       
