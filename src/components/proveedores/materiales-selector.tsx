@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { FiPlus, FiX, FiSearch, FiPackage } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { FiPackage, FiLoader, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
 
 interface Material {
   id: number;
@@ -12,156 +13,194 @@ interface Material {
 }
 
 interface MaterialesSelectorProps {
-  proveedorId: number | null;
-  onMaterialesChange?: (materialIds: number[]) => void;
-  disabled?: boolean;
+  selectedMaterialIds: number[];
+  onChange: (materialIds: number[]) => void;
 }
 
-export default function MaterialesSelector({ proveedorId, onMaterialesChange, disabled = false }: MaterialesSelectorProps) {
-  const [materiales, setMateriales] = useState<Material[]>([]);
-  const [selectedMaterialIds, setSelectedMaterialIds] = useState<number[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+export default function MaterialesSelector({ selectedMaterialIds, onChange }: MaterialesSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
+  const [filteredMaterials, setFilteredMaterials] = useState<Material[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const supabase = createClientComponentClient();
 
-  // Cargar todos los materiales disponibles
-  const fetchMateriales = async () => {
-    if (isLoading) return; // Evitar múltiples cargas simultáneas
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const { data, error } = await supabase
-        .from('materiales')
-        .select('id, nombre, descripcion, categoria')
-        .order('nombre');
-      
-      if (error) throw error;
-      setMateriales(data || []);
-      
-      // Si hay un proveedor ID, intentar cargar sus materiales seleccionados
-      if (proveedorId) {
-        try {
-          const response = await fetch(`/api/proveedores/materiales?proveedor_id=${proveedorId}`);
-          if (response.ok) {
-            const materialesData = await response.json();
-            const ids = materialesData?.map((m: any) => m.id) || [];
-            setSelectedMaterialIds(ids);
-            if (onMaterialesChange) onMaterialesChange(ids);
-          } else {
-            throw new Error('Error al cargar materiales seleccionados');
-          }
-        } catch (selectedError) {
-          console.error('Error al cargar materiales seleccionados:', selectedError);
-          // No mostramos error al usuario aquí
-        }
-      }
-    } catch (err) {
-      console.error('Error al cargar materiales:', err);
-      setError('No se pudieron cargar los materiales. Verifique la base de datos.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Manejar cambios en la selección de materiales
-  const handleMaterialChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions).map(option => parseInt(option.value));
-    setSelectedMaterialIds(selectedOptions);
-    if (onMaterialesChange) onMaterialesChange(selectedOptions);
-  };
-
-  // Cargar datos al montar el componente o cuando cambia el proveedorId
+  // Cargar materiales al montar el componente
   useEffect(() => {
-    fetchMateriales();
+    const fetchMaterials = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('materiales')
+          .select('*')
+          .order('nombre');
+        
+        if (error) {
+          throw error;
+        }
+        
+        setMaterials(data || []);
+      } catch (err) {
+        console.error('Error al cargar materiales:', err);
+        toast.error('Error al cargar la lista de materiales');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Forzar finalización de carga después de 3 segundos
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
-    }, 3000);
-    
-    return () => clearTimeout(timeout);
-  }, [proveedorId]); // Recargar cuando cambia el ID del proveedor
+    fetchMaterials();
+  }, []);
 
-  if (error) {
-    return (
-      <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-        <div className="flex">
-          <FiAlertCircle className="h-5 w-5 text-red-500 mr-2" />
-          <span className="text-red-700">{error}</span>
-          <button 
-            onClick={fetchMateriales} 
-            className="ml-auto text-red-700 hover:text-red-900"
-            disabled={isLoading}
-          >
-            <FiRefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </div>
+  // Actualizar los materiales seleccionados cuando cambien los IDs seleccionados
+  useEffect(() => {
+    if (materials.length > 0 && selectedMaterialIds.length > 0) {
+      const selected = materials.filter(m => selectedMaterialIds.includes(m.id));
+      setSelectedMaterials(selected);
+    } else {
+      setSelectedMaterials([]);
+    }
+  }, [materials, selectedMaterialIds]);
+
+  // Actualizar materiales filtrados cuando cambie la búsqueda
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredMaterials(materials);
+      return;
+    }
+    
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    const filtered = materials.filter(
+      material => 
+        material.nombre.toLowerCase().includes(normalizedQuery) ||
+        (material.descripcion && material.descripcion.toLowerCase().includes(normalizedQuery)) ||
+        (material.categoria && material.categoria.toLowerCase().includes(normalizedQuery))
     );
-  }
+    
+    setFilteredMaterials(filtered);
+  }, [searchQuery, materials]);
+
+  // Cerrar el dropdown cuando se hace clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleToggleMaterial = (material: Material) => {
+    let newSelectedIds;
+    
+    if (selectedMaterialIds.includes(material.id)) {
+      // Si ya está seleccionado, lo quitamos
+      newSelectedIds = selectedMaterialIds.filter(id => id !== material.id);
+    } else {
+      // Si no está seleccionado, lo añadimos
+      newSelectedIds = [...selectedMaterialIds, material.id];
+    }
+    
+    onChange(newSelectedIds);
+  };
+
+  const handleRemoveMaterial = (id: number) => {
+    const newSelectedIds = selectedMaterialIds.filter(materialId => materialId !== id);
+    onChange(newSelectedIds);
+  };
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-1">
-        <label htmlFor="material_ids" className="block text-sm font-medium text-gray-700">
-          Materiales que ofrece <span className="text-gray-500 text-xs">(mantén Ctrl para selección múltiple)</span>
-        </label>
-        <button 
-          onClick={fetchMateriales} 
-          className="text-gray-500 hover:text-indigo-700 p-1"
-          disabled={isLoading}
-          title="Recargar materiales"
-        >
-          <FiRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-      
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <FiPackage className="text-gray-400 h-5 w-5" />
-        </div>
-        
-        {isLoading ? (
-          <div className="pl-10 pr-4 py-2 border rounded-md w-full h-32 flex items-center justify-center bg-gray-50">
-            <FiLoader className="h-5 w-5 text-blue-500 animate-spin mr-2" />
-            <span className="text-gray-500">Cargando materiales...</span>
-          </div>
-        ) : materiales.length === 0 ? (
-          <div className="pl-10 pr-4 py-2 border rounded-md w-full h-32 flex flex-col items-center justify-center bg-gray-50">
-            <span className="text-gray-500 mb-2">No hay materiales disponibles</span>
+    <div className="w-full">
+      {/* Lista de materiales seleccionados */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {selectedMaterials.map(material => (
+          <div 
+            key={material.id} 
+            className="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+          >
+            <FiPackage className="h-4 w-4" />
+            <span>{material.nombre}</span>
             <button 
-              onClick={fetchMateriales} 
-              className="text-xs text-indigo-600 hover:text-indigo-800 underline"
-              disabled={isLoading}
+              type="button"
+              onClick={() => handleRemoveMaterial(material.id)}
+              className="text-blue-600 hover:text-blue-800 ml-1"
             >
-              Intentar cargar de nuevo
+              <FiX className="h-4 w-4" />
             </button>
           </div>
-        ) : (
-          <select
-            id="material_ids"
-            name="material_ids"
-            multiple
-            value={selectedMaterialIds.map(String)}
-            onChange={handleMaterialChange}
-            disabled={disabled}
-            className={`pl-10 pr-4 py-2 border rounded-md w-full h-32 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-              disabled ? 'bg-gray-100 cursor-not-allowed' : ''
-            }`}
-          >
-            {materiales.map((material) => (
-              <option key={material.id} value={material.id}>
-                {material.nombre} {material.categoria ? `(${material.categoria})` : ''}
-              </option>
-            ))}
-          </select>
+        ))}
+        {selectedMaterials.length === 0 && (
+          <div className="text-sm text-gray-500 italic">
+            No hay materiales seleccionados
+          </div>
         )}
       </div>
-      {!isLoading && materiales.length > 0 && (
-        <p className="mt-1 text-xs text-gray-500">Materiales seleccionados: {selectedMaterialIds.length}</p>
-      )}
+      
+      {/* Botón para abrir el selector */}
+      <div className="relative" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center justify-between w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <span className="text-gray-700">Seleccionar materiales</span>
+          <FiPlus className="h-5 w-5 text-gray-400" />
+        </button>
+        
+        {isOpen && (
+          <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg">
+            <div className="p-2 border-b">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FiSearch className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar material..."
+                  className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+            
+            <ul className="max-h-60 overflow-auto py-1">
+              {loading ? (
+                <li className="px-4 py-2 text-sm text-gray-500">Cargando materiales...</li>
+              ) : filteredMaterials.length === 0 ? (
+                <li className="px-4 py-2 text-sm text-gray-500">No se encontraron materiales</li>
+              ) : (
+                filteredMaterials.map(material => (
+                  <li 
+                    key={material.id}
+                    onClick={() => handleToggleMaterial(material)}
+                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 flex items-center justify-between ${
+                      selectedMaterialIds.includes(material.id) ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <span className="ml-2">{material.nombre}</span>
+                      {material.categoria && (
+                        <span className="ml-2 text-xs text-gray-500">({material.categoria})</span>
+                      )}
+                    </div>
+                    {selectedMaterialIds.includes(material.id) && (
+                      <svg className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

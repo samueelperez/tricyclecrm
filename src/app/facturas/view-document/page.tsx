@@ -95,14 +95,27 @@ export default function ViewDocumentPage() {
         
         // Crear una URL firmada para el archivo
         const fileExt = nombreArchivo.split('.').pop();
-        const filePath = `facturas-proveedor/${id}.${fileExt}`;
+        let filePath = `facturas-proveedor/${id}.${fileExt}`;
+        
+        // Comprobar si existe attachment_url en la factura y usarlo si es necesario
+        if (factura.attachment_url) {
+          console.log('Campo attachment_url encontrado:', factura.attachment_url);
+          filePath = factura.attachment_url;
+        }
         
         console.log('Intentando obtener URL firmada para:', filePath);
         
         // Verificar si el archivo existe en el bucket antes de crear la URL firmada
+        const pathParts = filePath.split('/');
+        const folderPath = pathParts.slice(0, -1).join('/');
+        const fileName = pathParts[pathParts.length - 1];
+        
+        console.log('Verificando existencia en carpeta:', folderPath);
+        console.log('Buscando archivo:', fileName);
+        
         const { data: fileList, error: fileError } = await supabase.storage
           .from('documentos')
-          .list('facturas-proveedor');
+          .list(folderPath);
         
         if (fileError) {
           console.error("Error al listar archivos:", fileError);
@@ -112,10 +125,10 @@ export default function ViewDocumentPage() {
         
         console.log('Archivos encontrados en carpeta:', fileList.map(f => f.name));
         
-        const fileExists = fileList.some(file => file.name === `${id}.${fileExt}`);
+        const fileExists = fileList.some(file => file.name === fileName);
         
         if (!fileExists) {
-          console.error(`El archivo ${id}.${fileExt} no existe en el bucket`);
+          console.error(`El archivo ${fileName} no existe en el bucket`);
           setError("El documento solicitado no existe");
           return;
         }

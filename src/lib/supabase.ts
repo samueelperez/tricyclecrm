@@ -180,7 +180,69 @@ export const ejecutarMigracionProformas = async (): Promise<MigracionResponse> =
 
 export const ejecutarMigracionFacturas = async (): Promise<MigracionResponse> => {
   console.log('Ejecutando migración de facturas...');
-  return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Crear tabla facturas_cliente si no existe
+    const { error: errorCreacionCliente } = await supabase.rpc('execute_sql', {
+      sql: `
+        CREATE TABLE IF NOT EXISTS facturas_cliente (
+          id SERIAL PRIMARY KEY,
+          cliente TEXT,
+          cliente_id INTEGER,
+          fecha DATE DEFAULT CURRENT_DATE,
+          fecha_emision DATE DEFAULT CURRENT_DATE,
+          fecha_vencimiento DATE,
+          total NUMERIC(10,2) DEFAULT 0,
+          monto NUMERIC(10,2) DEFAULT 0,
+          estado TEXT DEFAULT 'pendiente',
+          divisa TEXT DEFAULT 'EUR',
+          material TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          attachment_url TEXT,
+          ref_factura TEXT,
+          ref_proforma TEXT,
+          proforma_id INTEGER
+        );
+        
+        CREATE TABLE IF NOT EXISTS facturas_proveedor (
+          id SERIAL PRIMARY KEY,
+          proveedor_nombre TEXT,
+          proveedor_id INTEGER,
+          fecha DATE DEFAULT CURRENT_DATE,
+          monto NUMERIC(10,2) DEFAULT 0,
+          estado TEXT DEFAULT 'pendiente',
+          material TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          attachment_url TEXT,
+          numero_factura TEXT
+        );
+
+        -- Añadir columna numero_factura a facturas_proveedor si no existe
+        ALTER TABLE facturas_proveedor 
+        ADD COLUMN IF NOT EXISTS numero_factura TEXT;
+      `
+    });
+    
+    if (errorCreacionCliente) {
+      return { 
+        success: false, 
+        message: 'Error al crear tablas de facturas',
+        error: errorCreacionCliente
+      };
+    }
+    
+    return { success: true, message: 'Migración simulada (entorno de producción)', error: null };
+  } catch (error: any) {
+    console.error('Error en migración de facturas:', error);
+    return { 
+      success: false, 
+      message: 'Error en migración: ' + error.message,
+      error 
+    };
+  }
 };
 
 // Asegurarse de que albaranes/envios también están disponibles

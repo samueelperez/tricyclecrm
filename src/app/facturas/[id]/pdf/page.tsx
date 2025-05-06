@@ -140,7 +140,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
           <div>PEREZ DOLZ, 8, ENTRS. 12003 Castellon – SPAIN</div>
           <div>VAT: B56194830</div>
           <div>Tel. +34 964 041 556</div>
-          <div>E-mail: info@tricycleproducts.es</div>
+          <div>E-mail: info@tricycle.es</div>
         </div>
       </div>
       

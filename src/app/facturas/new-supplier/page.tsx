@@ -1,13 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiUpload, FiX, FiPackage, FiPlus } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import ProveedorSelector from '@/components/proveedor-selector';
+import MaterialSelector from '@/components/material-selector';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+interface Material {
+  id: number;
+  nombre: string;
+  descripcion?: string | null;
+  categoria?: string | null;
+}
 
 interface SupplierInvoice {
+  id?: string;
   date: string;
   supplierName: string;
   totalAmount: number;
@@ -31,6 +41,7 @@ export default function NewSupplierInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState<SupplierInvoice>({
+    id: '',
     date: new Date().toISOString().split('T')[0],
     supplierName: '',
     totalAmount: 0,
@@ -107,7 +118,8 @@ export default function NewSupplierInvoicePage() {
           moneda: invoice.currency,
           notas: '',
           attachment_name: invoice.attachment.name
-        })
+        }),
+        numero_factura: invoice.id || undefined
       };
       
       console.log('Guardando factura de proveedor:', facturaData);
@@ -147,6 +159,17 @@ export default function NewSupplierInvoicePage() {
           alert(`La factura se guardó correctamente, pero hubo un problema al subir el archivo adjunto: ${uploadError.message}`);
         } else {
           console.log('Archivo subido correctamente:', uploadData?.path);
+          
+          // Actualizar la URL del adjunto en la factura
+          const { error: updateError } = await supabase
+            .from('facturas_proveedor')
+            .update({ attachment_url: filePath })
+            .eq('id', facturaInsertada.id);
+            
+          if (updateError) {
+            console.error('Error al actualizar la URL del adjunto:', updateError);
+          }
+          
           alert('Factura guardada correctamente con documento adjunto');
         }
       }
@@ -191,6 +214,13 @@ export default function NewSupplierInvoicePage() {
     }));
   };
 
+  const handleMaterialChange = (value: string) => {
+    setInvoice(prev => ({
+      ...prev,
+      materialName: value
+    }));
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center mb-6">
@@ -212,6 +242,22 @@ export default function NewSupplierInvoicePage() {
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4">
+            {/* Número de factura */}
+            <div>
+              <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-1">
+                Número de factura
+              </label>
+              <input
+                type="text"
+                id="id"
+                name="id"
+                value={invoice.id}
+                onChange={handleInputChange}
+                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="Introduzca número de factura"
+              />
+            </div>
+
             {/* Fecha de Factura */}
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
@@ -271,14 +317,10 @@ export default function NewSupplierInvoicePage() {
               <label htmlFor="materialName" className="block text-sm font-medium text-gray-700 mb-1">
                 Material <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                id="materialName"
-                name="materialName"
+              <MaterialSelector
                 value={invoice.materialName}
-                onChange={handleInputChange}
-                required
-                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                onChange={handleMaterialChange}
+                placeholder="Buscar o añadir un material"
               />
             </div>
 

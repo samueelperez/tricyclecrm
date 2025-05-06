@@ -18,10 +18,21 @@ import {
   FiX,
   FiPaperclip,
   FiEye,
-  FiFile
+  FiFile,
+  FiPackage,
+  FiPlus,
+  FiSearch
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import ProveedorSelector from '@/components/proveedor-selector';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+interface Material {
+  id: number;
+  nombre: string;
+  descripcion?: string | null;
+  categoria?: string | null;
+}
 
 interface Proveedor {
   id: string;
@@ -38,10 +49,190 @@ interface FacturaProveedorFormData {
   proveedor_id: number | null;
   numero_factura: string;
   descripcion: string;
+  material: string;
   importe: number;
   pdf_path?: string;
   archivo_adjunto?: File | null;
   nombre_archivo?: string | null;
+}
+
+// Componente interno MaterialSelector
+function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }) {
+  const [query, setQuery] = useState(value);
+  const [materiales, setMateriales] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [filteredOptions, setFilteredOptions] = useState<Material[]>([]);
+  const [isCustomValue, setIsCustomValue] = useState(false);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
+  const supabase = createClientComponentClient();
+  
+  // Cargar materiales al montar el componente
+  useEffect(() => {
+    const fetchMateriales = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('materiales')
+          .select('id, nombre, descripcion, categoria')
+          .order('nombre');
+        
+        if (error) throw error;
+        setMateriales(data || []);
+        setFilteredOptions(data || []);
+      } catch (err) {
+        console.error('Error al cargar materiales:', err);
+        // Valores predeterminados por si falla la carga
+        const defaultMaterials = [
+          { id: 1, nombre: "PP JUMBO BAGS" },
+          { id: 2, nombre: "HDPE PLASTICO" },
+          { id: 3, nombre: "PP FILMS" },
+          { id: 4, nombre: "PET BOTTLE" }
+        ];
+        setMateriales(defaultMaterials);
+        setFilteredOptions(defaultMaterials);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchMateriales();
+  }, []);
+  
+  // Filtrar opciones cuando cambia la consulta
+  useEffect(() => {
+    if (!query) {
+      setFilteredOptions(materiales);
+      return;
+    }
+    
+    const normalizedQuery = query.toLowerCase().trim();
+    const filtered = materiales.filter(material => 
+      material.nombre.toLowerCase().includes(normalizedQuery) ||
+      (material.descripcion && material.descripcion.toLowerCase().includes(normalizedQuery))
+    );
+    
+    setFilteredOptions(filtered);
+    
+    // Determinar si es un valor personalizado
+    const exactMatch = materiales.some(material => 
+      material.nombre.toLowerCase() === normalizedQuery
+    );
+    setIsCustomValue(!exactMatch && query.length > 0);
+    
+  }, [query, materiales]);
+  
+  // Cerrar opciones al hacer clic fuera del componente
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        optionsRef.current && 
+        !optionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowOptions(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    onChange(value);
+    
+    if (!showOptions) {
+      setShowOptions(true);
+    }
+  };
+  
+  const handleOptionSelect = (material: Material) => {
+    setQuery(material.nombre);
+    onChange(material.nombre);
+    setShowOptions(false);
+  };
+  
+  const handleAddCustomValue = () => {
+    if (!query.trim()) return;
+    
+    onChange(query.trim());
+    setShowOptions(false);
+  };
+  
+  return (
+    <div className="relative">
+      <div className="relative mt-1 rounded-md shadow-sm">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <FiPackage className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleInputChange}
+          onFocus={() => setShowOptions(true)}
+          placeholder={placeholder}
+          className="block w-full rounded-md border-gray-300 py-2 pl-10 pr-3 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+        />
+      </div>
+      
+      {showOptions && (
+        <div
+          ref={optionsRef}
+          className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto max-h-60 focus:outline-none sm:text-sm"
+        >
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <svg className="animate-spin h-5 w-5 text-gray-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-gray-500">Cargando materiales...</span>
+            </div>
+          ) : filteredOptions.length === 0 && !isCustomValue ? (
+            <div className="text-gray-500 text-center py-2">
+              No se encontraron materiales
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {isCustomValue && (
+                <li 
+                  className="flex items-center justify-between px-4 py-2 cursor-pointer text-indigo-600 hover:bg-indigo-50"
+                  onClick={handleAddCustomValue}
+                >
+                  <span>
+                    <FiPlus className="inline-block mr-2" />
+                    Añadir "{query}"
+                  </span>
+                </li>
+              )}
+              {filteredOptions.map((material) => (
+                <li
+                  key={material.id}
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleOptionSelect(material)}
+                >
+                  {material.nombre}
+                  {material.categoria && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({material.categoria})
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function NewFacturaProveedorPage() {
@@ -51,6 +242,7 @@ export default function NewFacturaProveedorPage() {
     proveedor_id: null,
     numero_factura: '',
     descripcion: '',
+    material: '',
     importe: 0,
     archivo_adjunto: null,
     nombre_archivo: null
@@ -188,6 +380,13 @@ export default function NewFacturaProveedorPage() {
     }
   };
 
+  const handleMaterialChange = (value: string) => {
+    setFormData({
+      ...formData,
+      material: value
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -209,6 +408,7 @@ export default function NewFacturaProveedorPage() {
           proveedor_id: formData.proveedor_id,
           numero_factura: formData.numero_factura,
           descripcion: formData.descripcion,
+          material: formData.material,
           importe: formData.importe
         })
         .select('id')
@@ -357,6 +557,18 @@ export default function NewFacturaProveedorPage() {
                 {errors.proveedor_id && (
                   <p className="mt-1 text-sm text-red-600">{errors.proveedor_id}</p>
                 )}
+              </div>
+
+              {/* Material */}
+              <div className="mb-4">
+                <label htmlFor="material" className="block text-sm font-medium text-gray-700 mb-1">
+                  Material
+                </label>
+                <MaterialSelector
+                  value={formData.material}
+                  onChange={handleMaterialChange}
+                  placeholder="Buscar o añadir un material"
+                />
               </div>
 
               {/* Importe */}

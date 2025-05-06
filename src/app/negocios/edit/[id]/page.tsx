@@ -3,8 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiLoader, FiHash } from 'react-icons/fi';
-import { getSupabaseClient } from '@/lib/supabase';
+import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiLoader, FiHash, FiFileText } from 'react-icons/fi';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import ClienteSelector from '@/components/cliente-selector';
+
+// Utilidades para manejar la conexión con Supabase
+const getSupabaseClient = () => createClientComponentClient();
 
 interface Cliente {
   id: number;
@@ -195,17 +199,15 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
       ...prev,
       [name]: value
     }));
-
-    // Si cambia el cliente_id, actualizar también el cliente_nombre
-    if (name === 'cliente_id' && value) {
-      const clienteSeleccionado = clientes.find(cliente => cliente.id === parseInt(value));
-      if (clienteSeleccionado) {
-        setFormData(prev => ({
-          ...prev,
-          cliente_nombre: clienteSeleccionado.nombre
-        }));
-      }
-    }
+  };
+  
+  // Manejar selección de cliente
+  const handleClienteSelect = (clienteId: number, clienteNombre: string) => {
+    setFormData(prev => ({
+      ...prev,
+      cliente_id: clienteId.toString(),
+      cliente_nombre: clienteNombre
+    }));
   };
 
   // Manejar selección múltiple de proveedores
@@ -412,35 +414,25 @@ export default function EditarNegocioPage({ params }: { params: { id: string } }
                   className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Ej: Contrato de suministro"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
             
-            {/* Cliente */}
+            {/* Cliente Selector */}
             <div>
-              <label htmlFor="cliente_id" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="cliente_selector" className="block text-sm font-medium text-gray-700 mb-1">
                 Cliente <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiUser className="text-gray-400 h-5 w-5" />
-                </div>
-                <select
-                  id="cliente_id"
-                  name="cliente_id"
-                  value={formData.cliente_id}
-                  onChange={handleChange}
-                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                >
-                  <option value="">Seleccione un cliente</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ClienteSelector
+                value={formData.cliente_nombre}
+                onSelect={handleClienteSelect}
+                placeholder="Buscar cliente por nombre, CIF, ciudad..."
+                className="w-full"
+              />
+              {formData.cliente_id && (
+                <p className="mt-1 text-xs text-gray-500">Cliente seleccionado: {formData.cliente_nombre}</p>
+              )}
             </div>
           </div>
           

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX } from 'react-icons/fi';
+import MaterialSelectorAutocomplete from '@/components/material-selector-autocomplete';
 
 interface SupplierProforma {
   id: string;
@@ -64,6 +65,13 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
     setProforma(prev => ({
       ...prev,
       [name]: name === 'totalAmount' ? parseFloat(value) || 0 : value
+    }));
+  };
+
+  const handleMaterialChange = (value: string) => {
+    setProforma(prev => ({
+      ...prev,
+      materialName: value
     }));
   };
 
@@ -234,13 +242,11 @@ export default function EditSupplierProformaPage({ params }: { params: { id: str
               <label htmlFor="materialName" className="block text-sm font-medium text-gray-700 mb-1">
                 Type Material Name
               </label>
-              <input
-                type="text"
-                id="materialName"
-                name="materialName"
+              <MaterialSelectorAutocomplete
                 value={proforma.materialName}
-                onChange={handleInputChange}
-                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                onChange={handleMaterialChange}
+                placeholder="Busca o añade un material"
+                className=""
               />
             </div>
 

@@ -180,10 +180,13 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
 
   // Manejar cambios en los materiales seleccionados
   const handleMaterialesChange = (materialIds: number[]) => {
-    setFormData({
-      ...formData,
-      material_ids: materialIds
-    });
+    if (JSON.stringify(materialIds) !== JSON.stringify(formData.material_ids)) {
+      setFormData({
+        ...formData,
+        material_ids: materialIds
+      });
+      console.log('Materiales actualizados:', materialIds);
+    }
   };
 
   // Manejar cambio de archivo adjunto
@@ -751,25 +754,13 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             </div>
           </div>
           
-          {/* Sección de Materiales */}
-          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
-              <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
-                <FiPackage className="mr-2 text-indigo-500" />
-                Materiales
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Materiales que ofrece este proveedor
-              </p>
-            </div>
-            
-            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
-              <MaterialesSelector 
-                proveedorId={proveedorId} 
-                onMaterialesChange={handleMaterialesChange}
-                disabled={loading}
-              />
-            </div>
+          {/* Materiales */}
+          <div className="col-span-2 bg-white p-6 rounded-md border border-gray-200 shadow-sm">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Materiales</h3>
+            <MaterialesSelector 
+              selectedMaterialIds={formData.material_ids} 
+              onChange={handleMaterialesChange}
+            />
           </div>
           
           {/* Sección de Archivos Adjuntos */}

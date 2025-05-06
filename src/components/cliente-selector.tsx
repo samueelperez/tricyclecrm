@@ -1,167 +1,183 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { FiChevronDown, FiSearch, FiX, FiUser, FiMail, FiMapPin } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiUser, FiPlus, FiSearch } from 'react-icons/fi';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 interface Cliente {
-  id: string;
+  id: number;
   nombre: string;
-  id_fiscal?: string;
-  email?: string;
-  ciudad?: string;
-  telefono?: string;
+  id_fiscal?: string | null;
+  email?: string | null;
+  ciudad?: string | null;
+  telefono?: string | null;
 }
 
 interface ClienteSelectorProps {
   value: string;
-  clientesList: Cliente[];
-  onChange: (nombreCliente: string) => void;
+  onSelect: (clienteId: number, clienteNombre: string) => void;
   placeholder?: string;
   className?: string;
 }
 
-export default function ClienteSelector({
+export default function ClienteSelector({ 
   value,
-  clientesList,
-  onChange,
-  placeholder = "Seleccionar cliente",
+  onSelect,
+  placeholder = "Buscar cliente...",
   className = ""
 }: ClienteSelectorProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Filtrar clientes basado en el término de búsqueda
+  const [query, setQuery] = useState(value);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [filteredOptions, setFilteredOptions] = useState<Cliente[]>([]);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
+  const supabase = createClientComponentClient();
+  
+  // Cargar clientes al montar el componente
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredClientes(clientesList);
-    } else {
-      const normalizedSearch = searchTerm.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const filtered = clientesList.filter(cliente => {
-        const normalizedNombre = cliente.nombre?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
-        const normalizedEmail = cliente.email?.toLowerCase() || '';
-        const normalizedCiudad = cliente.ciudad?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || '';
-        const normalizedIdFiscal = cliente.id_fiscal?.toLowerCase() || '';
-        const normalizedTelefono = cliente.telefono?.toLowerCase() || '';
+    const fetchClientes = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono')
+          .order('nombre');
         
-        return normalizedNombre.includes(normalizedSearch) || 
-               normalizedEmail.includes(normalizedSearch) || 
-               normalizedCiudad.includes(normalizedSearch) || 
-               normalizedIdFiscal.includes(normalizedSearch) ||
-               normalizedTelefono.includes(normalizedSearch);
-      });
-      setFilteredClientes(filtered);
-    }
-  }, [searchTerm, clientesList]);
-
-  // Cerrar el dropdown cuando se hace clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
+        if (error) throw error;
+        setClientes(data || []);
+        setFilteredOptions(data || []);
+      } catch (err) {
+        console.error('Error al cargar clientes:', err);
+        setClientes([]);
+        setFilteredOptions([]);
+      } finally {
+        setLoading(false);
       }
     };
-
+    
+    fetchClientes();
+  }, []);
+  
+  // Actualizar el query cuando cambie el valor externo
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+  
+  // Filtrar opciones cuando cambia la consulta
+  useEffect(() => {
+    if (!query) {
+      setFilteredOptions(clientes);
+      return;
+    }
+    
+    const normalizedQuery = query.toLowerCase().trim();
+    const filtered = clientes.filter(cliente => 
+      cliente.nombre.toLowerCase().includes(normalizedQuery) ||
+      (cliente.id_fiscal && cliente.id_fiscal.toLowerCase().includes(normalizedQuery)) ||
+      (cliente.email && cliente.email.toLowerCase().includes(normalizedQuery)) ||
+      (cliente.ciudad && cliente.ciudad.toLowerCase().includes(normalizedQuery))
+    );
+    
+    setFilteredOptions(filtered);
+  }, [query, clientes]);
+  
+  // Cerrar opciones al hacer clic fuera del componente
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        optionsRef.current && 
+        !optionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowOptions(false);
+      }
+    };
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Maneja la selección de un cliente
-  const handleSelectCliente = (nombre: string) => {
-    onChange(nombre);
-    setShowDropdown(false);
-    setSearchTerm('');
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    
+    if (!showOptions) {
+      setShowOptions(true);
+    }
   };
-
-  // Limpiar selección
-  const handleClear = () => {
-    onChange('');
-    setSearchTerm('');
+  
+  const handleOptionSelect = (cliente: Cliente) => {
+    setQuery(cliente.nombre);
+    onSelect(cliente.id, cliente.nombre);
+    setShowOptions(false);
   };
-
+  
   return (
-    <div ref={containerRef} className={`relative cliente-selector ${className}`}>
-      <div 
-        className="flex items-center w-full p-2 border rounded-md cursor-pointer bg-white"
-        onClick={() => setShowDropdown(!showDropdown)}
-      >
-        {value ? (
-          <div className="flex items-center justify-between w-full">
-            <span className="block truncate">{value}</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClear();
-              }}
-              className="p-1 ml-2 text-gray-400 hover:text-gray-600"
-            >
-              <FiX className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between w-full text-gray-500">
-            <span>{placeholder}</span>
-            <FiChevronDown className="w-5 h-5" />
-          </div>
-        )}
+    <div className={`relative ${className}`}>
+      <div className="relative mt-1 rounded-md shadow-sm">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <FiUser className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleInputChange}
+          onFocus={() => setShowOptions(true)}
+          placeholder={placeholder}
+          className="block w-full rounded-md border-gray-300 py-2 pl-10 pr-3 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+        />
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+          <FiSearch className="h-4 w-4 text-gray-400" />
+        </div>
       </div>
-
-      {showDropdown && (
-        <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-          <div className="sticky top-0 p-2 bg-white border-b">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar cliente por nombre, ID, email..."
-                className="w-full p-2 pl-8 border rounded-md"
-                autoFocus
-              />
-              <FiSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+      
+      {showOptions && (
+        <div
+          ref={optionsRef}
+          className="absolute z-20 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto max-h-60 focus:outline-none sm:text-sm"
+        >
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <svg className="animate-spin h-5 w-5 text-gray-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-gray-500">Cargando clientes...</span>
             </div>
-          </div>
-
-          {filteredClientes.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
+          ) : filteredOptions.length === 0 ? (
+            <div className="text-gray-500 text-center py-2">
               No se encontraron clientes
             </div>
           ) : (
-            <div>
-              {filteredClientes.map((cliente) => (
-                <div
+            <ul className="divide-y divide-gray-100">
+              {filteredOptions.map((cliente) => (
+                <li
                   key={cliente.id}
-                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                  onClick={() => handleSelectCliente(cliente.nombre)}
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleOptionSelect(cliente)}
                 >
-                  <div className="font-medium">{cliente.nombre}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
+                  <div className="font-medium text-gray-900">{cliente.nombre}</div>
+                  <div className="flex flex-wrap text-xs text-gray-500 mt-1">
                     {cliente.id_fiscal && (
-                      <div className="flex items-center text-xs text-gray-500">
-                        <FiUser className="mr-1 h-3 w-3" />
-                        <span className="truncate">{cliente.id_fiscal}</span>
-                      </div>
-                    )}
-                    {cliente.email && (
-                      <div className="flex items-center text-xs text-gray-500">
-                        <FiMail className="mr-1 h-3 w-3" />
-                        <span className="truncate">{cliente.email}</span>
-                      </div>
+                      <span className="mr-3">CIF: {cliente.id_fiscal}</span>
                     )}
                     {cliente.ciudad && (
-                      <div className="flex items-center text-xs text-gray-500">
-                        <FiMapPin className="mr-1 h-3 w-3" />
-                        <span className="truncate">{cliente.ciudad}</span>
-                      </div>
+                      <span className="mr-3">{cliente.ciudad}</span>
+                    )}
+                    {cliente.email && (
+                      <span className="mr-3">{cliente.email}</span>
                     )}
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       )}

@@ -572,9 +572,8 @@ export default function NewProveedorPage() {
             
             <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
               <MaterialesSelector 
-                proveedorId={null}
-                onMaterialesChange={handleMaterialesChange}
-                disabled={loading}
+                selectedMaterialIds={formData.material_ids}
+                onChange={handleMaterialesChange}
               />
             </div>
           </div>

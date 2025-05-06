@@ -60,7 +60,7 @@ const FacturaCard = memo(({
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
         <div className="mb-4 md:mb-0">
           <h3 className="text-lg font-semibold text-gray-800">
-            {factura.numero_factura || factura.id_externo || `Sin Número`}
+            {factura.numero_factura || factura.id_externo || (activeTab === 'supplier' ? factura.id : 'Sin Número')}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
             {activeTab === 'customer' ? 'Cliente' : 'Proveedor'}: {factura.cliente || 'Sin especificar'}

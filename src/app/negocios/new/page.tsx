@@ -3,8 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiSave, FiUser, FiCalendar, FiDollarSign, FiTag, FiPackage, FiTruck, FiMessageSquare, FiAlertCircle, FiHash } from 'react-icons/fi';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { FiArrowLeft, FiCalendar, FiDollarSign, FiPackage, FiTag, FiTruck, FiAlertCircle, FiFileText } from 'react-icons/fi';
+import ClienteSelector from '@/components/cliente-selector';
+
+// Utilidades para manejar la conexión con Supabase
+const getSupabaseClient = () => createClientComponentClient();
 
 interface Cliente {
   id: number;
@@ -35,14 +39,16 @@ interface Material {
 export default function CrearNegocioPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createdNegocioId, setCreatedNegocioId] = useState<number | null>(null);
+  
+  // Estados para almacenar los datos cargados
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [createdNegocioId, setCreatedNegocioId] = useState<number | null>(null);
-
-  // Estado para el formulario
+  
+  // Estado del formulario
   const [formData, setFormData] = useState({
     nombre: '',
     cliente_id: '',
@@ -59,15 +65,6 @@ export default function CrearNegocioPage() {
     const cargarDatos = async () => {
       try {
         const supabase = getSupabaseClient();
-        
-        // Cargar clientes
-        const { data: clientesData, error: clientesError } = await supabase
-          .from('clientes')
-          .select('id, nombre, id_fiscal, email, ciudad, telefono')
-          .order('nombre');
-
-        if (clientesError) throw clientesError;
-        setClientes(clientesData || []);
         
         // Cargar proveedores
         const { data: proveedoresData, error: proveedoresError } = await supabase
@@ -103,17 +100,15 @@ export default function CrearNegocioPage() {
       ...prev,
       [name]: value
     }));
+  };
 
-    // Si cambia el cliente_id, actualizar también el cliente_nombre
-    if (name === 'cliente_id' && value) {
-      const clienteSeleccionado = clientes.find(cliente => cliente.id === parseInt(value));
-      if (clienteSeleccionado) {
-        setFormData(prev => ({
-          ...prev,
-          cliente_nombre: clienteSeleccionado.nombre
-        }));
-      }
-    }
+  // Manejar selección de cliente
+  const handleClienteSelect = (clienteId: number, clienteNombre: string) => {
+    setFormData(prev => ({
+      ...prev,
+      cliente_id: clienteId.toString(),
+      cliente_nombre: clienteNombre
+    }));
   };
 
   // Manejar selección múltiple de proveedores
@@ -321,31 +316,20 @@ export default function CrearNegocioPage() {
               </div>
             </div>
             
-            {/* Cliente */}
+            {/* Cliente Selector */}
             <div>
-              <label htmlFor="cliente_id" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="cliente_selector" className="block text-sm font-medium text-gray-700 mb-1">
                 Cliente <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiUser className="text-gray-400 h-5 w-5" />
-                </div>
-                <select
-                  id="cliente_id"
-                  name="cliente_id"
-                  value={formData.cliente_id}
-                  onChange={handleChange}
-                  className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                >
-                  <option value="">Seleccione un cliente</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ClienteSelector
+                value={formData.cliente_nombre}
+                onSelect={handleClienteSelect}
+                placeholder="Buscar cliente por nombre, CIF, ciudad..."
+                className="w-full"
+              />
+              {formData.cliente_id && (
+                <p className="mt-1 text-xs text-gray-500">Cliente seleccionado: {formData.cliente_nombre}</p>
+              )}
             </div>
           </div>
           
@@ -458,8 +442,8 @@ export default function CrearNegocioPage() {
               Descripción
             </label>
             <div className="relative">
-              <div className="absolute top-3 left-3 flex items-start pointer-events-none">
-                <FiMessageSquare className="text-gray-400 h-5 w-5" />
+              <div className="absolute top-3 left-3 pointer-events-none">
+                <FiFileText className="text-gray-400 h-5 w-5" />
               </div>
               <textarea
                 id="descripcion"
@@ -468,34 +452,33 @@ export default function CrearNegocioPage() {
                 onChange={handleChange}
                 rows={4}
                 className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Información adicional sobre el contrato..."
+                placeholder="Descripción del contrato, términos importantes, etc."
               ></textarea>
             </div>
           </div>
           
-          {/* Botones */}
-          <div className="flex justify-end">
+          {/* Botones de acción */}
+          <div className="flex justify-end mt-6">
             <Link
               href="/negocios"
-              className="mr-4 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3"
             >
               Cancelar
             </Link>
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 flex items-center"
+              className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               {loading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
-                  Guardando...
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creando...
                 </>
-              ) : (
-                <>
-                  <FiSave className="mr-2 -ml-1 h-5 w-5" /> Guardar Contrato
-                </>
-              )}
+              ) : 'Crear Contrato'}
             </button>
           </div>
         </form>

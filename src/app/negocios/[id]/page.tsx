@@ -2,25 +2,15 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { 
-  FiClock, 
-  FiUser, 
-  FiTruck, 
-  FiPackage, 
-  FiCalendar,
-  FiFileText,
-  FiEdit,
-  FiTrash2,
-  FiArrowLeft,
-  FiPlus,
-  FiChevronDown,
-  FiX,
-  FiAlertCircle,
-  FiRefreshCw
+  FiClock, FiUser, FiTruck, FiPackage, FiCalendar, FiFileText, 
+  FiEdit, FiTrash2, FiArrowLeft, FiPlus, FiChevronDown, 
+  FiX, FiAlertCircle, FiRefreshCw, FiDollarSign, FiCheckCircle,
+  FiCreditCard, FiTrendingUp, FiShoppingBag, FiBarChart2, FiDownload,
+  FiInfo, FiMessageSquare
 } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useRouter } from 'next/navigation';
 
 // Tipos
 interface Negocio {
@@ -52,6 +42,24 @@ interface Material {
   material_nombre: string;
 }
 
+// Función auxiliar para determinar el color del estado
+const getStatusColor = (estado: string | null | undefined) => {
+  if (!estado) return 'gray';
+  
+  switch (estado.toLowerCase()) {
+    case 'pendiente':
+      return 'yellow';
+    case 'en proceso':
+      return 'blue';
+    case 'completado':
+      return 'green';
+    case 'cancelado':
+      return 'red';
+    default:
+      return 'gray';
+  }
+};
+
 // Página de detalles de un negocio específico
 export default function DetalleNegocio({ params }: { params: { id: string } }) {
   // Router para navegación programática
@@ -63,7 +71,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   
   // Si hay un tabParam válido, lo usamos; si no, mostramos 'overview'
   const [activeTab, setActiveTab] = useState(
-    tabParam && ['overview', 'bills', 'proformas', 'invoices', 'shipping'].includes(tabParam) 
+    tabParam && ['overview', 'bills', 'proformas', 'invoices', 'documents'].includes(tabParam) 
       ? tabParam 
       : 'overview'
   );
@@ -150,7 +158,7 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   
   // Actualizar la pestaña activa cuando cambie el parámetro de búsqueda
   useEffect(() => {
-    if (tabParam && ['overview', 'bills', 'proformas', 'invoices', 'shipping'].includes(tabParam)) {
+    if (tabParam && ['overview', 'bills', 'proformas', 'invoices', 'documents'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -176,10 +184,10 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   // Renderizado de estado de carga
   if (loading && !negocio) {
     return (
-      <div className="h-full bg-white flex items-center justify-center">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-          <p className="text-gray-500">Cargando datos del negocio...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
+          <p className="text-gray-600 font-medium">Cargando datos del contrato...</p>
         </div>
       </div>
     );
@@ -188,16 +196,16 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   // Renderizado de estado de error
   if (error && !loading) {
     return (
-      <div className="h-full bg-white p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-4xl mx-auto">
+      <div className="h-full bg-gray-50 p-8">
+        <div className="bg-white border border-red-100 rounded-xl p-8 max-w-4xl mx-auto shadow-sm">
           <div className="flex items-center text-red-600 mb-4">
-            <FiAlertCircle className="text-2xl mr-2" />
-            <h2 className="text-lg font-semibold">Error</h2>
+            <FiAlertCircle className="text-3xl mr-3" />
+            <h2 className="text-xl font-semibold">Error</h2>
           </div>
-          <p className="text-red-700 mb-4">{error}</p>
+          <p className="text-gray-700 mb-6">{error}</p>
           <button 
             onClick={loadNegocioData}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors inline-flex items-center"
+            className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center font-medium"
           >
             <FiRefreshCw className="mr-2" /> Intentar nuevamente
           </button>
@@ -209,813 +217,472 @@ export default function DetalleNegocio({ params }: { params: { id: string } }) {
   // Si el negocio no existe y no estamos cargando, mostramos un mensaje
   if (!negocio && !loading) {
     return (
-      <div className="h-full bg-white p-8">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-4xl mx-auto">
+      <div className="h-full bg-gray-50 p-8">
+        <div className="bg-white border border-yellow-100 rounded-xl p-8 max-w-4xl mx-auto shadow-sm">
           <div className="flex items-center text-yellow-600 mb-4">
-            <FiAlertCircle className="text-2xl mr-2" />
-            <h2 className="text-lg font-semibold">Negocio no encontrado</h2>
+            <FiAlertCircle className="text-3xl mr-3" />
+            <h2 className="text-xl font-semibold">Contrato no encontrado</h2>
           </div>
-          <p className="text-yellow-700 mb-4">El negocio que está buscando no existe o ha sido eliminado.</p>
+          <p className="text-gray-700 mb-6">El contrato que está buscando no existe o ha sido eliminado.</p>
           <Link 
             href="/negocios"
-            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors inline-flex items-center"
+            className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center font-medium"
           >
-            <FiArrowLeft className="mr-2" /> Volver a la lista de negocios
+            <FiArrowLeft className="mr-2" /> Volver a la lista de contratos
           </Link>
         </div>
       </div>
     );
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Panel izquierdo */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Progreso y fechas clave */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Progreso y Fechas</h2>
-            
-            {/* Barra de progreso */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Progreso general</span>
-                    <span>{negocio?.progreso || 0}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: `${negocio?.progreso || 0}%` }}
-                ></div>
-              </div>
-            </div>
-            
-                {/* Fechas */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de creación</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_creacion)}</p>
+  const statusColor = getStatusColor(negocio?.estado);
+  
+  return (
+    <div className="min-h-screen bg-gray-50 pb-12">
+      {/* Cabecera */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center mb-4 md:mb-0">
+              <Link
+                href="/negocios"
+                className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <FiArrowLeft className="h-5 w-5 text-gray-500" />
+              </Link>
+              <div>
+                <div className="flex items-center">
+                  <h1 className="text-2xl font-bold text-gray-900">{negocio?.nombre}</h1>
+                  <span className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${statusColor}-100 text-${statusColor}-800`}>
+                    {negocio?.estado || 'Pendiente'}
+                  </span>
                 </div>
-              <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de inicio</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_inicio)}</p>
-                  </div>
-              <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha estimada de finalización</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
-                  </div>
-              <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de entrega</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_entrega)}</p>
-                  </div>
+                <div className="flex items-center mt-1 text-sm text-gray-500">
+                  <span className="flex items-center">
+                    <FiShoppingBag className="h-4 w-4 mr-1" /> {negocio?.id_externo}
+                  </span>
+                  <span className="mx-2">•</span>
+                  <span className="flex items-center">
+                    <FiUser className="h-4 w-4 mr-1" /> {negocio?.cliente_nombre}
+                  </span>
+                  <span className="mx-2">•</span>
+                  <span className="flex items-center">
+                    <FiCalendar className="h-4 w-4 mr-1" /> {formatDate(negocio?.fecha_inicio)}
+                  </span>
+                </div>
               </div>
             </div>
             
+            <div className="flex space-x-3">
+              <button 
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                onClick={() => {
+                  window.print();
+                }}
+              >
+                <FiDownload className="mr-2 -ml-1 h-4 w-4" />
+                Exportar
+              </button>
+              <Link
+                href={`/negocios/edit/${params.id}`}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <FiEdit className="mr-2 -ml-1 h-4 w-4" />
+                Editar
+              </Link>
+            </div>
+          </div>
+          
+          {/* Pestañas */}
+          <div className="mt-6 border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => { router.push(`/negocios/${params.id}?tab=overview`); }}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'overview'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <FiInfo className="mr-2 h-4 w-4" />
+                  Resumen
+                </div>
+              </button>
+              
+              <button
+                onClick={() => { router.push(`/negocios/${params.id}?tab=proformas`); }}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'proformas'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <FiFileText className="mr-2 h-4 w-4" />
+                  Proformas
+                </div>
+              </button>
+              
+              <button
+                onClick={() => { router.push(`/negocios/${params.id}?tab=invoices`); }}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'invoices'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <FiCreditCard className="mr-2 h-4 w-4" />
+                  Facturas
+                </div>
+              </button>
+              
+              <button
+                onClick={() => { router.push(`/negocios/${params.id}?tab=documents`); }}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'documents'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <FiFileText className="mr-2 h-4 w-4" />
+                  Documentos
+                </div>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+      
+      {/* Contenido */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Columna Izquierda - Información Principal */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Tarjeta de Progreso */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800">Progreso del Contrato</h2>
+                  <span className="text-2xl font-bold text-indigo-600">{negocio?.progreso || 0}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                  <div 
+                    className="bg-indigo-600 h-2.5 rounded-full" 
+                    style={{ width: `${negocio?.progreso || 0}%` }}
+                  ></div>
+                </div>
+                
+                <div className="flex flex-wrap mt-6 -mx-3">
+                  <div className="px-3 w-1/2 md:w-1/4 mb-4">
+                    <div className="bg-gray-50 p-4 rounded-lg h-full">
+                      <p className="text-xs font-medium text-gray-500 mb-1">FECHA CREACIÓN</p>
+                      <p className="font-semibold">{formatDate(negocio?.fecha_creacion)}</p>
+                    </div>
+                  </div>
+                  <div className="px-3 w-1/2 md:w-1/4 mb-4">
+                    <div className="bg-gray-50 p-4 rounded-lg h-full">
+                      <p className="text-xs font-medium text-gray-500 mb-1">FECHA INICIO</p>
+                      <p className="font-semibold">{formatDate(negocio?.fecha_inicio)}</p>
+                    </div>
+                  </div>
+                  <div className="px-3 w-1/2 md:w-1/4 mb-4">
+                    <div className="bg-gray-50 p-4 rounded-lg h-full">
+                      <p className="text-xs font-medium text-gray-500 mb-1">FECHA ENTREGA</p>
+                      <p className="font-semibold">{formatDate(negocio?.fecha_entrega)}</p>
+                    </div>
+                  </div>
+                  <div className="px-3 w-1/2 md:w-1/4 mb-4">
+                    <div className="bg-gray-50 p-4 rounded-lg h-full">
+                      <p className="text-xs font-medium text-gray-500 mb-1">FIN ESTIMADO</p>
+                      <p className="font-semibold">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               {/* Descripción */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Descripción</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {negocio?.descripcion || 'Sin descripción disponible.'}
-                </p>
-              </div>
-              
-              {/* Notas */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Notas</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {negocio?.notas || 'Sin notas adicionales.'}
-                </p>
-                  </div>
-              </div>
-              
-            {/* Panel derecho */}
-            <div className="space-y-6">
-              {/* Métricas financieras */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Información Financiera</h2>
-                
-                <dl className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b">
-                    <dt className="text-sm text-gray-500">Valor Total</dt>
-                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.valor_total)}</dd>
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center mb-4">
+                  <FiMessageSquare className="text-indigo-600 h-5 w-5 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Descripción</h2>
                 </div>
-                  <div className="flex items-center justify-between py-2 border-b">
-                    <dt className="text-sm text-gray-500">Gastos Totales</dt>
-                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.total_gastos)}</dd>
-              </div>
-                  <div className="flex items-center justify-between py-2">
-                    <dt className="text-sm text-gray-500">Beneficio Estimado</dt>
-                    <dd className="font-medium text-green-600">
-                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && 
-                       negocio?.total_ingresos !== null && negocio?.total_gastos !== null
-                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
-                        : 'No disponible'}
-                    </dd>
-              </div>
-                </dl>
-            </div>
-            
-              {/* Entidades relacionadas */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Entidades Relacionadas</h2>
-                
-                {/* Cliente */}
-                <div className="mb-4">
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiUser className="mr-1.5 h-3.5 w-3.5" /> Cliente
-                  </h3>
-                  <p className="text-gray-800 font-medium">{negocio?.cliente_nombre}</p>
-              </div>
-              
-                {/* Proveedores */}
-                <div className="mb-4">
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiTruck className="mr-1.5 h-3.5 w-3.5" /> Proveedores
-                  </h3>
-              <div>
-                    {proveedores.length > 0 ? (
-                      proveedores.map((p, index) => (
-                        <div key={index} className="text-gray-800">
-                          {p.proveedor_nombre}
-                  </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic text-sm">Sin proveedores asignados</p>
-                    )}
-                </div>
-              </div>
-              
-                {/* Materiales */}
-              <div>
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiPackage className="mr-1.5 h-3.5 w-3.5" /> Materiales
-                  </h3>
-                  <div>
-                    {materiales.length > 0 ? (
-                      materiales.map((m, index) => (
-                        <div key={index} className="text-gray-800">
-                          {m.material_nombre}
-                  </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic text-sm">Sin materiales asignados</p>
-                    )}
-                </div>
-              </div>
-            </div>
-            
-              {/* Documentos */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Documentos</h2>
-                <div className="flex flex-col space-y-2">
-                  <Link 
-                    href={`/negocios/${params.id}/proformas`}
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
-                  >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver proformas
-                  </Link>
-                  <Link 
-                    href="?tab=invoices"
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
-                  >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver facturas
-                  </Link>
-                  <Link 
-                    href="?tab=shipping"
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
-                  >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver albaranes
-                  </Link>
-            </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'bills':
-        return (
-          <div className="py-4">
-            {/* Campo de búsqueda */}
-            <div className="mb-6">
-              <div className="relative max-w-md">
-                <input 
-                  type="text" 
-                  placeholder="Buscar..." 
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            {/* Estado vacío */}
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="bg-blue-100 rounded-full p-10 mb-6">
-                <svg className="w-16 h-16 text-blue-500" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M40 12H8L12 38H36L40 12Z" fill="currentColor" fillOpacity="0.2"/>
-                  <path d="M8 12H40L36 38H12L8 12Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                  <path d="M16 20H32M16 26H32M16 32H32" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  <path d="M8 8H40M13 8V4H35V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h3 className="text-xl font-medium text-gray-700 mb-2">No hay Facturas</h3>
-              <p className="text-gray-500 mb-6 text-center max-w-md">
-                No se han encontrado facturas para este negocio. Puedes añadir una nueva factura usando el botón de abajo.
-              </p>
-            </div>
-            
-            {/* Controles inferiores */}
-            <div className="mt-8 flex justify-between items-center">
-              <Link 
-                href={`/negocios/${negocio?.id_externo}/bills/new`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Añadir Nuevo Recibo
-              </Link>
-              
-              <div className="flex items-center text-gray-500">
-                <span className="mr-4">Página 1 de 0</span>
-                <div className="flex">
-                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
-                    anterior
-                  </button>
-                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
-                    siguiente
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'proformas':
-        return (
-          <div className="py-4">
-            {/* Título y controles superiores */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-medium text-gray-800">Proformas</h2>
-              <Link 
-                href={`/negocios/${params.id}/proformas/new`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
-              >
-                <FiPlus className="mr-2" />
-                Nueva Proforma
-              </Link>
-            </div>
-            
-            {/* Lista de proformas */}
-            <div className="bg-white rounded-lg shadow-sm border mb-6">
-              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
-                <div className="w-1/6">ID</div>
-                <div className="w-1/6">Fecha</div>
-                <div className="w-1/6">Cliente</div>
-                <div className="w-1/6">Total</div>
-                <div className="w-1/6">Estado</div>
-                <div className="w-1/6 text-right">Acciones</div>
-              </div>
-              
-              {/* Estado vacío cuando no hay proformas */}
-              {true ? (
-                <div className="py-16 flex flex-col items-center justify-center">
-                  <div className="bg-blue-100 rounded-full p-8 mb-4">
-                    <FiFileText className="w-12 h-12 text-blue-500" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-2">No hay proformas</h3>
-                  <p className="text-gray-500 mb-6 text-center max-w-md">
-                    No se han encontrado proformas para este negocio. Puedes añadir una nueva proforma usando el botón superior.
+                <div className="prose prose-indigo max-w-none">
+                  <p className="text-gray-700 whitespace-pre-wrap">
+                    {negocio?.descripcion || 'No hay descripción disponible para este contrato.'}
                   </p>
                 </div>
-              ) : (
-                <>
-                  {/* Ejemplo de proforma para demostración */}
-                  <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
-                    <div className="w-1/6 text-gray-800 font-medium">PRO-{negocio?.id_externo}</div>
-                    <div className="w-1/6 text-gray-600">{formatDate(new Date().toISOString())}</div>
-                    <div className="w-1/6 text-gray-600">{negocio?.cliente_nombre}</div>
-                    <div className="w-1/6 text-gray-800 font-medium">{formatCurrency(negocio?.valor_total || 0)}</div>
-                    <div className="w-1/6">
-                      <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                        Pendiente
-                      </span>
-                    </div>
-                    <div className="w-1/6 flex justify-end space-x-2">
-                      <Link 
-                        href={`/negocios/${params.id}/proformas/edit/PRO-${negocio?.id_externo}`}
-                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                        title="Editar"
-                      >
-                        <FiEdit className="w-5 h-5" />
-                      </Link>
-                      <Link 
-                        href={`/negocios/${params.id}/proformas/PRO-${negocio?.id_externo}/pdf`}
-                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
-                        title="Ver PDF"
-                      >
-                        <FiFileText className="w-5 h-5" />
-                      </Link>
-                      <button 
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                        title="Eliminar"
-                      >
-                        <FiTrash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+              </div>
+              
+              {/* Materiales */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <FiPackage className="text-indigo-600 h-5 w-5 mr-2" />
+                    <h2 className="text-xl font-semibold text-gray-800">Materiales</h2>
                   </div>
-                </>
-              )}
-            </div>
-            
-            {/* Controles inferiores */}
-            <div className="flex justify-end items-center mt-6">
-              <div className="flex items-center text-gray-500">
-                <span className="mr-4">Página 1 de 1</span>
-                <div className="flex">
-                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
-                    anterior
-                  </button>
-                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
-                    siguiente
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'invoices':
-        return (
-          <div className="py-4">
-            {/* Título y sección de Facturas de Cliente */}
-            <h2 className="text-xl font-medium text-gray-800 mb-6">Factura Cliente</h2>
-            
-            <div className="bg-white rounded-lg shadow-sm border mb-8">
-              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
-                <div className="w-1/6">ID</div>
-                <div className="w-1/6">Fecha</div>
-                <div className="w-1/6">Monto</div>
-                <div className="w-1/6">Material</div>
-                <div className="w-1/6">Estado</div>
-                <div className="w-1/6 text-right">Acciones</div>
-              </div>
-              
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
-                <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
-                <div className="w-1/6 text-gray-800 font-medium">€51062.40</div>
-                <div className="w-1/6 text-gray-600">PP JUMBO BAGS</div>
-                <div className="w-1/6">
-                  <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                    Pending
+                  <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                    {materiales.length} materiales
                   </span>
-                </div>
-                <div className="w-1/6 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Sección de Facturas de Proveedor */}
-            <h2 className="text-xl font-medium text-gray-800 mb-6">Facturas Proveedor</h2>
-            
-            <div className="bg-white rounded-lg shadow-sm border mb-6">
-              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
-                <div className="w-1/6">ID</div>
-                <div className="w-1/6">Proveedor</div>
-                <div className="w-1/6">Monto</div>
-                <div className="w-1/6">Fecha</div>
-                <div className="w-1/6">Material</div>
-                <div className="w-1/6 text-right">Acciones</div>
-              </div>
-              
-              {/* Primera factura proveedor */}
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
-                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
-                <div className="w-1/6 text-gray-600">CTR MEDITERRANEO</div>
-                <div className="w-1/6 text-gray-800 font-medium">€3036.00</div>
-                <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
-                <div className="w-1/6">
-                  <span className="text-gray-600">PP JUMBO BAGS</span>
-                  <span className="ml-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                    Pending
-                  </span>
-                </div>
-                <div className="w-1/6 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-1`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Segunda factura proveedor */}
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors border-b">
-                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
-                <div className="w-1/6 text-gray-600">RECICLADOS Y DERRIBOS LLORENS</div>
-                <div className="w-1/6 text-gray-800 font-medium">€2418.00</div>
-                <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
-                <div className="w-1/6">
-                  <span className="text-gray-600">PP JUMBO BAGS</span>
-                  <span className="ml-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                    Pending
-                  </span>
-                </div>
-                <div className="w-1/6 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-2`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Tercera factura proveedor */}
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/6 text-gray-800 font-medium">{negocio?.id_externo}</div>
-                <div className="w-1/6 text-gray-600">RECICLADOS COLLADO</div>
-                <div className="w-1/6 text-gray-800 font-medium">€11484.00</div>
-                <div className="w-1/6 text-gray-600">Mar 10, 2025</div>
-                <div className="w-1/6">
-                  <span className="text-gray-600">PP JUMBO BAGS</span>
-                  <span className="ml-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                    Pending
-                  </span>
-                </div>
-                <div className="w-1/6 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocio?.id_externo}/facturas/edit/${negocio?.id_externo}-3`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Controles inferiores */}
-            <div className="flex justify-end items-center mt-6">
-              <div className="flex items-center text-gray-500">
-                <span className="mr-4">Página 1 de 1</span>
-                <div className="flex">
-                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
-                    anterior
-                  </button>
-                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
-                    siguiente
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'shipping':
-        return (
-          <div className="py-4">
-            {/* Título de la sección */}
-            <h2 className="text-xl font-medium text-gray-800 mb-6">Shipping Invoice</h2>
-            
-            {/* Lista de Albaranes */}
-            <div className="bg-white rounded-lg shadow-sm border mb-6">
-              <div className="flex items-center p-4 border-b bg-gray-50 text-gray-500 text-sm font-medium">
-                <div className="w-1/6">ID</div>
-                <div className="w-1/6">Transportista</div>
-                <div className="w-1/6">Fecha</div>
-                <div className="w-1/6">Monto</div>
-                <div className="w-1/6">Material</div>
-                <div className="w-1/6 text-right">Acciones</div>
-              </div>
-              
-              {/* Primer albarán */}
-              <div className="flex items-center p-4 hover:bg-gray-50 transition-colors">
-                <div className="w-1/6 text-gray-800 font-medium">INV002</div>
-                <div className="w-1/6 text-gray-600">FR MEYER</div>
-                <div className="w-1/6 text-gray-600">Jan 2, 2025</div>
-                <div className="w-1/6 text-gray-800 font-medium">€25950.00</div>
-                <div className="w-1/6">
-                  <span className="text-gray-600">PP JUMBO BAGS</span>
-                  <span className="ml-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                    Pending
-                  </span>
-                </div>
-                <div className="w-1/6 flex justify-end space-x-2">
-                  <Link 
-                    href={`/negocios/${negocio?.id_externo}/albaranes/edit/INV002`}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-colors"
-                  >
-                    <FiEdit className="w-5 h-5" />
-                  </Link>
-                  <button 
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <FiTrash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Controles inferiores */}
-            <div className="flex justify-between items-center mt-6">
-              <Link 
-                href={`/negocios/${negocio?.id_externo}/albaranes/new`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center"
-              >
-                <FiPlus className="mr-2" />
-                Añadir Nuevo Albarán
-              </Link>
-              
-              <div className="flex items-center text-gray-500">
-                <span className="mr-4">Página 1 de 1</span>
-                <div className="flex">
-                  <button disabled className="px-3 py-1 border rounded-l-lg bg-gray-50 text-gray-400">
-                    anterior
-                  </button>
-                  <button disabled className="px-3 py-1 border border-l-0 rounded-r-lg bg-gray-50 text-gray-400">
-                    siguiente
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      default:
-        return <div className="py-4">Selecciona una pestaña</div>;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header con información clave y acciones */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            {/* Navegación y título */}
-            <div className="mb-4 md:mb-0">
-              <Link href="/negocios" className="inline-flex items-center text-gray-600 hover:text-gray-800 mb-2">
-                <FiArrowLeft className="w-4 h-4 mr-1" />
-                <span className="text-sm">Volver a negocios</span>
-        </Link>
-              <div className="flex items-center">
-                <h1 className="text-2xl font-bold text-gray-800">{negocio?.nombre || 'Contrato sin nombre'}</h1>
-                <span className="ml-3 px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  {negocio?.id_externo}
-                </span>
-              </div>
-      </div>
-      
-            {/* Estado y acciones rápidas */}
-            <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-3">
-              <div className="flex items-center">
-                <div className={`h-3 w-3 rounded-full mr-2 ${negocio?.estado === 'Completado' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-sm font-medium">{negocio?.estado || 'En progreso'}</span>
-              </div>
-              <div className="flex space-x-2">
-                <Link
-                  href={`/negocios/edit/${params.id}`}
-                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 inline-flex items-center"
-                >
-                  <FiEdit className="mr-1.5 h-4 w-4" /> Editar
-                </Link>
-                <button
-                  className="px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 inline-flex items-center"
-                >
-                  <FiTrash2 className="mr-1.5 h-4 w-4" /> Eliminar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Navegación por pestañas */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="container mx-auto">
-          <nav className="flex overflow-x-auto">
-            {[
-              { id: 'overview', label: 'Resumen', icon: FiFileText },
-              { id: 'bills', label: 'Recibos', icon: FiFileText },
-              { id: 'proformas', label: 'Proformas', icon: FiFileText },
-              { id: 'invoices', label: 'Facturas C/P', icon: FiFileText },
-              { id: 'shipping', label: 'Albaranes', icon: FiFileText }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-                  className={`py-3 px-4 font-medium whitespace-nowrap flex items-center border-b-2 transition-colors ${
-                activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-                  <Icon className="mr-1.5 h-4 w-4" />
-              {tab.label}
-            </button>
-              );
-            })}
-        </nav>
-        </div>
-      </div>
-      
-      {/* Contenido principal */}
-      <div className="container mx-auto px-4 py-6">
-        {activeTab === 'overview' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Panel izquierdo */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Progreso y fechas clave */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Progreso y Fechas</h2>
-                
-                {/* Barra de progreso */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Progreso general</span>
-                    <span>{negocio?.progreso || 0}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: `${negocio?.progreso || 0}%` }}
-                    ></div>
-                  </div>
                 </div>
                 
-                {/* Fechas */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de creación</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_creacion)}</p>
+                {materiales.length > 0 ? (
+                  <ul className="divide-y divide-gray-200">
+                    {materiales.map((material, index) => (
+                      <li key={index} className="py-3 flex items-center">
+                        <FiPackage className="text-gray-400 h-4 w-4 mr-3" />
+                        <span className="font-medium text-gray-800">{material.material_nombre}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="py-6 text-center">
+                    <p className="text-gray-500">No hay materiales asignados a este contrato</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de inicio</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_inicio)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha estimada de finalización</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_estimada_finalizacion)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Fecha de entrega</p>
-                    <p className="font-medium">{formatDate(negocio?.fecha_entrega)}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Descripción */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Descripción</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {negocio?.descripcion || 'Sin descripción disponible.'}
-                </p>
+                )}
               </div>
               
               {/* Notas */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Notas</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {negocio?.notas || 'Sin notas adicionales.'}
-                </p>
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center mb-4">
+                  <FiFileText className="text-indigo-600 h-5 w-5 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Notas</h2>
+                </div>
+                <div className="prose prose-indigo max-w-none">
+                  <p className="text-gray-700 whitespace-pre-wrap">
+                    {negocio?.notas || 'No hay notas adicionales para este contrato.'}
+                  </p>
+                </div>
               </div>
             </div>
             
-            {/* Panel derecho */}
-            <div className="space-y-6">
-              {/* Métricas financieras */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Información Financiera</h2>
-                
-                <dl className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b">
-                    <dt className="text-sm text-gray-500">Valor Total</dt>
-                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.valor_total)}</dd>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b">
-                    <dt className="text-sm text-gray-500">Gastos Totales</dt>
-                    <dd className="font-medium text-gray-900">{formatCurrency(negocio?.total_gastos)}</dd>
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <dt className="text-sm text-gray-500">Beneficio Estimado</dt>
-                    <dd className="font-medium text-green-600">
-                      {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && 
-                       negocio?.total_ingresos !== null && negocio?.total_gastos !== null
-                        ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
-                        : 'No disponible'}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-              
-              {/* Entidades relacionadas */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Entidades Relacionadas</h2>
-                
-                {/* Cliente */}
-                <div className="mb-4">
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiUser className="mr-1.5 h-3.5 w-3.5" /> Cliente
-                  </h3>
-                  <p className="text-gray-800 font-medium">{negocio?.cliente_nombre}</p>
+            {/* Columna Derecha - Información Secundaria */}
+            <div className="space-y-8">
+              {/* Información Financiera */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center mb-6">
+                  <FiDollarSign className="text-indigo-600 h-5 w-5 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Información Financiera</h2>
                 </div>
                 
-                {/* Proveedores */}
-                <div className="mb-4">
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiTruck className="mr-1.5 h-3.5 w-3.5" /> Proveedores
-                  </h3>
-                  <div>
-                    {proveedores.length > 0 ? (
-                      proveedores.map((p, index) => (
-                        <div key={index} className="text-gray-800">
-                          {p.proveedor_nombre}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic text-sm">Sin proveedores asignados</p>
-                    )}
+                <div className="space-y-4">
+                  <div className="bg-indigo-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-indigo-700 mb-1">VALOR TOTAL</p>
+                    <p className="text-2xl font-bold text-indigo-800">{formatCurrency(negocio?.valor_total)}</p>
                   </div>
-                </div>
-                
-                {/* Materiales */}
-                <div>
-                  <h3 className="text-sm text-gray-500 mb-1 flex items-center">
-                    <FiPackage className="mr-1.5 h-3.5 w-3.5" /> Materiales
-                  </h3>
-                  <div>
-                    {materiales.length > 0 ? (
-                      materiales.map((m, index) => (
-                        <div key={index} className="text-gray-800">
-                          {m.material_nombre}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 italic text-sm">Sin materiales asignados</p>
-                    )}
+                  
+                  <div className="flex flex-wrap -mx-2">
+                    <div className="w-1/2 px-2">
+                      <div className="bg-green-50 rounded-lg p-4">
+                        <p className="text-xs font-medium text-green-700 mb-1">INGRESOS</p>
+                        <p className="font-bold text-green-800">{formatCurrency(negocio?.total_ingresos)}</p>
+                      </div>
+                    </div>
+                    <div className="w-1/2 px-2">
+                      <div className="bg-red-50 rounded-lg p-4">
+                        <p className="text-xs font-medium text-red-700 mb-1">GASTOS</p>
+                        <p className="font-bold text-red-800">{formatCurrency(negocio?.total_gastos)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <p className="font-medium text-gray-700">Beneficio Estimado</p>
+                      <p className="font-bold text-green-600">
+                        {negocio?.total_ingresos !== undefined && negocio?.total_gastos !== undefined && 
+                         negocio?.total_ingresos !== null && negocio?.total_gastos !== null
+                          ? formatCurrency(negocio.total_ingresos - negocio.total_gastos)
+                          : 'No disponible'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
               
-              {/* Documentos */}
-              <div className="bg-white rounded-lg shadow p-5">
-                <h2 className="text-lg font-medium text-gray-800 mb-4">Documentos</h2>
-                <div className="flex flex-col space-y-2">
+              {/* Cliente */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center mb-4">
+                  <FiUser className="text-indigo-600 h-5 w-5 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Cliente</h2>
+                </div>
+                
+                <div className="flex items-center mb-6">
+                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
+                    <FiUser className="text-indigo-600 h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">{negocio?.cliente_nombre}</h3>
+                    <Link 
+                      href={`/clientes/${negocio?.cliente_id}`}
+                      className="text-sm text-indigo-600 hover:text-indigo-800 mt-1 inline-block"
+                    >
+                      Ver detalles del cliente
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Proveedores */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <FiTruck className="text-indigo-600 h-5 w-5 mr-2" />
+                    <h2 className="text-xl font-semibold text-gray-800">Proveedores</h2>
+                  </div>
+                  <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                    {proveedores.length} proveedores
+                  </span>
+                </div>
+                
+                {proveedores.length > 0 ? (
+                  <ul className="divide-y divide-gray-200">
+                    {proveedores.map((proveedor, index) => (
+                      <li key={index} className="py-3 flex items-center">
+                        <FiTruck className="text-gray-400 h-4 w-4 mr-3" />
+                        <span className="font-medium text-gray-800">{proveedor.proveedor_nombre}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="py-6 text-center">
+                    <p className="text-gray-500">No hay proveedores asignados a este contrato</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Acciones */}
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Acciones Rápidas</h2>
+                <div className="space-y-2">
                   <Link 
-                    href={`/negocios/${params.id}/proformas`}
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                    href={`/negocios/${params.id}/proformas/new`}
+                    className="flex items-center text-indigo-600 hover:text-indigo-800 p-2 hover:bg-indigo-50 rounded-md transition-colors"
                   >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver proformas
+                    <FiFileText className="h-4 w-4 mr-2" />
+                    <span>Crear nueva proforma</span>
                   </Link>
                   <Link 
-                    href="?tab=invoices"
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                    href={`/negocios/${params.id}/facturas/new`}
+                    className="flex items-center text-indigo-600 hover:text-indigo-800 p-2 hover:bg-indigo-50 rounded-md transition-colors"
                   >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver facturas
+                    <FiCreditCard className="h-4 w-4 mr-2" />
+                    <span>Crear nueva factura</span>
                   </Link>
                   <Link 
-                    href="?tab=shipping"
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                    href={`/negocios/${params.id}/documentos/new`}
+                    className="flex items-center text-indigo-600 hover:text-indigo-800 p-2 hover:bg-indigo-50 rounded-md transition-colors"
                   >
-                    <FiFileText className="mr-2 h-4 w-4" /> Ver albaranes
+                    <FiFileText className="h-4 w-4 mr-2" />
+                    <span>Subir documento</span>
                   </Link>
                 </div>
               </div>
             </div>
           </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow p-5">
-        {renderTabContent()}
+        )}
+        
+        {activeTab === 'proformas' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">Proformas</h2>
+                <Link 
+                  href={`/negocios/${params.id}/proformas/new`}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                  Nueva Proforma
+                </Link>
+              </div>
+            </div>
+            
+            <div className="px-6 py-8 text-center">
+              <div className="bg-indigo-50 rounded-full h-16 w-16 mx-auto flex items-center justify-center mb-4">
+                <FiFileText className="h-8 w-8 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay proformas</h3>
+              <p className="text-gray-500 max-w-md mx-auto mb-6">
+                No se han encontrado proformas asociadas a este contrato. Puedes crear una nueva proforma usando el botón superior.
+              </p>
+              <Link 
+                href={`/negocios/${params.id}/proformas/new`}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                Crear primera proforma
+              </Link>
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'invoices' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">Facturas</h2>
+                <Link 
+                  href={`/negocios/${params.id}/facturas/new`}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                  Nueva Factura
+                </Link>
+              </div>
+            </div>
+            
+            <div className="px-6 py-8 text-center">
+              <div className="bg-indigo-50 rounded-full h-16 w-16 mx-auto flex items-center justify-center mb-4">
+                <FiCreditCard className="h-8 w-8 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay facturas</h3>
+              <p className="text-gray-500 max-w-md mx-auto mb-6">
+                No se han encontrado facturas asociadas a este contrato. Puedes crear una nueva factura usando el botón superior.
+              </p>
+              <Link 
+                href={`/negocios/${params.id}/facturas/new`}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                Crear primera factura
+              </Link>
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'documents' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">Documentos</h2>
+                <Link 
+                  href={`/negocios/${params.id}/documentos/new`}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                  Subir Documento
+                </Link>
+              </div>
+            </div>
+            
+            <div className="px-6 py-8 text-center">
+              <div className="bg-indigo-50 rounded-full h-16 w-16 mx-auto flex items-center justify-center mb-4">
+                <FiFileText className="h-8 w-8 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay documentos</h3>
+              <p className="text-gray-500 max-w-md mx-auto mb-6">
+                No se han encontrado documentos asociados a este contrato. Puedes subir un nuevo documento usando el botón superior.
+              </p>
+              <Link 
+                href={`/negocios/${params.id}/documentos/new`}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <FiPlus className="mr-2 -ml-1 h-4 w-4" />
+                Subir primer documento
+              </Link>
+            </div>
           </div>
         )}
       </div>
