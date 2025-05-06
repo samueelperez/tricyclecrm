@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS facturas_logistica (
   descripcion TEXT,
   importe DECIMAL(12,2) NOT NULL DEFAULT 0,
   estado TEXT DEFAULT 'pendiente',
-  nombre_archivo TEXT
+  nombre_archivo TEXT,
+  archivo_path TEXT
 ); 

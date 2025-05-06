@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { FiEdit, FiEye, FiTrash2, FiSearch, FiFilter, FiX, FiDownload, FiFile } from 'react-icons/fi'
 import Link from 'next/link'
+import { toast } from 'react-hot-toast'
 
 interface FacturaLogistica {
   id: number
@@ -17,7 +18,7 @@ interface FacturaLogistica {
     nombre: string
   }
   nombre_archivo?: string
-  ruta_archivo?: string
+  archivo_path?: string
 }
 
 export default function FacturasLogisticaPage() {
@@ -74,21 +75,15 @@ export default function FacturasLogisticaPage() {
     }
 
     try {
-      // Determinar la ruta del archivo basándose en el ID y nombre del archivo
-      const fileExtension = factura.nombre_archivo.split('.').pop();
-      const filePath = `facturas-logistica/${factura.id}.${fileExtension}`;
+      // Usar el campo archivo_path si está disponible
+      const filePath = factura.archivo_path || `facturas-logistica/${factura.id}.${factura.nombre_archivo.split('.').pop()}`;
       
-      // Obtener URL firmada
       const { data, error } = await supabase
         .storage
         .from('documentos')
-        .createSignedUrl(filePath, 3600); // URL válida por 1 hora
+        .createSignedUrl(filePath, 60);
         
-      if (error) {
-        console.error('Error al obtener URL firmada:', error);
-        alert('No se pudo cargar el archivo para la vista previa');
-        return;
-      }
+      if (error) throw error;
       
       setFilePreview({
         url: data.signedUrl,
@@ -97,12 +92,36 @@ export default function FacturasLogisticaPage() {
       
     } catch (error) {
       console.error('Error al generar vista previa:', error);
-      alert('Error al generar la vista previa del archivo');
+      toast.error('No se pudo cargar el archivo para la vista previa');
     }
   };
   
   const closePreview = () => {
     setFilePreview(null);
+  };
+
+  const handleViewFile = async (factura: any) => {
+    try {
+      setLoading(true);
+      const supabase = createClientComponentClient();
+      
+      // Usar el campo archivo_path si está disponible
+      const filePath = factura.archivo_path || `facturas-logistica/${factura.id}.${factura.nombre_archivo?.split('.').pop()}`;
+      
+      const { data, error } = await supabase
+        .storage
+        .from('documentos')
+        .createSignedUrl(filePath, 60);
+        
+      if (error) throw error;
+      
+      window.open(data.signedUrl, '_blank');
+    } catch (err) {
+      console.error('Error al obtener el archivo:', err);
+      toast.error('No se pudo abrir el archivo adjunto');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

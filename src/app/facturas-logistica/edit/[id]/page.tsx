@@ -271,20 +271,39 @@ export default function EditFacturaLogisticaPage() {
         const filePath = `facturas-logistica/${id}.${fileExt}`;
         
         // Eliminar archivo anterior si existe
-        await supabase
-          .storage
-          .from('documentos')
-          .remove([filePath]);
+        try {
+          await supabase
+            .storage
+            .from('documentos')
+            .remove([filePath]);
+        } catch (removeError) {
+          console.error('Error al eliminar el archivo anterior:', removeError);
+          // Continuar aunque haya un error al eliminar
+        }
         
         // Subir nuevo archivo
-        const { error: uploadError } = await supabase
+        const { error: uploadError, data: uploadData } = await supabase
           .storage
           .from('documentos')
-          .upload(filePath, formData.archivo_adjunto, { upsert: true });
+          .upload(filePath, formData.archivo_adjunto, { 
+            cacheControl: '3600',
+            upsert: true 
+          });
           
         if (uploadError) {
           console.error('Error al subir el archivo:', uploadError);
           toast.error('Se actualizó la factura, pero hubo un error al subir el archivo');
+        } else {
+          // Actualizar la factura con la ruta del archivo
+          await supabase
+            .from('facturas_logistica')
+            .update({
+              nombre_archivo: formData.archivo_adjunto.name,
+              archivo_path: filePath
+            })
+            .eq('id', id);
+            
+          console.log('Archivo subido correctamente:', uploadData);
         }
       } else if (!formData.nombre_archivo) {
         // Si se eliminó el archivo, eliminarlo del storage

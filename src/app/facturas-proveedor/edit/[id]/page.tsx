@@ -54,8 +54,15 @@ interface FacturaProveedorFormData {
   archivo_adjunto?: File | null;
 }
 
+// Interfaz para las props del MaterialSelector
+interface MaterialSelectorProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
 // Componente interno MaterialSelector
-function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }) {
+function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }: MaterialSelectorProps) {
   const [query, setQuery] = useState(value);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);

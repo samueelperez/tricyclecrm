@@ -225,10 +225,13 @@ export default function NewFacturaLogisticaPage() {
         const fileExt = formData.archivo_adjunto.name.split('.').pop();
         const filePath = `facturas-logistica/${facturaId}.${fileExt}`;
         
-        const { error: uploadError } = await supabase
+        const { error: uploadError, data: uploadData } = await supabase
           .storage
           .from('documentos')
-          .upload(filePath, formData.archivo_adjunto);
+          .upload(filePath, formData.archivo_adjunto, {
+            cacheControl: '3600',
+            upsert: true
+          });
           
         if (uploadError) {
           console.error('Error al subir el archivo:', uploadError);
@@ -238,9 +241,12 @@ export default function NewFacturaLogisticaPage() {
           await supabase
             .from('facturas_logistica')
             .update({
-              nombre_archivo: formData.archivo_adjunto.name
+              nombre_archivo: formData.archivo_adjunto.name,
+              archivo_path: filePath
             })
             .eq('id', facturaId);
+            
+          console.log('Archivo subido correctamente:', uploadData);
         }
       }
       

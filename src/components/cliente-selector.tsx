@@ -15,14 +15,18 @@ interface Cliente {
 
 interface ClienteSelectorProps {
   value: string;
-  onSelect: (clienteId: number, clienteNombre: string) => void;
+  onChange: (clienteNombre: string) => void;
+  clientesList?: Cliente[];
   placeholder?: string;
   className?: string;
+  onSelect?: (clienteId: number, clienteNombre: string) => void;
 }
 
 export default function ClienteSelector({ 
   value,
+  onChange,
   onSelect,
+  clientesList,
   placeholder = "Buscar cliente...",
   className = ""
 }: ClienteSelectorProps) {
@@ -38,6 +42,13 @@ export default function ClienteSelector({
   
   // Cargar clientes al montar el componente
   useEffect(() => {
+    // Si se proporciona una lista de clientes, usarla directamente
+    if (clientesList && clientesList.length > 0) {
+      setClientes(clientesList);
+      setFilteredOptions(clientesList);
+      return;
+    }
+    
     const fetchClientes = async () => {
       setLoading(true);
       try {
@@ -59,7 +70,7 @@ export default function ClienteSelector({
     };
     
     fetchClientes();
-  }, []);
+  }, [clientesList]);
   
   // Actualizar el query cuando cambie el valor externo
   useEffect(() => {
@@ -106,6 +117,7 @@ export default function ClienteSelector({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
+    onChange(value);
     
     if (!showOptions) {
       setShowOptions(true);
@@ -114,7 +126,16 @@ export default function ClienteSelector({
   
   const handleOptionSelect = (cliente: Cliente) => {
     setQuery(cliente.nombre);
-    onSelect(cliente.id, cliente.nombre);
+    
+    // Llamar a ambos callbacks si están disponibles
+    if (onChange) {
+      onChange(cliente.nombre);
+    }
+    
+    if (onSelect) {
+      onSelect(cliente.id, cliente.nombre);
+    }
+    
     setShowOptions(false);
   };
   
