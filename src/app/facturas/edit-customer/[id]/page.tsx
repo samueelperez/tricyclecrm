@@ -18,7 +18,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import ClienteSelector from '@/components/cliente-selector';
+import ClienteSelector, { Cliente } from '@/components/cliente-selector';
 import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS } from '@/lib/constants';
 
 // Interfaces para los datos
@@ -59,6 +59,16 @@ interface NotasData {
   items_resumen?: any[];
   contenedores?: string;
   origen?: string;
+  // Campos de dirección
+  direccion?: string;
+  ciudad?: string;
+  pais?: string;
+  codigo_postal?: string;
+  // Claves abreviadas para dirección
+  dir?: string;
+  ciu?: string;
+  pa?: string;
+  cp?: string;
 }
 
 interface Invoice {
@@ -81,6 +91,10 @@ interface Invoice {
   origen?: string;
   contenedores?: string;
   pesoTotal?: number;
+  direccion?: string;
+  ciudad?: string;
+  pais?: string;
+  codigo_postal?: string;
 }
 
 // Componente para la vista de impresión de factura
@@ -151,6 +165,14 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
             <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Cliente</h2>
             <p className="font-medium text-lg">{invoice.customerName}</p>
             {invoice.taxId && <p className="text-gray-600">CIF/NIF: {invoice.taxId}</p>}
+            {invoice.direccion && <p className="text-gray-600">{invoice.direccion}</p>}
+            {(invoice.ciudad || invoice.codigo_postal) && (
+              <p className="text-gray-600">
+                {invoice.ciudad}
+                {invoice.codigo_postal && invoice.ciudad ? `, ${invoice.codigo_postal}` : invoice.codigo_postal}
+              </p>
+            )}
+            {invoice.pais && <p className="text-gray-600">{invoice.pais}</p>}
           </div>
           
           {/* Términos de pago */}
@@ -246,13 +268,6 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   const printComponentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [showPortSuggestions, setShowPortSuggestions] = useState(false);
-  const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
-  const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
-  
-  // Estado para la factura
   const [invoice, setInvoice] = useState<Invoice>({
     id: '',
     number: '',
@@ -268,7 +283,10 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       quantity: 0,
       unitPrice: 0,
       taxRate: 21,
-      totalValue: 0
+      totalValue: 0,
+      weight: 0,
+      packaging: '',
+      packagingType: ''
     }],
     subtotal: 0,
     taxAmount: 0,
@@ -278,30 +296,12 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     puerto_destino: '',
     deliveryTerms: ''
   });
-
-  // Cargar lista de clientes al iniciar
-  useEffect(() => {
-    const cargarClientes = async () => {
-      try {
-        const supabaseClient = getSupabaseClient();
-        const { data, error } = await supabaseClient
-          .from('clientes')
-          .select('id, nombre, id_fiscal, email, ciudad, telefono')
-          .order('nombre');
-          
-        if (error) {
-          console.error('Error cargando clientes:', error);
-          return;
-        }
-        
-        setClientesList(data || []);
-      } catch (err) {
-        console.error('Error al cargar los clientes:', err);
-      }
-    };
-    
-    cargarClientes();
-  }, []);
+  
+  const [clientesList, setClientesList] = useState<Cliente[]>([]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [showPortSuggestions, setShowPortSuggestions] = useState(false);
+  const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
+  const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
 
   // Manejador para cerrar la lista de sugerencias al hacer clic fuera
   useEffect(() => {
@@ -322,6 +322,36 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, []);
+
+  // Cargar lista de clientes al iniciar
+  useEffect(() => {
+    const cargarClientes = async () => {
+      try {
+        const supabaseClient = getSupabaseClient();
+        const { data, error } = await supabaseClient
+          .from('clientes')
+          .select('id, nombre, id_fiscal, email, ciudad, telefono')
+          .order('nombre');
+          
+        if (error) {
+          console.error('Error cargando clientes:', error);
+          return;
+        }
+        
+        // Convertir explícitamente los IDs de string a number para que coincidan con la interfaz Cliente
+        const clientesConIdNumerico = (data || []).map(cliente => ({
+          ...cliente,
+          id: typeof cliente.id === 'string' ? parseInt(cliente.id, 10) : cliente.id
+        }));
+        
+        setClientesList(clientesConIdNumerico);
+      } catch (err) {
+        console.error('Error al cargar los clientes:', err);
+      }
+    };
+    
+    cargarClientes();
   }, []);
 
   // Cargar datos de la factura
@@ -371,6 +401,36 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         const pesoTotal = materialData.pesoTotal || materialData.peso || 0;
         const contenedores = materialData.contenedores || materialData.cont || '';
         const origen = materialData.origen || materialData.orig || '';
+        const direccion = materialData.direccion || materialData.dir || '';
+        const ciudad = materialData.ciudad || materialData.ciu || '';
+        const pais = materialData.pais || materialData.pa || '';
+        const codigo_postal = materialData.codigo_postal || materialData.cp || '';
+        
+        // Obtener información adicional del cliente si no tenemos los datos de dirección
+        let clienteDireccion = direccion;
+        let clienteCiudad = ciudad;
+        let clientePais = pais;
+        let clienteCP = codigo_postal;
+        
+        // Si no hay información de dirección y tenemos el cliente_id, buscar los datos del cliente
+        if ((!clienteDireccion || !clienteCiudad || !clientePais) && data.cliente_id) {
+          try {
+            const { data: clienteData, error: clienteError } = await supabase
+              .from('clientes')
+              .select('direccion, ciudad, pais, codigo_postal')
+              .eq('id', data.cliente_id)
+              .single();
+              
+            if (!clienteError && clienteData) {
+              clienteDireccion = clienteDireccion || clienteData.direccion;
+              clienteCiudad = clienteCiudad || clienteData.ciudad;
+              clientePais = clientePais || clienteData.pais;
+              clienteCP = clienteCP || clienteData.codigo_postal;
+            }
+          } catch (clienteError) {
+            console.error('Error al obtener datos del cliente:', clienteError);
+          }
+        }
         
         // Parsear los items cuando están disponibles
         let items: InvoiceItem[] = [];
@@ -427,7 +487,11 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           deliveryTerms: deliveryTerms,
           origen: origen,
           contenedores: contenedores,
-          pesoTotal: pesoTotal
+          pesoTotal: pesoTotal,
+          direccion: clienteDireccion,
+          ciudad: clienteCiudad,
+          pais: clientePais,
+          codigo_postal: clienteCP
         };
         
         console.log('Objeto de factura construido:', facturaData);
@@ -501,6 +565,10 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           peso: invoice.pesoTotal,
           cont: invoice.contenedores,
           orig: invoice.origen,
+          dir: invoice.direccion,
+          ciu: invoice.ciudad,
+          pa: invoice.pais,
+          cp: invoice.codigo_postal,
           items: itemResumen
         }),
         notas: invoice.invoiceNotes.substring(0, 200),

@@ -16,7 +16,7 @@ import { Proforma } from '@/app/proformas/components/types';
 
 import { getSupabaseClient } from '@/lib/supabase';
 import { verifyFacturasClienteTable } from '@/lib/db-migrations';
-import ClienteSelector from '@/components/cliente-selector';
+import ClienteSelector, { Cliente } from '@/components/cliente-selector';
 
 // Definir interfaces para los tipos
 interface InvoiceItem {
@@ -60,7 +60,7 @@ interface ProformaWithClient extends Proforma {
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
+  const [clientesList, setClientesList] = useState<Cliente[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
@@ -110,7 +110,13 @@ export default function NewCustomerInvoicePage() {
           return;
         }
         
-        setClientesList(data || []);
+        // Convertir explícitamente los IDs de string a number para que coincidan con la interfaz Cliente
+        const clientesConIdNumerico = (data || []).map(cliente => ({
+          ...cliente,
+          id: typeof cliente.id === 'string' ? parseInt(cliente.id, 10) : cliente.id
+        }));
+        
+        setClientesList(clientesConIdNumerico);
       } catch (err) {
         console.error('Error al cargar los clientes:', err);
       }

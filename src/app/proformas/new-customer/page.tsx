@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase';
 import { verifyProformasProductosTable } from '@/lib/db-migrations';
-import ClienteSelector from '@/components/cliente-selector';
+import ClienteSelector, { Cliente } from '@/components/cliente-selector';
 
 // Interfaces para tipar correctamente los objetos
 interface ProformaItem {
@@ -66,7 +66,7 @@ const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
 export default function NewCustomerProformaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [clientesList, setClientesList] = useState<{id: string, nombre: string}[]>([]);
+  const [clientesList, setClientesList] = useState<Cliente[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   
@@ -113,7 +113,13 @@ export default function NewCustomerProformaPage() {
           return;
         }
         
-        setClientesList(data || []);
+        // Convertir explícitamente los IDs de string a number para que coincidan con la interfaz Cliente
+        const clientesConIdNumerico = (data || []).map(cliente => ({
+          ...cliente,
+          id: typeof cliente.id === 'string' ? parseInt(cliente.id, 10) : cliente.id
+        }));
+        
+        setClientesList(clientesConIdNumerico);
       } catch (err) {
         console.error('Error al cargar los clientes:', err);
       }

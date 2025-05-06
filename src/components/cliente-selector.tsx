@@ -4,13 +4,16 @@ import { useState, useEffect, useRef } from 'react';
 import { FiUser, FiPlus, FiSearch } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-interface Cliente {
+export interface Cliente {
   id: number;
   nombre: string;
   id_fiscal?: string | null;
   email?: string | null;
   ciudad?: string | null;
   telefono?: string | null;
+  direccion?: string | null;
+  pais?: string | null;
+  codigo_postal?: string | null;
 }
 
 interface ClienteSelectorProps {
