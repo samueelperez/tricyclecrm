@@ -112,47 +112,46 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
             }
           }
           
-          // Obtener materiales
-          const { data: materialesData, error: materialesError } = await supabase
-            .from('proveedores_materiales')
-            .select(`
-              materiales (
-                id,
-                nombre,
-                descripcion,
-                precio_unidad,
-                unidad
-              )
-            `)
-            .eq('proveedor_id', params.id);
-          
-          if (materialesError) {
-            console.error('Error al obtener materiales:', materialesError);
-          } else if (materialesData) {
-            console.log('Datos de materiales recibidos:', JSON.stringify(materialesData, null, 2));
-            // Filtramos entradas nulas y mapeamos el objeto anidado correctamente
-            const materialesMapped = materialesData
-              .filter(item => item.materiales !== null)
-              .map(item => item.materiales);
-            console.log('Materiales mapeados:', materialesMapped);
-            setMateriales(materialesMapped);
+          // Obtener materiales - modificamos la estrategia para evitar el error 400
+          try {
+            console.log('Obteniendo materiales para el proveedor ID:', params.id);
             
-            // Si no hay materiales válidos después del filtrado, intentamos obtenerlos directamente de la API
-            if (materialesMapped.length === 0) {
-              console.log('No se encontraron materiales válidos, intentando obtener desde la API...');
-              try {
-                const response = await fetch(`/api/proveedores/materiales?proveedor_id=${params.id}`);
-                if (response.ok) {
-                  const apiMateriales = await response.json();
-                  console.log('Materiales obtenidos desde API:', apiMateriales);
-                  if (Array.isArray(apiMateriales) && apiMateriales.length > 0) {
-                    setMateriales(apiMateriales);
-                  }
-                }
-              } catch (apiError) {
-                console.error('Error al obtener materiales desde la API:', apiError);
+            // Primero obtenemos los IDs de los materiales asociados al proveedor
+            const { data: materialesRelaciones, error: relacionesError } = await supabase
+              .from('proveedores_materiales')
+              .select('material_id')
+              .eq('proveedor_id', params.id);
+            
+            if (relacionesError) {
+              console.error('Error al obtener relaciones de materiales:', relacionesError);
+            } else if (materialesRelaciones && materialesRelaciones.length > 0) {
+              console.log(`Encontradas ${materialesRelaciones.length} relaciones de materiales`);
+              
+              // Extraemos los IDs de los materiales
+              const materialIds = materialesRelaciones.map(item => item.material_id);
+              console.log('IDs de materiales encontrados:', materialIds);
+              
+              // Obtenemos los detalles completos de los materiales usando los IDs
+              const { data: detallesMateriales, error: detallesError } = await supabase
+                .from('materiales')
+                .select('id, nombre, descripcion, precio_unidad, unidad')
+                .in('id', materialIds);
+              
+              if (detallesError) {
+                console.error('Error al obtener detalles de materiales:', detallesError);
+              } else if (detallesMateriales) {
+                console.log(`Obtenidos ${detallesMateriales.length} materiales:`, detallesMateriales);
+                setMateriales(detallesMateriales);
+              } else {
+                console.log('No se encontraron detalles de materiales');
+                setMateriales([]);
               }
+            } else {
+              console.log('No se encontraron relaciones de materiales para este proveedor');
+              setMateriales([]);
             }
+          } catch (materialesError) {
+            console.error('Error general al obtener materiales:', materialesError);
           }
         }
       } catch (err) {

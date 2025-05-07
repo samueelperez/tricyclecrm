@@ -118,29 +118,44 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           archivo_url: null // Inicializamos en null y lo obtendremos después
         });
         
-        // Cargar los materiales del proveedor desde la API
+        // Cargar los materiales del proveedor
         try {
           console.log(`Cargando materiales para el proveedor ${proveedorId}...`);
-          const materialesResponse = await fetch(`/api/proveedores/materiales?proveedor_id=${proveedorId}`);
           
-          if (!materialesResponse.ok) {
-            console.error(`Error al cargar materiales: ${materialesResponse.status}`);
-            throw new Error(`Error al cargar materiales: ${materialesResponse.status}`);
-          }
+          // Primero obtenemos los IDs de los materiales asociados al proveedor
+          const { data: materialesRelaciones, error: relacionesError } = await supabase
+            .from('proveedores_materiales')
+            .select('material_id')
+            .eq('proveedor_id', proveedorId);
           
-          const materialesData = await materialesResponse.json();
-          console.log('Materiales cargados:', materialesData);
-          
-          if (Array.isArray(materialesData)) {
-            const materialIds = materialesData.map(material => material.id);
-            console.log('IDs de materiales extraídos:', materialIds);
+          if (relacionesError) {
+            console.error('Error al obtener relaciones de materiales:', relacionesError);
+          } else if (materialesRelaciones && materialesRelaciones.length > 0) {
+            console.log(`Encontradas ${materialesRelaciones.length} relaciones de materiales`);
+            
+            // Extraemos los IDs de los materiales
+            const materialIds = materialesRelaciones.map(item => item.material_id);
+            console.log('IDs de materiales encontrados:', materialIds);
             
             setFormData(prevData => ({
               ...prevData,
               material_ids: materialIds
             }));
+            
+            // También podemos cargar los detalles de los materiales si los necesitamos
+            // para mostrarlos, pero no es necesario para el formData
+            const { data: detallesMateriales, error: detallesError } = await supabase
+              .from('materiales')
+              .select('id, nombre, descripcion')
+              .in('id', materialIds);
+            
+            if (detallesError) {
+              console.error('Error al obtener detalles de materiales:', detallesError);
+            } else {
+              console.log('Detalles de materiales cargados:', detallesMateriales);
+            }
           } else {
-            console.warn('No se recibió un array de materiales válido:', materialesData);
+            console.log('No se encontraron materiales asociados a este proveedor');
           }
         } catch (materialesError) {
           console.error('Error al cargar los materiales del proveedor:', materialesError);
