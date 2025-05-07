@@ -146,7 +146,7 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             // para mostrarlos, pero no es necesario para el formData
             const { data: detallesMateriales, error: detallesError } = await supabase
               .from('materiales')
-              .select('id, nombre, descripcion')
+              .select('id, nombre, descripcion, categoria')
               .in('id', materialIds);
             
             if (detallesError) {

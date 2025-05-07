@@ -134,7 +134,7 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
               // Obtenemos los detalles completos de los materiales usando los IDs
               const { data: detallesMateriales, error: detallesError } = await supabase
                 .from('materiales')
-                .select('id, nombre, descripcion, precio_unidad, unidad')
+                .select('id, nombre, descripcion, categoria')
                 .in('id', materialIds);
               
               if (detallesError) {
@@ -512,7 +512,7 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {material.precio_unidad ? 
-                            `${parseFloat(material.precio_unidad).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${material.unidad || '€'}` 
+                            `${parseFloat(material.precio_unidad).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${material.categoria || '€'}` 
                             : '-'}
                         </td>
                       </tr>
