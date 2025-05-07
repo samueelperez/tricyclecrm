@@ -80,10 +80,25 @@ export default function NewProveedorPage() {
 
   // Manejar cambios en los materiales seleccionados
   const handleMaterialesChange = (materialIds: number[]) => {
-    setFormData({
-      ...formData,
-      material_ids: materialIds
-    });
+    console.log('handleMaterialesChange llamado con materialIds:', materialIds);
+    console.log('Estado actual de formData.material_ids:', formData.material_ids);
+    
+    // Comprobar si realmente hay un cambio
+    const currentIds = [...formData.material_ids].sort();
+    const newIds = [...materialIds].sort();
+    const idsString = JSON.stringify(currentIds);
+    const newIdsString = JSON.stringify(newIds);
+    
+    if (idsString !== newIdsString) {
+      console.log('Materiales han cambiado, actualizando estado');
+      setFormData(prevData => ({
+        ...prevData,
+        material_ids: materialIds
+      }));
+      console.log('Nuevo estado de material_ids:', materialIds);
+    } else {
+      console.log('No hay cambios en los materiales seleccionados');
+    }
   };
 
   // Manejar cambio de archivo adjunto
@@ -559,7 +574,7 @@ export default function NewProveedorPage() {
           </div>
           
           {/* Sección de Materiales */}
-          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg mb-8">
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
               <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
                 <FiPackage className="mr-2 text-indigo-500" />
@@ -570,7 +585,7 @@ export default function NewProveedorPage() {
               </p>
             </div>
             
-            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
+            <div className="p-6 bg-white">
               <MaterialesSelector 
                 selectedMaterialIds={formData.material_ids}
                 onChange={handleMaterialesChange}
@@ -578,112 +593,82 @@ export default function NewProveedorPage() {
             </div>
           </div>
           
-          {/* Sección de Archivos Adjuntos */}
-          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg">
+          {/* Sección de Archivo Adjunto */}
+          <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out transform hover:shadow-lg mb-8">
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-indigo-100">
               <h3 className="text-lg font-medium leading-6 text-gray-900 flex items-center">
                 <FiPaperclip className="mr-2 text-indigo-500" />
-                Documentación
+                Documento adjunto
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                Documentos relacionados con este proveedor
+                Añade un documento relacionado con este proveedor (PDF, JPG, PNG)
               </p>
             </div>
             
-            <div className="p-6 bg-white bg-opacity-50 backdrop-filter backdrop-blur-sm">
-              <div className="mt-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Adjuntar Documento
-                </label>
-                
-                {/* Previsualización del archivo si existe */}
-                {formData.archivo_adjunto && (
-                  <div className="mb-4 border rounded-lg overflow-hidden bg-gray-50">
-                    <div className="px-4 py-2 bg-gray-100 border-b flex justify-between items-center">
-                      <span className="font-medium text-sm text-gray-700">
-                        {formData.nombre_archivo}
-                      </span>
+            <div className="p-6">
+              {!formData.archivo_adjunto ? (
+                <div className="flex items-center justify-center w-full">
+                  <label 
+                    htmlFor="file-upload" 
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <FiUpload className="w-8 h-8 text-gray-400 mb-2" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Haz clic para seleccionar</span> o arrastra y suelta
+                      </p>
+                      <p className="text-xs text-gray-500">PDF, PNG, JPG (Max. 10MB)</p>
+                    </div>
+                    <input 
+                      id="file-upload" 
+                      name="archivo_adjunto" 
+                      type="file" 
+                      className="hidden" 
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-blue-50">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <FiFile className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="ml-4">
+                        <h4 className="text-sm font-medium text-gray-900 truncate" title={formData.nombre_archivo || ''}>
+                          {formData.nombre_archivo}
+                        </h4>
+                        <p className="text-xs text-gray-500">
+                          {formData.archivo_adjunto && Math.round(formData.archivo_adjunto.size / 1024)} KB
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      {formData.archivo_url && (
+                        <a 
+                          href={formData.archivo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <FiDownload className="h-4 w-4" />
+                        </a>
+                      )}
+                      
                       <button
                         type="button"
                         onClick={handleClearFile}
-                        className="text-red-600 hover:text-red-800"
+                        className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                       >
-                        <FiX className="h-5 w-5" />
+                        <FiX className="h-4 w-4" />
                       </button>
                     </div>
-                    
-                    <div className="p-4">
-                      {/* Visualización según tipo de archivo */}
-                      {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
-                        <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
-                          {formData.archivo_url && (
-                            <iframe 
-                              src={formData.archivo_url} 
-                              className="w-full h-full"
-                              title="Vista previa del PDF"
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex justify-center">
-                          <img 
-                            src={formData.archivo_url || ''}
-                            alt={formData.nombre_archivo || 'Vista previa'} 
-                            className="max-h-64 max-w-full object-contain"
-                          />
-                        </div>
-                      )}
-                      
-                      {/* Botón para descargar archivo si existe */}
-                      {formData.archivo_url && (
-                        <div className="mt-3 text-center">
-                          <a 
-                            href={formData.archivo_url} 
-                            download={formData.nombre_archivo || 'documento'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                          >
-                            <FiDownload className="mr-2 -ml-1 h-5 w-5 text-gray-500" />
-                            Descargar archivo
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Sección para cargar archivo */}
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 h-24 w-24 border border-gray-200 rounded flex items-center justify-center mr-4">
-                    {formData.archivo_adjunto ? (
-                      <FiCheck className="h-8 w-8 text-green-500" />
-                    ) : (
-                      <FiUpload className="h-6 w-6 text-gray-300" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex text-sm text-gray-600">
-                      <label
-                        htmlFor="file-upload"
-                        className="relative cursor-pointer rounded-md bg-white font-medium text-blue-600 hover:text-blue-500"
-                      >
-                        <span>{formData.archivo_adjunto ? 'Cambiar archivo' : 'Cargar archivo'}</span>
-                        <input
-                          id="file-upload"
-                          name="file-upload"
-                          type="file"
-                          className="sr-only"
-                          onChange={handleFileChange}
-                          accept=".pdf,.jpg,.jpeg,.png"
-                        />
-                      </label>
-                      <p className="pl-1">o arrastrar y soltar</p>
-                    </div>
-                    <p className="text-xs text-gray-500">PDF, PNG, JPG hasta 10MB</p>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
           

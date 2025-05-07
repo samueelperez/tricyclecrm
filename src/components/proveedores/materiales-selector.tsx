@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { FiPlus, FiX, FiSearch, FiPackage } from 'react-icons/fi';
+import { FiPlus, FiX, FiSearch, FiPackage, FiCheck } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'react-hot-toast';
+import { createPortal } from 'react-dom';
 
 interface Material {
   id: number;
@@ -24,14 +25,24 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
   const [loading, setLoading] = useState(true);
   const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
   const [filteredMaterials, setFilteredMaterials] = useState<Material[]>([]);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const supabase = createClientComponentClient();
+
+  // Crear el contenedor del portal cuando se monta el componente
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setPortalContainer(document.body);
+    }
+  }, []);
 
   // Cargar materiales al montar el componente
   useEffect(() => {
     const fetchMaterials = async () => {
       setLoading(true);
       try {
+        console.log('MaterialesSelector: Consultando materiales en Supabase...');
         const { data, error } = await supabase
           .from('materiales')
           .select('*')
@@ -88,10 +99,35 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
     setFilteredMaterials(filtered);
   }, [searchQuery, materials]);
 
+  // Posicionar el dropdown cuando se abre
+  useEffect(() => {
+    if (isOpen && buttonRef.current && dropdownRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect();
+      const dropdown = dropdownRef.current;
+      
+      // Posicionar en base a la ubicación del botón
+      dropdown.style.width = `${buttonRect.width}px`;
+      dropdown.style.top = `${buttonRect.bottom + window.scrollY}px`;
+      dropdown.style.left = `${buttonRect.left + window.scrollX}px`;
+      
+      console.log('MaterialesSelector: Dropdown posicionado en:', {
+        top: dropdown.style.top,
+        left: dropdown.style.left,
+        width: dropdown.style.width
+      });
+    }
+  }, [isOpen]);
+
   // Cerrar el dropdown cuando se hace clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        isOpen &&
+        dropdownRef.current &&
+        buttonRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -100,7 +136,21 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isOpen]);
+
+  // Cerrar el dropdown con Escape
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
 
   const handleToggleMaterial = (material: Material) => {
     console.log('MaterialesSelector: Toggle material', material.id, material.nombre);
@@ -130,6 +180,11 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
 
   return (
     <div className="w-full">
+      {/* Información sobre materiales */}
+      <div className="text-xs text-gray-400 mb-1">
+        {materials.length} materiales disponibles, {selectedMaterials.length} seleccionados
+      </div>
+      
       {/* Lista de materiales seleccionados */}
       <div className="flex flex-wrap gap-2 mb-3">
         {selectedMaterials.map(material => (
@@ -156,19 +211,31 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
       </div>
       
       {/* Botón para abrir el selector */}
-      <div className="relative" ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-between w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <span className="text-gray-700">Seleccionar materiales</span>
-          <FiPlus className="h-5 w-5 text-gray-400" />
-        </button>
-        
-        {isOpen && (
-          <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg">
-            <div className="p-2 border-b">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      >
+        <span className="text-gray-700">Seleccionar materiales ({materials.length})</span>
+        <FiPlus className="h-5 w-5 text-gray-400" />
+      </button>
+      
+      {/* Portal para el dropdown */}
+      {isOpen && portalContainer && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-30"
+            style={{ zIndex: 9998 }}
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+          <div 
+            ref={dropdownRef}
+            className="fixed bg-white rounded-md shadow-lg max-h-96 overflow-auto border border-gray-200"
+            style={{ zIndex: 9999 }}
+          >
+            <div className="sticky top-0 p-2 border-b bg-white">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <FiSearch className="h-4 w-4 text-gray-400" />
@@ -179,11 +246,12 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar material..."
                   className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  autoFocus
                 />
               </div>
             </div>
             
-            <ul className="max-h-60 overflow-auto py-1">
+            <ul className="max-h-60 overflow-auto py-1 bg-white">
               {loading ? (
                 <li className="px-4 py-2 text-sm text-gray-500">Cargando materiales...</li>
               ) : filteredMaterials.length === 0 ? (
@@ -198,23 +266,23 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
                     }`}
                   >
                     <div className="flex items-center">
+                      <FiPackage className="h-4 w-4 text-blue-500 mr-2" />
                       <span className="ml-2">{material.nombre}</span>
                       {material.categoria && (
                         <span className="ml-2 text-xs text-gray-500">({material.categoria})</span>
                       )}
                     </div>
                     {selectedMaterialIds.includes(material.id) && (
-                      <svg className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
+                      <FiCheck className="h-5 w-5 text-blue-600" />
                     )}
                   </li>
                 ))
               )}
             </ul>
           </div>
-        )}
-      </div>
+        </>,
+        portalContainer
+      )}
     </div>
   );
 } 
