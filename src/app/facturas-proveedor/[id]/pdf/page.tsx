@@ -445,7 +445,7 @@ export default function FacturaProveedorPDFPage() {
             <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12pt' }}>Importe:</div>
             <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f9f9f9', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>TOTAL:</span>
-              <span>{factura.importe ? `${parseFloat(factura.importe).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '-'}</span>
+              <span>{factura.importe ? `${factura.importe.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '-'}</span>
             </div>
           </div>
         </div>
