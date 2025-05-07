@@ -455,6 +455,56 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
           </div>
         </div>
 
+        {/* Materiales que provee */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+          <div className="px-4 py-5 sm:px-6 bg-gray-50 flex items-center">
+            <div className="flex-shrink-0 h-12 w-12 flex items-center justify-center bg-indigo-100 rounded-full mr-4">
+              <FiPackage className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Materiales que provee</h3>
+              <p className="max-w-2xl text-sm text-gray-500">
+                Listado de materiales disponibles con este proveedor
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200">
+            {materiales.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio/Unidad</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {materiales.map((material) => (
+                      <tr key={material.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {material.nombre}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {material.descripcion || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {material.precio_unidad ? `${material.precio_unidad} ${material.unidad || ''}` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-6 py-4 text-center text-sm text-gray-500">
+                No hay materiales asociados a este proveedor
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Mostrar documento adjunto si existe */}
         {renderArchivoAdjunto()}
 
