@@ -43,6 +43,7 @@ interface NotasData {
   paymentTerms?: string;
   notas?: string;
   items?: InvoiceItem[];
+  items_completos?: InvoiceItem[];
   descripcion?: string;
   deliveryTerms?: string;
   puerto_origen?: string;
