@@ -51,11 +51,6 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
       year: 'numeric'
     });
     
-    // Calcular totales
-    const subtotal = invoice.items.reduce((sum, item) => sum + item.totalValue, 0);
-    const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
-    const totalAmount = subtotal + taxAmount;
-
     // Obtener detalles bancarios a partir de la cuenta seleccionada
     const selectedBank = CUENTAS_BANCARIAS.find(cuenta => cuenta.descripcion === invoice.bankAccount);
     const bankName = selectedBank?.banco || '';
@@ -66,19 +61,19 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
     return (
       <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none' }}>
         {/* Cabecera con logo */}
-        <div className="mb-8 flex justify-between items-start border-b pb-6">
+        <div className="mb-6 flex justify-between items-start border-b pb-4">
           <div className="flex items-center">
             <img 
               src="/images/logo.png" 
               alt="Logo TriCycle CRM" 
-              className="h-20 mr-4" 
+              className="h-16 mr-4" 
               style={{ objectFit: 'contain' }}
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">TRICYCLE CRM</h1>
-              <p className="text-gray-600">C/ Principal 123</p>
-              <p className="text-gray-600">28001 Madrid, España</p>
-              <p className="text-gray-600">CIF: B12345678</p>
+              <h1 className="text-xl font-bold text-gray-800">TRICYCLE CRM</h1>
+              <p className="text-sm text-gray-600">C/ Principal 123</p>
+              <p className="text-sm text-gray-600">28001 Madrid, España</p>
+              <p className="text-sm text-gray-600">CIF: B12345678</p>
             </div>
           </div>
           <div className="text-right">
@@ -110,94 +105,99 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
           </div>
         </div>
 
-        {/* Información del cliente */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Cliente</h2>
-            <p className="font-medium text-lg">{invoice.customerName}</p>
-            {invoice.taxId && <p className="text-gray-600">CIF/NIF: {invoice.taxId}</p>}
-            {invoice.direccion && <p className="text-gray-600">{invoice.direccion}</p>}
-            {(invoice.ciudad || invoice.codigo_postal) && (
-              <p className="text-gray-600">
-                {invoice.ciudad}
-                {invoice.codigo_postal && invoice.ciudad ? `, ${invoice.codigo_postal}` : invoice.codigo_postal}
-              </p>
-            )}
-            {invoice.pais && <p className="text-gray-600">{invoice.pais}</p>}
-          </div>
-          
-          {/* Términos de pago */}
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Términos de pago</h2>
-            <p>{invoice.paymentTerms || "No especificado"}</p>
-          </div>
-        </div>
-
-        {/* Términos de Entrega */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-            <div className="p-2 border rounded-md">
-              {invoice.puerto_destino || "No especificado"}
-            </div>
-          </div>
-        </div>
-
-        {/* Líneas de factura */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-3 text-gray-700 border-b pb-1">Detalle de factura</h2>
-          <table className="w-full border-collapse">
+        {/* Descripción de Bienes - Posicionada antes para asegurar visibilidad */}
+        <div className="mb-6">
+          <h2 className="text-xl font-bold mb-3 text-gray-800 border-b pb-2">DESCRIPCIÓN DE BIENES</h2>
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-gray-100">
-                <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Peso (MT)</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
-                <th className="py-2 px-4 text-center border border-gray-300">Tipo Empaque</th>
-                <th className="py-2 px-4 text-right border border-gray-300">IVA %</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Total</th>
+                <th className="py-2 px-3 text-left border border-gray-800 font-bold uppercase">FULL DESCRIPTION OF GOODS</th>
+                <th className="py-2 px-3 text-center border border-gray-800 font-bold uppercase">WEIGHT</th>
+                <th className="py-2 px-3 text-center border border-gray-800 font-bold uppercase">PRICE</th>
+                <th className="py-2 px-3 text-center border border-gray-800 font-bold uppercase">TOTAL VALUE</th>
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="py-2 px-4 border border-gray-300">{item.description}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.weight || 0}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{(item.unitPrice || 0).toFixed(2)} €</td>
-                  <td className="py-2 px-4 text-center border border-gray-300">{item.packagingType || "N/A"}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{(item.totalValue || 0).toFixed(2)} €</td>
+              {/* Si hay items, mostrarlos; de lo contrario mostrar un item de ejemplo */}
+              {invoice.items && invoice.items.length > 0 ? (
+                invoice.items.map((item, index) => (
+                  <tr key={index} className="bg-white">
+                    <td className="py-2 px-3 border border-gray-800 font-medium">{(item.description || 'PRODUCTO SIN DESCRIPCIÓN').toUpperCase()}</td>
+                    <td className="py-2 px-3 text-center border border-gray-800">{(item.weight || 0).toFixed(2)} MT</td>
+                    <td className="py-2 px-3 text-center border border-gray-800">{(item.unitPrice || 0).toFixed(2).replace('.', ',')} €</td>
+                    <td className="py-2 px-3 text-center border border-gray-800">{(item.totalValue || 0).toFixed(2).replace('.', ',')} €</td>
+                  </tr>
+                ))
+              ) : (
+                <tr className="bg-white">
+                  <td className="py-2 px-3 border border-gray-800 font-medium">PP PLASTIC SCRAP - SAMPLE CODE</td>
+                  <td className="py-2 px-3 text-center border border-gray-800">20.00 MT</td>
+                  <td className="py-2 px-3 text-center border border-gray-800">200,00 €</td>
+                  <td className="py-2 px-3 text-center border border-gray-800">4000,00 €</td>
                 </tr>
-              ))}
+              )}
+              {/* Fila de origen y total */}
+              <tr className="bg-white">
+                <td className="py-2 px-3 border border-gray-800 font-medium">ORIGIN OF GOODS: {(invoice.origen || invoice.puerto_origen || "SPAIN").toUpperCase()}</td>
+                <td className="py-2 px-3 text-center border border-gray-800">{(invoice.pesoTotal || 0).toFixed(2)} MT</td>
+                <td className="py-2 px-3 text-center border border-gray-800">Total Amount</td>
+                <td className="py-2 px-3 text-center border border-gray-800">
+                  {invoice.items && invoice.items.length > 0 
+                    ? invoice.subtotal.toFixed(2).replace('.', ',') 
+                    : '4000,00'} €
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Resumen */}
-        <div className="mb-6 flex justify-end">
-          <div className="w-64 border border-gray-300 rounded-md overflow-hidden">
-            <div className="flex justify-between py-2 px-4 bg-gray-50 border-b">
+        {/* Resumen financiero */}
+        <div className="mb-8 flex justify-end">
+          <div className="w-48 border border-gray-800 rounded-md overflow-hidden">
+            <div className="flex justify-between py-1 px-3 bg-gray-50 border-b text-sm">
               <span className="font-medium">Subtotal:</span>
-              <span>{(subtotal || 0).toFixed(2)} €</span>
+              <span>{invoice.subtotal.toFixed(2).replace('.', ',')} €</span>
             </div>
-            <div className="flex justify-between py-2 px-4 bg-white border-b">
+            <div className="flex justify-between py-1 px-3 bg-white border-b text-sm">
               <span className="font-medium">IVA:</span>
-              <span>{(taxAmount || 0).toFixed(2)} €</span>
+              <span>{invoice.taxAmount.toFixed(2).replace('.', ',')} €</span>
             </div>
-            <div className="flex justify-between py-3 px-4 bg-gray-100 font-bold">
+            <div className="flex justify-between py-2 px-3 bg-gray-100 font-bold text-sm">
               <span>Total:</span>
-              <span>{(totalAmount || 0).toFixed(2)} €</span>
+              <span>{invoice.totalAmount.toFixed(2).replace('.', ',')} €</span>
             </div>
+          </div>
+        </div>
+
+        {/* Información del cliente y términos */}
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
+            <h2 className="text-sm font-semibold mb-2 text-gray-700 border-b pb-1">Cliente</h2>
+            <p className="font-medium text-sm">{invoice.customerName}</p>
+            {invoice.taxId && <p className="text-xs text-gray-600">CIF/NIF: {invoice.taxId}</p>}
+            {invoice.direccion && <p className="text-xs text-gray-600">{invoice.direccion}</p>}
+            {(invoice.ciudad || invoice.codigo_postal) && (
+              <p className="text-xs text-gray-600">
+                {invoice.ciudad}
+                {invoice.codigo_postal && invoice.ciudad ? `, ${invoice.codigo_postal}` : invoice.codigo_postal}
+              </p>
+            )}
+            {invoice.pais && <p className="text-xs text-gray-600">{invoice.pais}</p>}
+          </div>
+          
+          {/* Términos de pago y entrega */}
+          <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
+            <h2 className="text-sm font-semibold mb-2 text-gray-700 border-b pb-1">Términos</h2>
+            <p className="text-xs"><span className="font-medium">Pago:</span> {invoice.paymentTerms || "No especificado"}</p>
+            <p className="text-xs"><span className="font-medium">Entrega:</span> {invoice.deliveryTerms || "No especificado"}</p>
+            <p className="text-xs"><span className="font-medium">Puerto:</span> {invoice.puerto_destino || "No especificado"}</p>
           </div>
         </div>
         
         {/* Información Bancaria */}
-        <div className="mb-8 border border-gray-300 rounded-md p-4 bg-gray-50">
-          <h2 className="text-lg font-semibold mb-2 text-gray-700">Información Bancaria</h2>
-          <div className="grid grid-cols-2 gap-4">
+        <div className="mb-6 border border-gray-300 rounded-md p-3 bg-gray-50">
+          <h2 className="text-sm font-semibold mb-2 text-gray-700 border-b pb-1">Información Bancaria</h2>
+          <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
               <p><span className="font-medium">Banco:</span> {bankName}</p>
               <p><span className="font-medium">IBAN:</span> {iban}</p>
@@ -211,9 +211,9 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
         
         {/* Notas */}
         {invoice.invoiceNotes && (
-          <div className="mb-8 border-t pt-4">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700">Notas</h2>
-            <p className="text-gray-600 whitespace-pre-line">{invoice.invoiceNotes}</p>
+          <div className="mb-6 border-t pt-3">
+            <h2 className="text-sm font-semibold mb-2 text-gray-700 border-b pb-1">Notas</h2>
+            <p className="text-xs text-gray-600 whitespace-pre-line">{invoice.invoiceNotes}</p>
           </div>
         )}
         

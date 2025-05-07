@@ -1,0 +1,41 @@
+// Función para generar el PDF
+const generatePDF = async () => {
+  setGenerating(true);
+  
+  try {
+    // Verificar si existe un archivo PDF almacenado para esta factura
+    const supabase = getSupabaseClient();
+    const fileExtension = factura?.nombre_archivo?.split('.').pop() || 'pdf';
+    const filePath = `facturas-proveedor/${factura?.id}.${fileExtension}`;
+    
+    // Intentar obtener la URL firmada del archivo
+    const { data: urlData, error: urlError } = await supabase
+      .storage
+      .from('documentos')
+      .createSignedUrl(filePath, 60 * 60); // URL válida por 1 hora
+    
+    if (urlError) {
+      // Si el archivo no existe en la carpeta facturas-proveedor, buscar en documentos
+      const alternativeFilePath = `documentos/facturas-proveedor/${factura?.id}.${fileExtension}`;
+      const { data: altUrlData, error: altUrlError } = await supabase
+----------------
+          <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '5px', backgroundColor: '#f9f9f9', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+            <span>TOTAL:</span>
+            <span>{factura.importe ? `${parseFloat(factura.importe).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '-'}</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Notas */}
+      {factura.notas && (
+        <div style={{ marginBottom: '30px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12pt' }}>Notas:</div>
+          <div style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '5px', fontSize: '10pt', whiteSpace: 'pre-wrap' }}>
+            {factura.notas}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+ 

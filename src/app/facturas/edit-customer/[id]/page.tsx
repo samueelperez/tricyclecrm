@@ -19,8 +19,9 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
-import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, CUENTAS_BANCARIAS } from '@/lib/constants';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS } from '@/lib/constants';
 import InvoicePrintView from '@/components/invoice-print-view';
+import { useCuentasBancarias, CuentaBancaria, getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 // Interfaces para los datos
 interface InvoiceItem {
@@ -129,7 +130,14 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
     puerto_origen: '',
     puerto_destino: '',
-    deliveryTerms: ''
+    deliveryTerms: '',
+    origen: '',
+    contenedores: '',
+    pesoTotal: 0,
+    direccion: '',
+    ciudad: '',
+    pais: '',
+    codigo_postal: ''
   });
   
   const [clientesList, setClientesList] = useState<Cliente[]>([]);
@@ -137,6 +145,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
+
+  // Obtener cuentas bancarias desde la base de datos
+  const { cuentas: cuentasBancarias, loading: loadingCuentas, error: errorCuentas } = useCuentasBancarias();
 
   // Manejador para cerrar la lista de sugerencias al hacer clic fuera
   useEffect(() => {
@@ -242,10 +253,10 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         const codigo_postal = materialData.codigo_postal || materialData.cp || '';
         
         // Obtener información adicional del cliente si no tenemos los datos de dirección
-        let clienteDireccion = direccion;
-        let clienteCiudad = ciudad;
-        let clientePais = pais;
-        let clienteCP = codigo_postal;
+        let clienteDireccion = direccion || '';
+        let clienteCiudad = ciudad || '';
+        let clientePais = pais || '';
+        let clienteCP = codigo_postal || '';
         
         // Si no hay información de dirección y tenemos el cliente_id, buscar los datos del cliente
         if ((!clienteDireccion || !clienteCiudad || !clientePais) && data.cliente_id) {
@@ -272,6 +283,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         try {
           if (data.items) {
             items = JSON.parse(data.items);
+          } else if (materialData.items_completos) {
+            // Usar los items completos si están disponibles
+            items = materialData.items_completos;
           } else if (materialData.items) {
             items = materialData.items;
           } else {
@@ -302,6 +316,16 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           }];
         }
         
+        // Obtener cuentas bancarias de fallback si no hay cuentas de la BD
+        const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+          ? cuentasBancarias 
+          : getCuentasBancariasFallback();
+        
+        // Encontrar la cuenta bancaria correspondiente o usar la primera disponible
+        const cuentaSeleccionada = data.cuenta_bancaria 
+          ? cuentasBancariasDisponibles.find(c => c.descripcion === data.cuenta_bancaria) 
+          : null;
+        
         // Construir el objeto de factura
         const facturaData: Invoice = {
           id: data.id,
@@ -316,7 +340,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           subtotal: data.monto || 0,
           taxAmount: (data.monto || 0) * 0.21,
           totalAmount: (data.monto || 0) * 1.21,
-          bankAccount: data.cuenta_bancaria || 'Santander S.A. - ES6000495332142610008899 - USD',
+          bankAccount: data.cuenta_bancaria || (cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : ''),
           puerto_origen: puerto_origen,
           puerto_destino: puerto_destino,
           deliveryTerms: deliveryTerms,
@@ -340,7 +364,61 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     };
     
     loadInvoice();
-  }, [params.id]);
+  }, [params.id, cuentasBancarias]);
+
+  // Validar y corregir valores undefined después de cargar la factura
+  useEffect(() => {
+    if (!loading && invoice) {
+      // Verificar y corregir valores undefined en el objeto principal
+      const validatedInvoice = { ...invoice };
+      
+      // Definir campos y sus valores por defecto
+      const defaultValues: Record<string, any> = {
+        customerName: '',
+        taxId: '',
+        paymentTerms: '',
+        invoiceNotes: '',
+        puerto_origen: '',
+        puerto_destino: '',
+        deliveryTerms: '',
+        origen: '',
+        contenedores: '',
+        pesoTotal: 0,
+        direccion: '',
+        ciudad: '',
+        pais: '',
+        codigo_postal: ''
+      };
+      
+      // Aplicar valores por defecto donde sea necesario
+      Object.entries(defaultValues).forEach(([field, defaultValue]) => {
+        if (validatedInvoice[field] === undefined) {
+          validatedInvoice[field] = defaultValue;
+        }
+      });
+      
+      // Verificar y corregir elementos en la matriz de items
+      if (validatedInvoice.items && Array.isArray(validatedInvoice.items)) {
+        validatedInvoice.items = validatedInvoice.items.map(item => ({
+          id: item.id || `item_${Math.random().toString(36).substr(2, 9)}`,
+          description: item.description || '',
+          quantity: item.quantity || 0,
+          unitPrice: item.unitPrice || 0,
+          taxRate: item.taxRate || 21,
+          totalValue: item.totalValue || 0,
+          weight: item.weight || 0,
+          packaging: item.packaging || '',
+          packagingType: item.packagingType || ''
+        }));
+      }
+      
+      // Actualizar el estado solo si hubo cambios
+      if (JSON.stringify(validatedInvoice) !== JSON.stringify(invoice)) {
+        console.log('Corrigiendo valores undefined en la factura');
+        setInvoice(validatedInvoice);
+      }
+    }
+  }, [loading, invoice]);
 
   const handleCancel = () => {
     router.push(`/facturas?tab=customer`);
@@ -375,20 +453,12 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       // Calcular peso total
       const pesoTotal = invoice.items.reduce((sum, item) => sum + (item.weight || 0), 0);
       
-      // Guardar los items en otro campo o como información resumida
-      const itemResumen = invoice.items.map(item => ({
-        d: item.description ? item.description.substring(0, 15) : "",
-        q: item.quantity,
-        p: item.unitPrice,
-        t: item.packagingType ? item.packagingType.substring(0, 1) : ""
-      }));
-      
       // Preparar datos para guardar en Supabase
       const facturaData = {
         id_externo: invoice.number,
         fecha: invoice.date,
         cliente_id: cliente_id,
-        monto: invoice.totalAmount,
+        monto: subtotal,
         material: JSON.stringify({
           cn: invoice.customerName ? invoice.customerName.substring(0, 30) : "",
           tax: invoice.taxId || "",
@@ -404,7 +474,15 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           ciu: invoice.ciudad || "",
           pa: invoice.pais || "",
           cp: invoice.codigo_postal || "",
-          items: itemResumen
+          // Guardar los items completos
+          items_completos: invoice.items,
+          // Mantener el resumen para compatibilidad con versiones anteriores
+          items: invoice.items.map(item => ({
+            d: item.description ? item.description.substring(0, 15) : "",
+            q: item.quantity,
+            p: item.unitPrice,
+            t: item.packagingType ? item.packagingType.substring(0, 1) : ""
+          }))
         }),
         notas: invoice.invoiceNotes ? invoice.invoiceNotes.substring(0, 200) : "",
         estado: invoice.estado,
@@ -425,6 +503,49 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       
       if (updateError) {
         throw new Error(`Error al actualizar la factura: ${updateError.message}`);
+      }
+      
+      // NUEVO: Actualizar los items en la tabla facturas_items
+      try {
+        // 1. Primero eliminamos los items existentes para esta factura
+        const { error: deleteError } = await supabase
+          .from('facturas_items')
+          .delete()
+          .eq('factura_id', invoice.id);
+          
+        if (deleteError) {
+          console.error('Error al eliminar items antiguos:', deleteError);
+          // Continuamos aunque haya error, para intentar insertar los nuevos
+        }
+        
+        // 2. Luego insertamos los nuevos items
+        if (invoice.items && invoice.items.length > 0) {
+          const itemsToInsert = invoice.items.map(item => ({
+            factura_id: invoice.id,
+            descripcion: item.description || 'Sin descripción',
+            cantidad: item.quantity || 1,
+            peso: item.weight || null,
+            peso_unidad: 'MT',
+            precio_unitario: item.unitPrice || 0,
+            total: item.totalValue || 0,
+            codigo: item.packaging || null
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('facturas_items')
+            .insert(itemsToInsert);
+            
+          if (insertError) {
+            console.error('Error al insertar nuevos items:', insertError);
+            // Alertamos pero no interrumpimos el flujo
+            console.warn('Los items no se guardaron correctamente en la tabla facturas_items');
+          } else {
+            console.log('Items guardados correctamente en facturas_items');
+          }
+        }
+      } catch (itemsError) {
+        console.error('Error en el proceso de actualización de items:', itemsError);
+        // No interrumpimos el flujo principal por esto
       }
       
       alert('Factura actualizada correctamente');
@@ -455,7 +576,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Calcular subtotal, impuestos y total
     const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
     const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
-    const totalAmount = subtotal + taxAmount;
+    const totalAmount = subtotal + taxAmount; // El total incluye el IVA pero solo para mostrar
     
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
@@ -463,9 +584,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     setInvoice({
       ...invoice,
       items: updatedItems,
-      subtotal,
+      subtotal, // El subtotal es el monto sin IVA
       taxAmount,
-      totalAmount,
+      totalAmount, // El totalAmount incluye el IVA pero solo se usa para mostrar
       pesoTotal
     });
   };
@@ -488,7 +609,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Recalcular totales
     const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
     const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
-    const totalAmount = subtotal + taxAmount;
+    const totalAmount = subtotal + taxAmount; // El total incluye el IVA pero solo para mostrar
     
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
@@ -496,9 +617,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     setInvoice({
       ...invoice,
       items: updatedItems,
-      subtotal,
+      subtotal, // Guardamos el subtotal sin IVA
       taxAmount,
-      totalAmount,
+      totalAmount, // Solo para mostrar
       pesoTotal
     });
   };
@@ -510,7 +631,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Recalcular totales
     const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
     const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
-    const totalAmount = subtotal + taxAmount;
+    const totalAmount = subtotal + taxAmount; // El total incluye el IVA pero solo para mostrar
     
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
@@ -518,9 +639,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     setInvoice({
       ...invoice,
       items: updatedItems,
-      subtotal,
+      subtotal, // Guardamos el subtotal sin IVA como monto principal
       taxAmount,
-      totalAmount,
+      totalAmount, // Solo para mostrar
       pesoTotal
     });
   };
@@ -582,6 +703,25 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       alert('Error al generar el PDF. Por favor, inténtelo de nuevo.');
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  // Función para manejar cuando se selecciona un cliente de la lista
+  const handleClienteSelect = (clienteSeleccionado: Cliente) => {
+    console.log('Cliente seleccionado:', clienteSeleccionado);
+    
+    if (clienteSeleccionado) {
+      // Actualizar la factura con la información del cliente
+      setInvoice(prev => ({
+        ...prev,
+        customerName: clienteSeleccionado.nombre || '',
+        taxId: clienteSeleccionado.id_fiscal || '',
+        // Añadir otros campos del cliente si están disponibles
+        direccion: clienteSeleccionado.direccion || '',
+        ciudad: clienteSeleccionado.ciudad || '',
+        pais: clienteSeleccionado.pais || '',
+        codigo_postal: clienteSeleccionado.codigo_postal || ''
+      }));
     }
   };
 
@@ -911,41 +1051,45 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 <label className="block text-xs font-medium text-gray-500 mb-1">Descripción</label>
                 <input 
                   type="text" 
-                  placeholder="ej. PP PLASTICS"
+                  placeholder="Descripción del producto"
                   className="w-full p-2 border rounded-md"
+                  id="new-item-description"
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Cantidad</label>
                 <input 
-                  type="text" 
-                  placeholder="ej. 3"
+                  type="number" 
+                  placeholder="0"
                   className="w-full p-2 border rounded-md"
+                  id="new-item-quantity"
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Peso (MT)</label>
                 <input 
                   type="number" 
-                  placeholder="ej. 19.6"
+                  placeholder="0"
                   className="w-full p-2 border rounded-md"
+                  id="new-item-weight"
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Precio Unitario</label>
                 <input 
-                  type="text" 
-                  placeholder="ej. 80€"
+                  type="number" 
+                  placeholder="0"
                   className="w-full p-2 border rounded-md"
+                  id="new-item-price"
                 />
               </div>
               <div className="col-span-3 md:col-span-1">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Tipo Empaque</label>
                 <select 
                   className="w-full p-2 border rounded-md appearance-none"
-                  onChange={(e) => addNewItem()}
+                  id="new-item-packaging"
                 >
-                  <option value="">Tipo</option>
+                  <option value="">Seleccionar...</option>
                   <option value="Bales">Bales</option>
                   <option value="Bags">Bags</option>
                   <option value="Bulk">Bulk</option>
@@ -955,7 +1099,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 <label className="block text-xs font-medium text-gray-500 mb-1">Valor Total <span className="text-blue-500">auto</span></label>
                 <input 
                   type="text" 
-                  placeholder="ej. 80€"
+                  placeholder="0.00"
                   className="w-full p-2 border rounded-md bg-gray-50"
                   readOnly
                 />
@@ -964,7 +1108,66 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
             <div className="flex justify-end border-t p-2 bg-white">
               <button 
                 className="p-1 text-blue-500 hover:bg-blue-50 rounded"
-                onClick={addNewItem}
+                onClick={() => {
+                  // Obtener los valores de los campos
+                  const description = (document.getElementById('new-item-description') as HTMLInputElement)?.value || '';
+                  const quantity = parseFloat((document.getElementById('new-item-quantity') as HTMLInputElement)?.value || '0');
+                  const weight = parseFloat((document.getElementById('new-item-weight') as HTMLInputElement)?.value || '0');
+                  const unitPrice = parseFloat((document.getElementById('new-item-price') as HTMLInputElement)?.value || '0');
+                  const packagingType = (document.getElementById('new-item-packaging') as HTMLSelectElement)?.value || '';
+                  
+                  // Crear un nuevo item con estos valores
+                  const newItem = {
+                    id: Date.now().toString(),
+                    description,
+                    quantity,
+                    weight,
+                    unitPrice,
+                    packaging: '',
+                    packagingType,
+                    totalValue: quantity * unitPrice,
+                    taxRate: 21
+                  };
+                  
+                  // Añadir el nuevo item al array
+                  const updatedItems = [...invoice.items, newItem];
+                  
+                  // Recalcular totales
+                  const subtotal = updatedItems.reduce((sum, item) => sum + item.totalValue, 0);
+                  const taxAmount = updatedItems.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
+                  const totalAmount = subtotal + taxAmount;
+                  
+                  // Calcular peso total
+                  const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
+                  
+                  // Actualizar el estado
+                  setInvoice({
+                    ...invoice,
+                    items: updatedItems,
+                    subtotal,
+                    taxAmount,
+                    totalAmount,
+                    pesoTotal
+                  });
+                  
+                  // Limpiar los campos
+                  if (document.getElementById('new-item-description')) {
+                    (document.getElementById('new-item-description') as HTMLInputElement).value = '';
+                  }
+                  if (document.getElementById('new-item-quantity')) {
+                    (document.getElementById('new-item-quantity') as HTMLInputElement).value = '';
+                  }
+                  if (document.getElementById('new-item-weight')) {
+                    (document.getElementById('new-item-weight') as HTMLInputElement).value = '';
+                  }
+                  if (document.getElementById('new-item-price')) {
+                    (document.getElementById('new-item-price') as HTMLInputElement).value = '';
+                  }
+                  if (document.getElementById('new-item-packaging')) {
+                    (document.getElementById('new-item-packaging') as HTMLSelectElement).value = '';
+                  }
+                }}
+                title="Añadir nueva línea"
               >
                 <FiPlus className="w-5 h-5" />
               </button>
@@ -1005,7 +1208,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
               <label className="block text-sm font-medium text-gray-700 mb-1">Monto Total <span className="text-blue-500">auto</span></label>
               <input 
                 type="text" 
-                value={invoice.totalAmount.toFixed(2)}
+                value={invoice.subtotal.toFixed(2)}
                 className="w-full p-2 border rounded-md"
                 readOnly
               />
@@ -1020,17 +1223,21 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
             <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={invoice.bankAccount}
-                onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
-              >
-                {CUENTAS_BANCARIAS.map(cuenta => (
-                  <option key={cuenta.id} value={cuenta.descripcion}>
-                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
-                  </option>
-                ))}
-              </select>
+              {loadingCuentas ? (
+                <div className="w-full p-2 border rounded-md">Cargando cuentas bancarias...</div>
+              ) : (
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  value={invoice.bankAccount}
+                  onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
+                >
+                  {(cuentasBancarias.length > 0 ? cuentasBancarias : getCuentasBancariasFallback()).map(cuenta => (
+                    <option key={cuenta.id} value={cuenta.descripcion}>
+                      {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
@@ -1040,14 +1247,18 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           {/* Mostrar detalles bancarios */}
           {invoice.bankAccount && (
             <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
-              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === invoice.bankAccount).map(cuenta => (
-                <div key={cuenta.id}>
-                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
-                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
-                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
-                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
-                </div>
-              ))}
+              {(cuentasBancarias.length > 0 ? cuentasBancarias : getCuentasBancariasFallback())
+                .filter(cuenta => cuenta.descripcion === invoice.bankAccount)
+                .map(cuenta => (
+                  <div key={cuenta.id}>
+                    <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                    <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                    <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                    <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                    <p><span className="font-medium">Beneficiario:</span> {cuenta.beneficiario}</p>
+                  </div>
+                ))
+              }
             </div>
           )}
         </div>
@@ -1091,7 +1302,30 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       </div>
       
       {/* Componente oculto para la vista de impresión */}
-      <InvoicePrintView invoice={invoice} ref={printComponentRef} />
+      <InvoicePrintView 
+        invoice={{
+          ...invoice,
+          // Asegurar que todos los campos necesarios estén disponibles
+          subtotal: invoice.subtotal || 0,
+          taxAmount: invoice.taxAmount || 0,
+          totalAmount: invoice.totalAmount || 0,
+          puerto_origen: invoice.puerto_origen || '',
+          puerto_destino: invoice.puerto_destino || '',
+          origen: invoice.origen || '',
+          contenedores: invoice.contenedores || '0',
+          pesoTotal: invoice.pesoTotal || 0,
+          items: invoice.items.map(item => ({
+            ...item,
+            description: item.description || '',
+            quantity: item.quantity || 0,
+            unitPrice: item.unitPrice || 0,
+            totalValue: item.totalValue || 0,
+            weight: item.weight || 0,
+            packagingType: item.packagingType || ''
+          }))
+        }} 
+        ref={printComponentRef} 
+      />
     </div>
   );
 } 

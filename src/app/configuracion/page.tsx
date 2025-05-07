@@ -18,7 +18,8 @@ import {
   FiCheckCircle,
   FiEdit,
   FiBookmark,
-  FiX
+  FiX,
+  FiExternalLink
 } from "react-icons/fi";
 import { getSupabaseClient, ejecutarMigracionConfiguracion } from "@/lib/supabase";
 
@@ -84,7 +85,7 @@ export default function ConfiguracionPage() {
   const seccionesPrincipales = [
     { id: "general", label: "General", icon: <FiSettings className="h-5 w-5" /> },
     { id: "usuarios", label: "Usuarios", icon: <FiUsers className="h-5 w-5" /> },
-    { id: "notificaciones", label: "Notificaciones", icon: <FiMail className="h-5 w-5" /> },
+    { id: "financiero", label: "Financiero", icon: <FiDollarSign className="h-5 w-5" /> },
     { id: "avanzado", label: "Avanzado", icon: <FiServer className="h-5 w-5" /> },
   ];
 
@@ -129,20 +130,20 @@ export default function ConfiguracionPage() {
         ruta: "/configuracion/seguridad" 
       }
     ],
-    notificaciones: [
+    financiero: [
       { 
-        id: "email", 
-        titulo: "Correo electrónico", 
-        descripcion: "Configura los correos electrónicos de notificación y plantillas", 
-        icon: <FiMail className="h-7 w-7 text-yellow-500" />,
-        ruta: "/configuracion/email" 
+        id: "cuentasBancarias", 
+        titulo: "Cuentas Bancarias", 
+        descripcion: "Administra las cuentas bancarias para facturas y pagos", 
+        icon: <FiCreditCard className="h-7 w-7 text-blue-500" />,
+        ruta: "/configuracion/cuentas-bancarias" 
       },
       { 
-        id: "alertas", 
-        titulo: "Alertas", 
-        descripcion: "Configura cuando y cómo recibir alertas del sistema", 
-        icon: <FiAlertCircle className="h-7 w-7 text-orange-500" />,
-        ruta: "/configuracion/alertas" 
+        id: "pagos", 
+        titulo: "Métodos de pago", 
+        descripcion: "Configura los métodos de pago aceptados", 
+        icon: <FiDollarSign className="h-7 w-7 text-green-500" />,
+        ruta: "/configuracion/pagos" 
       }
     ],
     avanzado: [
@@ -159,13 +160,6 @@ export default function ConfiguracionPage() {
         descripcion: "Configuración de transportistas y métodos de envío", 
         icon: <FiTruck className="h-7 w-7 text-blue-500" />,
         ruta: "/configuracion/logistica" 
-      },
-      { 
-        id: "pagos", 
-        titulo: "Métodos de pago", 
-        descripcion: "Configura los métodos de pago aceptados", 
-        icon: <FiCreditCard className="h-7 w-7 text-green-500" />,
-        ruta: "/configuracion/pagos" 
       },
       { 
         id: "integraciones", 
@@ -255,36 +249,54 @@ export default function ConfiguracionPage() {
         </div>
         
         {/* Estado del sistema */}
-        <div className="mt-12 bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Estado del sistema</h3>
-          <div className="flex flex-col space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Base de datos</span>
-              <span className="flex items-center text-green-500">
-                <FiCheckCircle className="h-4 w-4 mr-1" />
-                <span className="text-sm">{systemInfo.dbStatus}</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Almacenamiento</span>
-              <span className="flex items-center text-green-500">
-                <FiCheckCircle className="h-4 w-4 mr-1" />
-                <span className="text-sm">{systemInfo.storage}</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Última copia de seguridad</span>
-              <span className="flex items-center text-yellow-500">
-                <FiAlertCircle className="h-4 w-4 mr-1" />
-                <span className="text-sm">{systemInfo.lastBackup}</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Versión</span>
-              <span className="text-sm text-gray-800">TricycleCRM {systemInfo.version}</span>
+        {activeTab === "avanzado" && (
+          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-medium text-gray-800 mb-4">Estado del sistema</h3>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-4 rounded-md">
+                <div className="flex items-center">
+                  <FiDatabase className="h-5 w-5 text-blue-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Base de datos</span>
+                </div>
+                <div className="mt-2 flex items-center">
+                  <FiCheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                  <span className="text-sm text-gray-600">{systemInfo.dbStatus}</span>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-md">
+                <div className="flex items-center">
+                  <FiServer className="h-5 w-5 text-blue-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Almacenamiento</span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-sm text-gray-600">{systemInfo.storage}</span>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-md">
+                <div className="flex items-center">
+                  <FiDatabase className="h-5 w-5 text-blue-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Último respaldo</span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-sm text-gray-600">{systemInfo.lastBackup}</span>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-md">
+                <div className="flex items-center">
+                  <FiSettings className="h-5 w-5 text-blue-500 mr-2" />
+                  <span className="text-sm font-medium text-gray-700">Versión</span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-sm text-gray-600">{systemInfo.version}</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,12 @@ import Link from 'next/link';
 import { FiArrowLeft, FiUpload, FiX, FiPackage, FiPlus, FiSearch, FiChevronDown } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { CUENTAS_BANCARIAS } from '@/lib/constants';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { getSupabaseClient } from '@/lib/supabase';
+import ClienteSelector, { Cliente } from '@/components/cliente-selector';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, EMPAQUE_OPCIONES } from '@/lib/constants';
+import { useCuentasBancarias, getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 interface Material {
   id: number;
@@ -216,16 +222,57 @@ function NewProformaContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') === 'supplier' ? 'supplier' : 'customer';
   const [loading, setLoading] = useState(false);
-  const [proforma, setProforma] = useState<SupplierProforma>({
-    dealNumber: '',
-    date: new Date().toISOString().split('T')[0],
-    supplierName: '',
-    totalAmount: 0,
-    materialName: '',
-    currency: 'EUR',
-    attachment: null,
-    bankAccount: CUENTAS_BANCARIAS[0].descripcion
+  const [error, setError] = useState<string | null>(null);
+  const [clientesList, setClientesList] = useState<Cliente[]>([]);
+  const [showPortSuggestions, setShowPortSuggestions] = useState(false);
+  const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
+  
+  // Obtener cuentas bancarias desde la base de datos
+  const { cuentas: cuentasBancarias, loading: loadingCuentas, error: errorCuentas } = useCuentasBancarias();
+  const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+    ? cuentasBancarias 
+    : getCuentasBancariasFallback();
+  
+  // Estados para manejar los modos de creación de proforma
+  const [createMode, setCreateMode] = useState<'blank' | 'duplicate'>('blank');
+  const [proformasToDuplicate, setProformasToDuplicate] = useState<any[]>([]);
+  const [selectedProformaId, setSelectedProformaId] = useState('');
+  
+  // Datos iniciales para la proforma
+  const [proforma, setProforma] = useState({
+    id: '',
+    numero: generateProformaNumber(),
+    fecha: format(new Date(), 'yyyy-MM-dd'),
+    clienteNombre: '',
+    idFiscal: '',
+    incoterm: '',
+    condicionesPago: '',
+    notas: '',
+    items: [{
+      id: '1',
+      descripcion: '',
+      cantidad: 0,
+      peso: 0,
+      precio_unitario: 0,
+      valor_total: 0,
+      empaque: ''
+    }],
+    puerto_origen: 'SPAIN', // Valor predeterminado
+    puerto_destino: '',
+    bankAccount: cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : '',
+    subtotal: 0,
+    total: 0
   });
+
+  // Actualizar la cuenta bancaria cuando se carguen las cuentas
+  useEffect(() => {
+    if (cuentasBancarias.length > 0 && !proforma.bankAccount) {
+      setProforma(prev => ({
+        ...prev,
+        bankAccount: cuentasBancarias[0].descripcion
+      }));
+    }
+  }, [cuentasBancarias]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -438,24 +485,29 @@ function NewProformaContent() {
           </div>
 
           {/* Bank Details - Añadido para igualar con facturas */}
-          <div className="mt-6">
-            <h3 className="text-md font-medium text-gray-700 mb-4">Datos Bancarios</h3>
+          <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+            <h3 className="text-lg font-medium text-gray-700 mb-4">Datos Bancarios</h3>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
               <div className="relative">
-                <select 
-                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                  value={proforma.bankAccount}
-                  onChange={(e) => setProforma(prev => ({...prev, bankAccount: e.target.value}))}
-                >
-                  {CUENTAS_BANCARIAS.map(cuenta => (
-                    <option key={cuenta.id} value={cuenta.descripcion}>
-                      {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <FiChevronDown className="h-5 w-5 text-gray-400" />
+                {loadingCuentas ? (
+                  <div className="w-full p-2 border rounded-md">Cargando cuentas bancarias...</div>
+                ) : (
+                  <select 
+                    className="w-full p-2 border rounded-md appearance-none"
+                    value={proforma.bankAccount}
+                    onChange={(e) => setProforma({...proforma, bankAccount: e.target.value})}
+                  >
+                    {cuentasBancariasDisponibles.map(cuenta => (
+                      <option key={cuenta.id} value={cuenta.descripcion}>
+                        {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <FiChevronDown className="w-5 h-5" />
                 </div>
               </div>
             </div>
@@ -463,14 +515,18 @@ function NewProformaContent() {
             {/* Mostrar detalles bancarios */}
             {proforma.bankAccount && (
               <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
-                {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === proforma.bankAccount).map(cuenta => (
-                  <div key={cuenta.id}>
-                    <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
-                    <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
-                    <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
-                    <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
-                  </div>
-                ))}
+                {cuentasBancariasDisponibles
+                  .filter(cuenta => cuenta.descripcion === proforma.bankAccount)
+                  .map(cuenta => (
+                    <div key={cuenta.id}>
+                      <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                      <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                      <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                      <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                      <p><span className="font-medium">Beneficiario:</span> {cuenta.beneficiario}</p>
+                    </div>
+                  ))
+                }
               </div>
             )}
           </div>

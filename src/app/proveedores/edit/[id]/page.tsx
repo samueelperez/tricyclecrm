@@ -200,33 +200,33 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
         return;
       }
       
-      // Verificar el tipo de archivo
-      const fileType = file.type;
-      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-      if (!validTypes.includes(fileType)) {
-        setError('Tipo de archivo no válido. Solo se permiten PDF, PNG, JPG.');
-        e.target.value = ''; // Limpiar el input file
-        return;
+      console.log('Archivo seleccionado:', {
+        nombre: file.name,
+        tipo: file.type,
+        tamaño: `${Math.round(file.size / 1024)} KB`
+      });
+      
+      // Liberar URL anterior si existe
+      if (formData.archivo_url) {
+        // Solo revocar si es una URL de objeto local, no una URL del servidor
+        if (!formData.archivo_url.startsWith('http')) {
+          URL.revokeObjectURL(formData.archivo_url);
+        }
       }
       
-      // Crear un objeto URL para previsualizar el archivo
+      // Crear URL para vista previa
       const fileUrl = URL.createObjectURL(file);
       
-      // Liberamos la URL anterior si existe para evitar fugas de memoria
-      if (formData.archivo_url && formData.archivo_adjunto) {
-        URL.revokeObjectURL(formData.archivo_url);
-      }
-      
-      // NO recreamos el objeto File, usamos el original
-      setFormData(prevData => ({
-        ...prevData,
+      // Actualizar estado
+      setFormData({
+        ...formData,
         archivo_adjunto: file,
         nombre_archivo: file.name,
         archivo_url: fileUrl
-      }));
+      });
       
-      console.log('Archivo seleccionado:', {
-        nombre: file.name,
+      console.log('Vista previa creada:', {
+        archivo: file.name,
         tipo: file.type,
         tamaño: `${Math.round(file.size / 1024)} KB`,
         previsualización: fileUrl
@@ -315,83 +315,65 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           const filePath = `proveedores/${proveedorId}_${timestamp}.${fileExt}`;
           console.log('Ruta del archivo generada:', filePath);
           
-          // Convertir el archivo a ArrayBuffer para evitar problemas de serialización
-          const arrayBuffer = await formData.archivo_adjunto.arrayBuffer();
-          const fileData = new Uint8Array(arrayBuffer);
-          
-          // Subir el nuevo archivo
+          // Subir el nuevo archivo, directamente con el objeto File
           console.log('Iniciando carga del archivo a Supabase Storage...');
-          console.log('Información del archivo a subir:', {
-            nombre: formData.archivo_adjunto.name,
-            tipo: formData.archivo_adjunto.type,
-            tamaño: `${Math.round(formData.archivo_adjunto.size / 1024)} KB`,
-            bucket: 'documentos',
-            ruta: filePath
-          });
           
-          // Subir archivo directamente usando el objeto File
-          try {
-            // Primero intentamos con arrayBuffer
-            let result = await supabase
-              .storage
-              .from('documentos')
-              .upload(filePath, fileData, {
-                upsert: true,
-                contentType: formData.archivo_adjunto.type
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('documentos')
+            .upload(filePath, formData.archivo_adjunto, {
+              upsert: true,
+              cacheControl: '3600'
+            });
+            
+          if (uploadError) {
+            console.error('Error al subir el archivo a Supabase:', uploadError);
+            console.error('Detalles del error:', JSON.stringify(uploadError));
+            
+            // Si el error es porque el bucket no existe, lo creamos
+            if (uploadError.message?.includes('bucket') && uploadError.message?.includes('not found')) {
+              console.log('Intentando crear el bucket "documentos"...');
+              await supabase.storage.createBucket('documentos', {
+                public: false,
               });
               
-            // Si hay error, intentamos subir directamente el archivo
-            if (result.error) {
-              console.warn('Error en el primer intento de carga. Intentando método alternativo...', result.error);
-              
-              result = await supabase
+              // Intentar subir de nuevo después de crear el bucket
+              const retryUpload = await supabase
                 .storage
                 .from('documentos')
                 .upload(filePath, formData.archivo_adjunto, {
-                  upsert: true
+                  upsert: true,
+                  cacheControl: '3600'
                 });
+                
+              if (retryUpload.error) {
+                throw new Error(`Error en el segundo intento: ${retryUpload.error.message}`);
+              }
+              
+              console.log('Archivo subido correctamente después de crear el bucket');
+            } else {
+              throw new Error(`Error al subir el archivo: ${uploadError.message}`);
             }
-            
-            console.log('Resultado de la carga:', { 
-              data: result.data, 
-              error: result.error ? result.error.message : null, 
-              status: result.error ? 'Error' : 'OK' 
-            });
-            
-            if (result.error) {
-              console.error('Error al subir el archivo a Supabase:', result.error);
-              throw new Error(`Error al subir el archivo: ${result.error.message}`);
-            }
-            
-            // Actualizar referencias en la base de datos
-            updateData.nombre_archivo = formData.archivo_adjunto.name;
-            updateData.ruta_archivo = filePath;
-          } catch (e) {
-            console.error('Excepción durante la carga del archivo:', e);
-            if (e instanceof Error) {
-              console.error('Mensaje de error:', e.message);
-              console.error('Stack trace:', e.stack);
-            }
-            throw e;
           }
+          
+          console.log('Archivo subido correctamente a:', filePath);
+          
+          // Actualizar referencias en la base de datos
+          updateData.nombre_archivo = formData.archivo_adjunto.name;
+          updateData.ruta_archivo = filePath;
           
           // Obtener URL firmada para previsualización inmediata después de guardado
           try {
-            const { data: fileData, error: fileError } = await supabase
+            const { data: fileData } = await supabase
               .storage
               .from('documentos')
               .createSignedUrl(filePath, 3600); // URL válida por 1 hora
               
-            if (!fileError && fileData) {
-              console.log('URL firmada generada correctamente:', fileData.signedUrl);
-              // No guardamos la URL en la base de datos, solo la usamos para mostrar
-              // al usuario el archivo después de guardado
-            } else {
-              console.error('Error al obtener URL firmada después del upload:', fileError);
+            if (fileData) {
+              console.log('URL firmada generada correctamente');
             }
           } catch (urlError) {
-            console.error('Error al generar URL del archivo después del upload:', urlError);
-            // No bloqueamos el guardado por este error
+            console.error('Error al generar URL del archivo (no crítico):', urlError);
           }
           
         } catch (uploadError) {

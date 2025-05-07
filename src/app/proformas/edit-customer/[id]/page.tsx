@@ -18,18 +18,25 @@ import {
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
-import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, EMPAQUE_OPCIONES, CUENTAS_BANCARIAS } from '@/lib/constants';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, EMPAQUE_OPCIONES } from '@/lib/constants';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useCuentasBancarias, getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 export default function EditCustomerProformaPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clientesList, setClientesList] = useState<Cliente[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
   const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
+  
+  // Obtener cuentas bancarias desde la base de datos
+  const { cuentas: cuentasBancarias, loading: loadingCuentas, error: errorCuentas } = useCuentasBancarias();
+  const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+    ? cuentasBancarias 
+    : getCuentasBancariasFallback();
   
   // Datos iniciales de la proforma
   const [proforma, setProforma] = useState({
@@ -100,20 +107,25 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
 
   // Cargar datos reales desde Supabase
   useEffect(() => {
-    async function loadProformaData() {
+    const loadProforma = async () => {
+      setLoading(true);
+      
       try {
-        setLoading(true);
         const supabase = getSupabaseClient();
-        
-        // Consultar la proforma
-        const { data: proformaData, error: proformaError } = await supabase
+        const { data, error } = await supabase
           .from('proformas')
           .select('*')
           .eq('id', params.id)
           .single();
+          
+        if (error) {
+          console.error('Error al consultar la proforma:', error);
+          throw error;
+        }
         
-        if (proformaError) throw new Error(`Error al cargar la proforma: ${proformaError.message}`);
-        if (!proformaData) throw new Error('No se encontró la proforma');
+        if (!data) {
+          throw new Error(`No se encontró la proforma con ID: ${params.id}`);
+        }
         
         // Consultar los productos relacionados
         const { data: productosData, error: productosError } = await supabase
@@ -147,36 +159,46 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           });
         }
         
+        // Obtener cuentas bancarias de fallback si no hay cuentas de la BD
+        const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+          ? cuentasBancarias 
+          : getCuentasBancariasFallback();
+        
+        // Encontrar la cuenta bancaria correspondiente o usar la primera disponible
+        const cuentaSeleccionada = data.cuenta_bancaria 
+          ? cuentasBancariasDisponibles.find(c => c.descripcion === data.cuenta_bancaria) 
+          : null;
+        
         // Actualizar el estado
         setProforma({
           id: params.id,
-          number: proformaData.id_externo || `Sin número`, // Usar id_externo de la BD
-          date: proformaData.fecha || new Date().toISOString().split('T')[0],
-          customerName: proformaData.cliente_nombre || '',
-          taxId: proformaData.id_fiscal || '',
-          ports: proformaData.puerto || '',
-          deliveryTerms: proformaData.terminos_entrega || '',
-          paymentTerms: proformaData.terminos_pago || '',
-          bankAccount: proformaData.cuenta_bancaria || '',
-          shippingNotes: proformaData.notas || '',
+          number: data.id_externo || `Sin número`, // Usar id_externo de la BD
+          date: data.fecha || new Date().toISOString().split('T')[0],
+          customerName: data.cliente_nombre || '',
+          taxId: data.id_fiscal || '',
+          ports: data.puerto || '',
+          deliveryTerms: data.terminos_entrega || '',
+          paymentTerms: data.terminos_pago || '',
+          bankAccount: data.cuenta_bancaria || (cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : ''),
+          shippingNotes: data.notas || '',
           items: items,
-          origin: proformaData.origen || 'Spain',
-          containers: proformaData.cantidad_contenedores || 0,
-          totalWeight: proformaData.peso_total || 0,
-          totalAmount: proformaData.monto || 0
+          origin: data.origen || 'Spain',
+          containers: data.cantidad_contenedores || 0,
+          totalWeight: data.peso_total || 0,
+          totalAmount: data.monto || 0
         });
         
         setError(null);
-      } catch (err) {
-        console.error('Error cargando datos:', err);
-        setError(err instanceof Error ? err.message : 'Error desconocido');
+      } catch (error) {
+        console.error('Error cargando datos:', error);
+        setError(error instanceof Error ? error.message : 'Error desconocido');
       } finally {
         setLoading(false);
       }
-    }
+    };
     
-    loadProformaData();
-  }, [params.id]);
+    loadProforma();
+  }, [params.id, cuentasBancarias]);
 
   const handleCancel = () => {
     router.push(`/proformas?tab=customer`);
@@ -757,17 +779,21 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
             <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={proforma.bankAccount}
-                onChange={(e) => setProforma({...proforma, bankAccount: e.target.value})}
-              >
-                {CUENTAS_BANCARIAS.map(cuenta => (
-                  <option key={cuenta.id} value={cuenta.descripcion}>
-                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
-                  </option>
-                ))}
-              </select>
+              {loadingCuentas ? (
+                <div className="w-full p-2 border rounded-md">Cargando cuentas bancarias...</div>
+              ) : (
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  value={proforma.bankAccount}
+                  onChange={(e) => setProforma({...proforma, bankAccount: e.target.value})}
+                >
+                  {cuentasBancariasDisponibles.map(cuenta => (
+                    <option key={cuenta.id} value={cuenta.descripcion}>
+                      {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
@@ -777,14 +803,18 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
           {/* Mostrar detalles bancarios */}
           {proforma.bankAccount && (
             <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
-              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === proforma.bankAccount).map(cuenta => (
-                <div key={cuenta.id}>
-                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
-                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
-                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
-                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
-                </div>
-              ))}
+              {cuentasBancariasDisponibles
+                .filter(cuenta => cuenta.descripcion === proforma.bankAccount)
+                .map(cuenta => (
+                  <div key={cuenta.id}>
+                    <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                    <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                    <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                    <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                    <p><span className="font-medium">Beneficiario:</span> {cuenta.beneficiario}</p>
+                  </div>
+                ))
+              }
             </div>
           )}
         </div>

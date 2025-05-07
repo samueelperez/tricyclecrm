@@ -634,9 +634,7 @@ export default function ProformaPDFPage() {
   
   // Eliminar proveedor o cliente
   const handleRemoveMultiItem = (id: string) => {
-    if (proforma?.tipo === 'proveedor') {
-      setMultiClientes(multiClientes.filter(c => c.id !== id));
-    }
+    setMultiClientes(multiClientes.filter(c => c.id !== id));
   };
   
   // Función para generar el PDF
@@ -690,6 +688,55 @@ export default function ProformaPDFPage() {
       setGenerating(false);
     }
   };
+
+  // Función para descargar el PDF
+  const handleDownloadPDF = async () => {
+    if (!proforma) return;
+    
+    setGenerating(true);
+    
+    try {
+      // Generar el PDF usando html2canvas y jsPDF
+      if (!printRef.current) {
+        setError("Error al acceder al documento");
+        return;
+      }
+      
+      // Convertir el componente a imagen
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2, // Mayor calidad
+        useCORS: true, // Para imágenes externas
+        logging: false
+      });
+      
+      // Calcular dimensiones A4
+      const imgWidth = 210;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      
+      // Crear PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      // Añadir imagen al PDF
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Generar nombre del archivo basado en el número de proforma o ID
+      const fileName = `proforma-${proformaNumero || id}.pdf`;
+      
+      // Descargar el PDF directamente
+      pdf.save(fileName);
+      
+    } catch (e) {
+      console.error("Error al descargar PDF:", e);
+      setError("Error al generar el PDF para descarga");
+    } finally {
+      setGenerating(false);
+    }
+  };
   
   if (loading) {
     return (
@@ -732,23 +779,43 @@ export default function ProformaPDFPage() {
                 <h1 className="text-xl font-medium text-gray-800">Ver PDF Proforma</h1>
               </div>
               
-              <button
-                onClick={generatePDF}
-                disabled={generating}
-                className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {generating ? (
-                  <>
-                    <FiLoader className="animate-spin mr-2 h-5 w-5" />
-                    Cargando PDF...
-                  </>
-                ) : (
-                  <>
-                    <FiEye className="mr-2 h-5 w-5" />
-                    Ver PDF
-                  </>
-                )}
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={generating}
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <FiDownload className="mr-2 h-5 w-5" />
+                      Descargar PDF
+                    </>
+                  )}
+                </button>
+              
+                <button
+                  onClick={generatePDF}
+                  disabled={generating}
+                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                      Cargando PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FiEye className="mr-2 h-5 w-5" />
+                      Ver PDF
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

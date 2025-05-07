@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   FiArrowLeft, 
@@ -13,12 +13,14 @@ import {
 } from 'react-icons/fi';
 import { cookies } from 'next/headers';
 import { Proforma } from '@/app/proformas/components/types';
+import { toast } from 'react-hot-toast';
 
 import { getSupabaseClient } from '@/lib/supabase';
 import { verifyFacturasClienteTable } from '@/lib/db-migrations';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
-import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, CUENTAS_BANCARIAS, EMPAQUE_OPCIONES } from '@/lib/constants';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, EMPAQUE_OPCIONES } from '@/lib/constants';
 import InvoicePrintView from '@/components/invoice-print-view';
+import { useCuentasBancarias, getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 // Definir interfaces para los tipos
 interface InvoiceItem {
@@ -42,14 +44,22 @@ interface ProformaWithClient extends Proforma {
 
 export default function NewCustomerInvoicePage() {
   const router = useRouter();
+  const printComponentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [clientesList, setClientesList] = useState<Cliente[]>([]);
   const [showPortSuggestions, setShowPortSuggestions] = useState(false);
-  const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   const [showPortDestSuggestions, setShowPortDestSuggestions] = useState(false);
+  const [showPaymentTermsSuggestions, setShowPaymentTermsSuggestions] = useState(false);
   const [proformasList, setProformasList] = useState<ProformaWithClient[]>([]);
   const [selectedProformaId, setSelectedProformaId] = useState<string>('');
   const [selectedProforma, setSelectedProforma] = useState<ProformaWithClient | null>(null);
+  
+  // Obtener cuentas bancarias desde la base de datos
+  const { cuentas: cuentasBancarias, loading: loadingCuentas, error: errorCuentas } = useCuentasBancarias();
+  const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+    ? cuentasBancarias 
+    : getCuentasBancariasFallback();
   
   // Datos iniciales para la factura
   const [invoice, setInvoice] = useState({
@@ -62,7 +72,7 @@ export default function NewCustomerInvoicePage() {
     puerto_origen: '',
     puerto_destino: '',
     deliveryTerms: '',
-    bankAccount: CUENTAS_BANCARIAS[0].descripcion, // Establece la cuenta bancaria por defecto
+    bankAccount: cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : '',
     items: [
       {
         id: '1',
@@ -78,6 +88,16 @@ export default function NewCustomerInvoicePage() {
     totalAmount: 0,
     proforma_id: null as number | null, // Añadir esta propiedad para evitar errores de tipo
   });
+
+  // Actualizar la cuenta bancaria cuando se carguen las cuentas
+  useEffect(() => {
+    if (cuentasBancarias.length > 0 && !invoice.bankAccount) {
+      setInvoice(prev => ({
+        ...prev,
+        bankAccount: cuentasBancarias[0].descripcion
+      }));
+    }
+  }, [cuentasBancarias]);
 
   // Cargar lista de clientes al iniciar
   useEffect(() => {
@@ -795,17 +815,21 @@ export default function NewCustomerInvoicePage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
             <div className="relative">
-              <select 
-                className="w-full p-2 border rounded-md appearance-none"
-                value={invoice.bankAccount}
-                onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
-              >
-                {CUENTAS_BANCARIAS.map(cuenta => (
-                  <option key={cuenta.id} value={cuenta.descripcion}>
-                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
-                  </option>
-                ))}
-              </select>
+              {loadingCuentas ? (
+                <div className="w-full p-2 border rounded-md">Cargando cuentas bancarias...</div>
+              ) : (
+                <select 
+                  className="w-full p-2 border rounded-md appearance-none"
+                  value={invoice.bankAccount}
+                  onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
+                >
+                  {cuentasBancariasDisponibles.map(cuenta => (
+                    <option key={cuenta.id} value={cuenta.descripcion}>
+                      {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
@@ -815,14 +839,18 @@ export default function NewCustomerInvoicePage() {
           {/* Mostrar detalles bancarios */}
           {invoice.bankAccount && (
             <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
-              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === invoice.bankAccount).map(cuenta => (
-                <div key={cuenta.id}>
-                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
-                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
-                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
-                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
-                </div>
-              ))}
+              {cuentasBancariasDisponibles
+                .filter(cuenta => cuenta.descripcion === invoice.bankAccount)
+                .map(cuenta => (
+                  <div key={cuenta.id}>
+                    <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                    <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                    <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                    <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                    <p><span className="font-medium">Beneficiario:</span> {cuenta.beneficiario}</p>
+                  </div>
+                ))
+              }
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, forwardRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -9,7 +9,8 @@ import Image from 'next/image';
 import { FiDownload, FiLoader, FiArrowLeft, FiEye } from 'react-icons/fi';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { CUENTAS_BANCARIAS } from '@/lib/constants';
+import Link from 'next/link';
+import { useCuentasBancarias, getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 // Interfaz para la factura
 interface Factura {
@@ -38,6 +39,7 @@ interface Factura {
   puerto_origen?: string;
   puerto_destino?: string;
   nombre_archivo?: string;
+  created_at?: string;
 }
 
 interface FacturaItem {
@@ -62,14 +64,34 @@ interface FacturaCliente {
 const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFactura: string, nombreDestinatario: string, multiClientes: FacturaCliente[] }>((props, ref) => {
   const { factura, numeroFactura, nombreDestinatario, multiClientes } = props;
   
+  // Usar el hook para obtener las cuentas bancarias
+  const { cuentas: cuentasBancarias } = useCuentasBancarias();
+  const cuentasBancariasDisponibles = cuentasBancarias.length > 0 
+    ? cuentasBancarias 
+    : getCuentasBancariasFallback();
+  
   // Formatear la fecha
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    }).replace(/\//g, '/');
+    if (!dateStr) return 'N/A';
+    
+    try {
+      const date = new Date(dateStr);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        console.error('Fecha inválida:', dateStr);
+        return 'N/A';
+      }
+      
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).replace(/\//g, '/');
+    } catch (e) {
+      console.error('Error al formatear fecha:', e);
+      return 'N/A';
+    }
   };
   
   // Formatear moneda
@@ -85,12 +107,36 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
   // Calcular totales
   const totalPeso = factura.items?.reduce((acc, item) => acc + (item.peso || 0), 0) || 0;
   
+  // Depuración de cálculos
+  console.log('Cálculos de factura:', {
+    items: factura.items?.map(item => ({
+      descripcion: item.descripcion,
+      precio_unitario: item.precio_unitario,
+      cantidad: item.cantidad,
+      peso: item.peso,
+      total_guardado: item.total,
+      total_calculado_peso: item.peso ? item.precio_unitario * item.peso : null,
+      total_calculado_cantidad: item.cantidad ? item.precio_unitario * item.cantidad : item.precio_unitario
+    })),
+    total_factura: factura.total,
+    total_calculado: factura.items?.reduce((sum, item) => {
+      const itemTotal = item.peso 
+        ? item.precio_unitario * item.peso 
+        : item.precio_unitario * (item.cantidad || 1);
+      return sum + (Number.isFinite(itemTotal) ? itemTotal : (item.total || 0));
+    }, 0)
+  });
+  
   // Obtener dirección del destinatario
   const getDireccionDestinatario = () => {
     if (factura.tipo === 'proveedor') {
       return factura.cliente_direccion || '';
     } else {
-      return factura.cliente_direccion || '';
+      // Para facturas de cliente, intentamos obtener la dirección de varias fuentes posibles
+      return factura.cliente?.direccion || 
+             factura.cliente_direccion || 
+             (factura.cliente && typeof factura.cliente === 'object' ? factura.cliente.direccion : '') || 
+             '';
     }
   };
   
@@ -99,7 +145,11 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
     if (factura.tipo === 'proveedor') {
       return factura.id_fiscal || '';
     } else {
-      return factura.id_fiscal || factura.cliente_id_fiscal || '';
+      // Para facturas de cliente, intentamos obtener el ID fiscal de varias fuentes posibles
+      return factura.id_fiscal || 
+             factura.cliente_id_fiscal || 
+             (factura.cliente && typeof factura.cliente === 'object' ? factura.cliente.id_fiscal : '') || 
+             '';
     }
   };
   
@@ -122,27 +172,42 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
 
   // Función para obtener detalles bancarios
   function getBankDetails(cuenta_bancaria?: string) {
-    if (!cuenta_bancaria) return { banco: '', iban: '', moneda: '', swift: '' };
+    if (!cuenta_bancaria) return { banco: '', iban: '', moneda: '', swift: '', beneficiario: '' };
     
-    // Buscar la cuenta bancaria en la lista de cuentas predefinidas
-    const cuentaBancaria = CUENTAS_BANCARIAS.find(cuenta => cuenta.descripcion === cuenta_bancaria);
+    // Buscar la cuenta bancaria en la lista de cuentas
+    const cuentaBancaria = cuentasBancariasDisponibles.find(cuenta => cuenta.descripcion === cuenta_bancaria);
     
     if (cuentaBancaria) {
       return {
         banco: cuentaBancaria.banco,
         iban: cuentaBancaria.iban,
         moneda: cuentaBancaria.moneda,
-        swift: cuentaBancaria.swift
+        swift: cuentaBancaria.swift,
+        beneficiario: cuentaBancaria.beneficiario
       };
     }
     
     // Si no se encuentra en las predefinidas, intentar parsear el formato antiguo
     const bankDetails = cuenta_bancaria.split(' - ');
+    // Asignar SWIFT según el banco
+    let swift = '';
+    const bancoNombre = bankDetails[0]?.toLowerCase() || '';
+    if (bancoNombre.includes('santander')) {
+      swift = 'BSCHESMM';
+    } else if (bancoNombre.includes('bbva')) {
+      swift = 'BBVAESMM';
+    } else if (bancoNombre.includes('sabadell')) {
+      swift = 'BSABESBB';
+    } else if (bancoNombre.includes('caixa')) {
+      swift = 'CAIXESBB';
+    }
+    
     return {
       banco: bankDetails[0] || '',
       iban: bankDetails[1] || '',
       moneda: bankDetails[2] || '',
-      swift: ''
+      swift: swift,
+      beneficiario: 'Tricycle Import Export SL'
     };
   }
   
@@ -183,7 +248,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         </div>
         <div>
           <span style={{ fontWeight: 'normal' }}>Date </span> 
-          {formatDate(factura.fecha_emision)}
+          {formatDate(factura.created_at || factura.fecha_emision)}
         </div>
       </div>
       
@@ -191,8 +256,13 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
       <div style={{ marginBottom: '30px' }}>
         <div><span style={{ fontWeight: 'bold' }}>Name:</span> {nombreDestinatario}</div>
         <div><span style={{ fontWeight: 'bold' }}>Address:</span> {getDireccionDestinatario()}</div>
-        {factura.cliente_ciudad && factura.cliente_pais && (
-          <div>{factura.cliente_ciudad} {factura.cliente_pais}</div>
+        {(factura.cliente_ciudad || (factura.cliente && factura.cliente.ciudad)) && 
+         (factura.cliente_pais || (factura.cliente && factura.cliente.pais)) && (
+          <div>
+            {factura.cliente_ciudad || factura.cliente?.ciudad || ''} 
+            {' '}
+            {factura.cliente_pais || factura.cliente?.pais || ''}
+          </div>
         )}
         <div><span style={{ fontWeight: 'bold' }}>TAX ID:</span> {getTaxIDDestinatario()}</div>
       </div>
@@ -221,22 +291,32 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         </thead>
         <tbody>
           {factura.items && factura.items.length > 0 ? (
-            factura.items.map((item, index) => (
-              <tr key={index}>
-                <td style={{ border: '1px solid #000', padding: '8px' }}>
-                  {item.descripcion} {item.codigo ? `- ${item.codigo}` : ''}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
-                  {item.peso ? `${item.peso.toFixed(2)} ${item.peso_unidad || 'MT'}` : ''}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
-                  {formatCurrency(item.precio_unitario, factura.divisa)}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>
-                  {formatCurrency(item.total, factura.divisa)}
-                </td>
-              </tr>
-            ))
+            factura.items.map((item, index) => {
+              // Calcular el total correcto basado en peso o cantidad
+              const calculatedTotal = item.peso 
+                ? item.precio_unitario * item.peso 
+                : item.precio_unitario * (item.cantidad || 1);
+              
+              // Usar el total calculado o el guardado, priorizando el calculado
+              const totalToShow = Number.isFinite(calculatedTotal) ? calculatedTotal : (item.total || 0);
+              
+              return (
+                <tr key={index}>
+                  <td style={{ border: '1px solid #000', padding: '8px' }}>
+                    {(item.descripcion || 'Producto sin descripción')} {item.codigo ? `- ${item.codigo}` : ''}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
+                    {item.peso ? `${item.peso.toFixed(2)} ${item.peso_unidad || 'MT'}` : (item.cantidad ? `${item.cantidad}` : '1')}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
+                    {formatCurrency(item.precio_unitario || 0, factura.divisa)}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>
+                    {formatCurrency(totalToShow, factura.divisa)}
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             // Si no hay items, mostrar una fila de ejemplo
             <tr>
@@ -267,7 +347,23 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
               Total Amount
             </td>
             <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>
-              {formatCurrency(factura.total, factura.divisa)}
+              {(() => {
+                // Calcular el total sumando los totales individuales de cada ítem
+                if (factura.items && factura.items.length > 0) {
+                  const sumTotal = factura.items.reduce((sum, item) => {
+                    const itemTotal = item.peso 
+                      ? item.precio_unitario * item.peso 
+                      : item.precio_unitario * (item.cantidad || 1);
+                    
+                    return sum + (Number.isFinite(itemTotal) ? itemTotal : (item.total || 0));
+                  }, 0);
+                  
+                  return formatCurrency(sumTotal, factura.divisa);
+                }
+                
+                // Si no hay ítems o hay error en el cálculo, usar el total de la factura
+                return formatCurrency(factura.total, factura.divisa);
+              })()}
             </td>
           </tr>
         </tbody>
@@ -322,6 +418,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         <div><span style={{ fontWeight: 'bold' }}>IBAN:</span> {bankInfo.iban}</div>
         <div><span style={{ fontWeight: 'bold' }}>SWIFT:</span> {bankInfo.swift}</div>
         <div><span style={{ fontWeight: 'bold' }}>Currency:</span> {bankInfo.moneda || factura.divisa || "EUR"}</div>
+        <div><span style={{ fontWeight: 'bold' }}>Beneficiary:</span> {bankInfo.beneficiario}</div>
       </div>
       
       {/* Firma */}
@@ -345,6 +442,7 @@ FacturaPrintView.displayName = 'FacturaPrintView';
 // Componente principal para la página de PDF
 export default function FacturaPDFPage() {
   const params = useParams();
+  const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   
   const [factura, setFactura] = useState<Factura | null>(null);
@@ -372,30 +470,158 @@ export default function FacturaPDFPage() {
     const fetchFactura = async () => {
       try {
         const supabase = getSupabaseClient();
+        console.log('Buscando factura con ID:', id);
         
-        // Intentar obtener de facturas_cliente sin la relación que causa errores
+        // Intentar obtener de facturas_cliente incluyendo la relación con el cliente
         const { data: clienteData, error: clienteError } = await supabase
           .from('facturas_cliente')
-          .select('*')
+          .select(`
+            *,
+            cliente:cliente_id (
+              id, 
+              nombre, 
+              direccion, 
+              ciudad, 
+              pais, 
+              id_fiscal
+            )
+          `)
           .eq('id', id)
           .single();
         
+        console.log('Resultado de la consulta de facturas_cliente:', { clienteData, clienteError });
+        
         if (clienteData) {
-          // Extraer el nombre del cliente directamente del JSON almacenado en material
+          // Verificar si tenemos campo created_at
+          console.log('¿Tiene created_at?', {
+            has_created_at: !!clienteData.created_at,
+            created_at: clienteData.created_at,
+            fecha_emision: clienteData.fecha_emision
+          });
+          
+          // Extraer el nombre del cliente y otros datos
           let nombreCliente = 'Cliente sin especificar';
+          let cliente_direccion = '';
+          let cliente_id_fiscal = '';
+          let cliente_ciudad = '';
+          let cliente_pais = '';
+          
           try {
-            const materialData = JSON.parse(clienteData.material || '{}');
-            nombreCliente = materialData.cliente_nombre || clienteData.cliente || 'Cliente sin especificar';
+            // Primero, intentar obtener datos directamente de la relación cliente
+            if (clienteData.cliente) {
+              console.log('Datos del cliente desde la relación:', clienteData.cliente);
+              nombreCliente = clienteData.cliente.nombre || nombreCliente;
+              cliente_direccion = clienteData.cliente.direccion || '';
+              cliente_id_fiscal = clienteData.cliente.id_fiscal || '';
+              cliente_ciudad = clienteData.cliente.ciudad || '';
+              cliente_pais = clienteData.cliente.pais || '';
+            }
+            
+            // Luego, intentar obtener datos del JSON de material (como respaldo)
+            if (!nombreCliente || nombreCliente === 'Cliente sin especificar') {
+              if (clienteData.material) {
+                console.log('Intentando extraer datos del material JSON');
+                const materialData = JSON.parse(clienteData.material || '{}');
+                nombreCliente = materialData.cliente_nombre || clienteData.cliente || nombreCliente;
+                cliente_direccion = cliente_direccion || materialData.cliente_direccion || '';
+                cliente_id_fiscal = cliente_id_fiscal || materialData.cliente_id_fiscal || '';
+              }
+            }
+            
+            // Si todavía no tenemos datos y hay un cliente_id, intentar obtener directamente
+            if ((!nombreCliente || nombreCliente === 'Cliente sin especificar') && clienteData.cliente_id) {
+              console.log('Realizando consulta adicional para cliente_id:', clienteData.cliente_id);
+              const { data: clienteInfo } = await supabase
+                .from('clientes')
+                .select('*')
+                .eq('id', clienteData.cliente_id)
+                .single();
+                
+              if (clienteInfo) {
+                console.log('Datos del cliente obtenidos directamente:', clienteInfo);
+                nombreCliente = clienteInfo.nombre || nombreCliente;
+                cliente_direccion = cliente_direccion || clienteInfo.direccion || '';
+                cliente_id_fiscal = cliente_id_fiscal || clienteInfo.id_fiscal || '';
+                cliente_ciudad = cliente_ciudad || clienteInfo.ciudad || '';
+                cliente_pais = cliente_pais || clienteInfo.pais || '';
+              }
+            }
           } catch (e) {
-            console.error('Error al parsear material JSON:', e);
+            console.error('Error al obtener datos del cliente:', e);
           }
           
-          // Es una factura de cliente
+          console.log('Datos del cliente obtenidos:', {
+            nombreCliente,
+            cliente_direccion,
+            cliente_id_fiscal,
+            cliente_ciudad,
+            cliente_pais
+          });
+          
+          // Es una factura de cliente, también obtener sus items
+          const { data: itemsData } = await supabase
+            .from('facturas_items')
+            .select('*')
+            .eq('factura_id', id);
+          
+          console.log('Items de la factura:', itemsData);
+          
+          // Convertir los items recuperados al formato esperado por el componente
+          const itemsFormateados = itemsData && itemsData.length > 0
+            ? itemsData.map(item => ({
+                id: item.id.toString(),
+                descripcion: item.descripcion || 'Sin descripción',
+                cantidad: item.cantidad || 1,
+                peso: item.peso || null,
+                peso_unidad: item.peso_unidad || 'MT',
+                precio_unitario: item.precio_unitario || 0,
+                total: item.total || 0,
+                codigo: item.codigo || ''
+              }))
+            : [];
+          
+          // Si no hay items en facturas_items, intentar extraer del JSON material
+          let itemsFromMaterial = [];
+          if (itemsFormateados.length === 0 && clienteData.material) {
+            try {
+              const materialData = JSON.parse(clienteData.material || '{}');
+              if (materialData.items_completos && Array.isArray(materialData.items_completos)) {
+                itemsFromMaterial = materialData.items_completos.map((item: any) => ({
+                  id: item.id?.toString() || Math.random().toString(),
+                  descripcion: item.description || 'Sin descripción',
+                  cantidad: item.quantity || 1,
+                  peso: item.weight || null,
+                  peso_unidad: 'MT',
+                  precio_unitario: item.unitPrice || 0,
+                  total: item.totalValue || 0,
+                  codigo: item.packaging || ''
+                }));
+              }
+            } catch (error) {
+              console.error('Error al parsear items desde material:', error);
+            }
+          }
+          
           const facturaData = {
             ...clienteData,
             tipo: 'cliente',
-            items: [] // itemsData || []
+            items: itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial,
+            cliente_nombre: nombreCliente,
+            cliente_direccion: cliente_direccion,
+            cliente_id_fiscal: cliente_id_fiscal,
+            cliente_ciudad: cliente_ciudad,
+            cliente_pais: cliente_pais,
+            // Añadir objeto cliente para compatibilidad
+            cliente: {
+              nombre: nombreCliente,
+              direccion: cliente_direccion,
+              id_fiscal: cliente_id_fiscal,
+              ciudad: cliente_ciudad,
+              pais: cliente_pais
+            }
           };
+          
+          console.log('Datos de factura de cliente procesados:', facturaData);
           
           setFactura(facturaData);
           setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
@@ -427,11 +653,55 @@ export default function FacturaPDFPage() {
             setMultiClientes(clientesArray);
           }
           
+          // Obtener los items de la factura
+          const { data: itemsData } = await supabase
+            .from('facturas_items')
+            .select('*')
+            .eq('factura_id', id);
+          
+          // Convertir los items recuperados al formato esperado por el componente
+          const itemsFormateados = itemsData && itemsData.length > 0
+            ? itemsData.map(item => ({
+                id: item.id.toString(),
+                descripcion: item.descripcion || 'Sin descripción',
+                cantidad: item.cantidad || 1,
+                peso: item.peso || null,
+                peso_unidad: item.peso_unidad || 'MT',
+                precio_unitario: item.precio_unitario || 0,
+                total: item.total || 0,
+                codigo: item.codigo || ''
+              }))
+            : [];
+          
+          // Si no hay items en facturas_items, intentar extraer del JSON material
+          let itemsFromMaterial = [];
+          if (itemsFormateados.length === 0 && proveedorData.material) {
+            try {
+              const materialData = JSON.parse(proveedorData.material || '{}');
+              if (materialData.items_completos && Array.isArray(materialData.items_completos)) {
+                itemsFromMaterial = materialData.items_completos.map((item: any) => ({
+                  id: item.id?.toString() || Math.random().toString(),
+                  descripcion: item.description || 'Sin descripción',
+                  cantidad: item.quantity || 1,
+                  peso: item.weight || null,
+                  peso_unidad: 'MT',
+                  precio_unitario: item.unitPrice || 0,
+                  total: item.totalValue || 0,
+                  codigo: item.packaging || ''
+                }));
+              }
+            } catch (error) {
+              console.error('Error al parsear items desde material:', error);
+            }
+          }
+          
           const facturaData = {
             ...proveedorData,
             tipo: 'proveedor',
-            items: [] // itemsData || []
+            items: itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial
           };
+          
+          console.log('Datos de factura de proveedor cargados:', facturaData);
           
           setFactura(facturaData);
           setFacturaNumero(facturaData.numero_factura || facturaData.id_externo || `INV${String(facturaData.id).padStart(4, '0')}`);
@@ -718,7 +988,7 @@ export default function FacturaPDFPage() {
       // Verificar si existe un archivo PDF almacenado para esta factura
       const supabase = getSupabaseClient();
       const fileExtension = factura?.nombre_archivo?.split('.').pop() || 'pdf';
-      const filePath = `facturas-${factura?.tipo === 'cliente' ? 'cliente' : 'proveedor'}/${factura?.id}.${fileExtension}`;
+      const filePath = `facturas/${factura?.id}.${fileExtension}`;
       
       // Intentar obtener la URL firmada del archivo
       const { data: urlData, error: urlError } = await supabase
@@ -727,8 +997,8 @@ export default function FacturaPDFPage() {
         .createSignedUrl(filePath, 60 * 60); // URL válida por 1 hora
       
       if (urlError) {
-        // Si el archivo no existe en la carpeta específica, buscar en documentos
-        const alternativeFilePath = `documentos/${factura?.id}.${fileExtension}`;
+        // Si el archivo no existe en la carpeta facturas, buscar en documentos
+        const alternativeFilePath = `documentos/facturas/${factura?.id}.${fileExtension}`;
         const { data: altUrlData, error: altUrlError } = await supabase
           .storage
           .from('documentos')
@@ -762,12 +1032,39 @@ export default function FacturaPDFPage() {
     }
   };
   
-  // Guardar PDF en el storage de Supabase
-  const handleSavePDF = async () => {
+  // Función para descargar el PDF
+  const handleDownloadPDF = async () => {
     if (!factura) return;
     
+    setGenerating(true);
+    
     try {
-      const supabase = getSupabaseClient();
+      // Preparar fecha para la visualización
+      if (factura.fecha_emision && isNaN(new Date(factura.fecha_emision).getTime())) {
+        console.warn('Fecha inválida en factura, intentando corregir:', factura.fecha_emision);
+        
+        // Intentar corregir formato de fecha si está mal
+        if (typeof factura.fecha_emision === 'string') {
+          const parts = factura.fecha_emision.split(/[-/]/);
+          if (parts.length === 3) {
+            let correctedDate;
+            
+            // Probar diferentes formatos comunes
+            if (parts[0].length === 4) {
+              // Formato YYYY-MM-DD
+              correctedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            } else if (parts[2].length === 4) {
+              // Formato DD/MM/YYYY
+              correctedDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            }
+            
+            if (correctedDate && !isNaN(correctedDate.getTime())) {
+              console.log('Fecha corregida:', correctedDate);
+              factura.fecha_emision = correctedDate.toISOString().split('T')[0];
+            }
+          }
+        }
+      }
       
       // Generar el PDF usando html2canvas y jsPDF
       if (!printRef.current) {
@@ -775,78 +1072,38 @@ export default function FacturaPDFPage() {
         return;
       }
       
-      setGenerating(true);
+      // Convertir el componente a imagen
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2, // Mayor calidad
+        useCORS: true, // Para imágenes externas
+        logging: false
+      });
       
-      try {
-        // Convertir el componente a imagen
-        const canvas = await html2canvas(printRef.current, {
-          scale: 2, // Mayor calidad
-          useCORS: true, // Para imágenes externas
-          logging: false
-        });
-        
-        // Calcular dimensiones A4
-        const imgWidth = 210;
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        
-        // Crear PDF
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
-        
-        // Añadir imagen al PDF
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        
-        // Obtener el PDF como blob
-        const pdfBlob = pdf.output('blob');
+      // Calcular dimensiones A4
+      const imgWidth = 210;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
       
-        console.log("Subiendo PDF al bucket documentos...");
-        
-        // Convertir Blob a File para subir a Supabase
-        const pdfFile = new File([pdfBlob], `factura-${id}.pdf`, { type: 'application/pdf' });
-        
-        // Subir a Supabase Storage
-        const { data, error: uploadError } = await supabase
-          .storage
-          .from('documentos')
-          .upload(`facturas/${id}.pdf`, pdfFile, {
-            cacheControl: '3600',
-            upsert: true
-          });
-          
-        if (uploadError) {
-          console.error("Error al subir PDF:", uploadError);
-          setError("Error al guardar el PDF");
-          return;
-        }
-        
-        console.log("PDF subido correctamente:", data?.path);
-        
-        // Actualizar la referencia en la base de datos
-        const { error: updateError } = await supabase
-          .from(factura.tipo === 'cliente' ? 'facturas_cliente' : 'facturas_proveedor')
-          .update({ 
-            pdf_url: `facturas/${id}.pdf` 
-          })
-          .eq('id', id);
-            
-        if (updateError) {
-          console.error("Error al actualizar referencia PDF:", updateError);
-          setError("Error al actualizar la referencia del PDF");
-        } else {
-          console.log("Referencia PDF actualizada en la base de datos");
-          alert("PDF guardado correctamente");
-        }
-      } finally {
-        setGenerating(false);
-      }
+      // Crear PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      // Añadir imagen al PDF
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Generar nombre del archivo basado en el número de factura o ID
+      const fileName = `factura-${facturaNumero || id}.pdf`;
+      
+      // Descargar el PDF directamente
+      pdf.save(fileName);
       
     } catch (e) {
-      console.error("Error al guardar PDF:", e);
-      setError("Error al guardar el PDF");
+      console.error("Error al descargar PDF:", e);
+      setError("Error al generar el PDF para descarga");
+    } finally {
       setGenerating(false);
     }
   };
@@ -868,12 +1125,60 @@ export default function FacturaPDFPage() {
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 w-full max-w-xl">
           <p className="text-red-700">{error || 'Error al cargar la factura'}</p>
         </div>
-        <a href="/facturas" className="text-indigo-600 hover:text-indigo-800">
+        <Link href="/facturas" className="text-indigo-600 hover:text-indigo-800">
           Volver a facturas
-        </a>
+        </Link>
       </div>
     );
   }
+  
+  // Función para obtener detalles bancarios
+  const getBankDetailsPage = (cuenta_bancaria?: string) => {
+    // Obtener cuentas bancarias
+    const cuentasBancariasDisponibles = getCuentasBancariasFallback();
+    
+    if (!cuenta_bancaria) return { banco: '', iban: '', moneda: '', swift: '', beneficiario: '' };
+    
+    // Buscar la cuenta bancaria en la lista de cuentas
+    const cuentaBancaria = cuentasBancariasDisponibles.find(cuenta => cuenta.descripcion === cuenta_bancaria);
+    
+    if (cuentaBancaria) {
+      return {
+        banco: cuentaBancaria.banco,
+        iban: cuentaBancaria.iban,
+        moneda: cuentaBancaria.moneda,
+        swift: cuentaBancaria.swift,
+        beneficiario: cuentaBancaria.beneficiario
+      };
+    }
+    
+    // Si no se encuentra en las predefinidas, intentar parsear el formato antiguo
+    const bankDetails = cuenta_bancaria.split(' - ');
+    
+    // Asignar SWIFT según el banco
+    let swift = '';
+    const bancoNombre = bankDetails[0]?.toLowerCase() || '';
+    if (bancoNombre.includes('santander')) {
+      swift = 'BSCHESMM';
+    } else if (bancoNombre.includes('bbva')) {
+      swift = 'BBVAESMM';
+    } else if (bancoNombre.includes('sabadell')) {
+      swift = 'BSABESBB';
+    } else if (bancoNombre.includes('caixa')) {
+      swift = 'CAIXESBB';
+    }
+    
+    return {
+      banco: bankDetails[0] || '',
+      iban: bankDetails[1] || '',
+      moneda: bankDetails[2] || '',
+      swift: swift,
+      beneficiario: 'Tricycle Import Export SL'
+    };
+  };
+  
+  // Obtener detalles bancarios para esta factura
+  const bankInfo = getBankDetailsPage(factura.cuenta_bancaria);
   
   return (
     <div className="bg-gray-100 p-4 min-h-screen">
@@ -883,32 +1188,52 @@ export default function FacturaPDFPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="py-4 flex items-center justify-between">
               <div className="flex items-center">
-                <a 
+                <Link 
                   href="/facturas" 
                   className="mr-3 text-gray-600 hover:text-gray-800"
                 >
                   <FiArrowLeft className="w-5 h-5" />
-                </a>
+                </Link>
                 <h1 className="text-xl font-medium text-gray-800">Ver PDF Factura</h1>
               </div>
               
-              <button
-                onClick={generatePDF}
-                disabled={generating}
-                className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {generating ? (
-                  <>
-                    <FiLoader className="animate-spin mr-2 h-5 w-5" />
-                    Cargando PDF...
-                  </>
-                ) : (
-                  <>
-                    <FiEye className="mr-2 h-5 w-5" />
-                    Ver PDF
-                  </>
-                )}
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={generating}
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <FiDownload className="mr-2 h-5 w-5" />
+                      Descargar PDF
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={generatePDF}
+                  disabled={generating}
+                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <FiLoader className="animate-spin mr-2 h-5 w-5" />
+                      Cargando PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FiEye className="mr-2 h-5 w-5" />
+                      Ver PDF
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
