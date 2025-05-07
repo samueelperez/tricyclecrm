@@ -613,6 +613,13 @@ function LoadingFallback() {
   );
 }
 
+// Función para generar un número de proforma con formato PRO-yyyy-nnn
+function generateProformaNumber(): string {
+  const year = new Date().getFullYear();
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `PRO-${year}-${random}`;
+}
+
 // Componente principal que envuelve con Suspense
 export default function NewProformaPage() {
   return (
