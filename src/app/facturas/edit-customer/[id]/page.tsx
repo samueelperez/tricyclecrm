@@ -374,11 +374,20 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       const validatedInvoice = { ...invoice };
       
       // Definir campos y sus valores por defecto
-      const defaultValues: Record<string, any> = {
+      const defaultValues: Record<keyof Invoice, any> = {
+        id: '',
+        number: '',
+        date: new Date().toISOString().split('T')[0],
         customerName: '',
         taxId: '',
         paymentTerms: '',
         invoiceNotes: '',
+        items: [],
+        subtotal: 0,
+        taxAmount: 0,
+        totalAmount: 0,
+        bankAccount: '',
+        estado: 'pendiente',
         puerto_origen: '',
         puerto_destino: '',
         deliveryTerms: '',
@@ -392,9 +401,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       };
       
       // Aplicar valores por defecto donde sea necesario
-      Object.entries(defaultValues).forEach(([field, defaultValue]) => {
+      (Object.keys(defaultValues) as Array<keyof Invoice>).forEach(field => {
         if (validatedInvoice[field] === undefined) {
-          validatedInvoice[field] = defaultValue;
+          validatedInvoice[field] = defaultValues[field];
         }
       });
       
