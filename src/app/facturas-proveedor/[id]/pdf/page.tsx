@@ -273,7 +273,7 @@ export default function FacturaProveedorPDFPage() {
   };
 
   // Obtener dirección del destinatario
-  const getDireccionDestinatario = (factura) => {
+  const getDireccionDestinatario = (factura: FacturaProveedor) => {
     // Para facturas de proveedor, intentamos obtener la dirección de varias fuentes posibles
     const direccion = factura.cliente?.direccion || 
            factura.cliente_direccion || 
@@ -290,7 +290,7 @@ export default function FacturaProveedorPDFPage() {
   };
 
   // Obtener Tax ID del destinatario
-  const getTaxIDDestinatario = (factura) => {
+  const getTaxIDDestinatario = (factura: FacturaProveedor) => {
     // Para facturas de proveedor, intentamos obtener el ID fiscal de varias fuentes posibles
     const idFiscal = factura.id_fiscal || 
            factura.cliente_id_fiscal || 
