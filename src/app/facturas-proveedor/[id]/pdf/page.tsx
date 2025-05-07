@@ -227,7 +227,7 @@ export default function FacturaProveedorPDFPage() {
   };
 
   // Formatear la fecha
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return 'N/A';
     
     try {
