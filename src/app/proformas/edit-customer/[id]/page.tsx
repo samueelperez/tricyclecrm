@@ -10,14 +10,18 @@ import {
   FiPlus, 
   FiTrash2,
   FiSave,
-  FiSearch
+  FiSearch,
+  FiAlertTriangle,
+  FiFileText,
+  FiGlobe,
+  FiDollarSign
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
-import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS } from '@/lib/constants';
-
-// Lista de opciones de empaque predefinidas
-const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, EMPAQUE_OPCIONES, CUENTAS_BANCARIAS } from '@/lib/constants';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function EditCustomerProformaPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -203,6 +207,7 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
         id_externo: proforma.number, // Mantener el mismo número de proforma
         fecha: proforma.date,
         cliente_id: cliente_id, // Incluir el ID del cliente
+        cliente_nombre: proforma.customerName, // Guardar el nombre del cliente
         id_fiscal: proforma.taxId,
         monto: proforma.totalAmount,
         puerto: proforma.ports,
@@ -757,15 +762,31 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
                 value={proforma.bankAccount}
                 onChange={(e) => setProforma({...proforma, bankAccount: e.target.value})}
               >
-                <option>Santander S.A. - ES6000495332142610008899 - USD</option>
-                <option>BBVA - ES9101822370420201558843 - EUR</option>
-                <option>CaixaBank - ES7121000418401234567891 - USD</option>
+                {CUENTAS_BANCARIAS.map(cuenta => (
+                  <option key={cuenta.id} value={cuenta.descripcion}>
+                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                  </option>
+                ))}
               </select>
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
             </div>
           </div>
+          
+          {/* Mostrar detalles bancarios */}
+          {proforma.bankAccount && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
+              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === proforma.bankAccount).map(cuenta => (
+                <div key={cuenta.id}>
+                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Shipping Details */}

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { FiEdit, FiEye, FiTrash2, FiSearch, FiFilter } from 'react-icons/fi'
+import { FiEdit, FiEye, FiTrash2, FiSearch, FiFilter, FiPaperclip, FiFile, FiExternalLink } from 'react-icons/fi'
 import Link from 'next/link'
+import { toast } from 'react-hot-toast'
 
 interface FacturaProveedor {
   id: number
@@ -11,8 +12,11 @@ interface FacturaProveedor {
   fecha_emision: string
   fecha_vencimiento: string
   importe_total: number
+  importe: number
   estado: string
   id_proveedor: number
+  nombre_archivo: string | null
+  url_adjunto: string | null
   proveedor: {
     nombre: string
   }
@@ -31,8 +35,8 @@ export default function FacturasProveedorPage() {
         setLoading(true)
         const { data, error } = await supabase
           .from('facturas_proveedor')
-          .select('*, proveedor:id_proveedor(nombre)')
-          .order('fecha_emision', { ascending: false })
+          .select('*, proveedor:proveedor_id(nombre)')
+          .order('fecha', { ascending: false })
         
         if (error) {
           throw error
@@ -51,8 +55,8 @@ export default function FacturasProveedorPage() {
 
   const filteredFacturas = facturas.filter(factura => {
     const matchesSearch = 
-      factura.numero_factura.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      factura.proveedor.nombre.toLowerCase().includes(searchQuery.toLowerCase())
+      factura.numero_factura?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      factura.proveedor?.nombre?.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesEstado = filtroEstado === 'todos' || factura.estado === filtroEstado
     
@@ -61,8 +65,42 @@ export default function FacturasProveedorPage() {
 
   // Formatea fecha de YYYY-MM-DD a DD/MM/YYYY
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
     const date = new Date(dateStr)
     return date.toLocaleDateString('es-ES')
+  }
+
+  // Función para obtener URL del archivo
+  const getFileUrl = async (factura: FacturaProveedor) => {
+    // Si ya tiene una URL externa, usarla directamente
+    if (factura.url_adjunto) {
+      window.open(factura.url_adjunto, '_blank')
+      return
+    }
+    
+    // Si tiene un archivo adjunto pero no URL externa, generar URL firmada
+    if (factura.nombre_archivo) {
+      try {
+        const fileExt = factura.nombre_archivo.split('.').pop()
+        const filePath = `facturas-proveedor/${factura.id}.${fileExt}`
+        
+        const { data: urlData, error } = await supabase
+          .storage
+          .from('documentos')
+          .createSignedUrl(filePath, 3600)
+        
+        if (error) throw error
+        
+        if (urlData?.signedUrl) {
+          window.open(urlData.signedUrl, '_blank')
+        }
+      } catch (err) {
+        console.error('Error al obtener URL del archivo:', err)
+        toast.error('No se pudo acceder al archivo')
+      }
+    } else {
+      toast.error('Esta factura no tiene documento adjunto')
+    }
   }
 
   return (
@@ -126,9 +164,9 @@ export default function FacturasProveedorPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Factura</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Emisión</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimiento</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Importe</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -137,30 +175,43 @@ export default function FacturasProveedorPage() {
               {filteredFacturas.map((factura) => (
                 <tr key={factura.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">{factura.numero_factura}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{factura.proveedor.nombre}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{factura.proveedor?.nombre}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{formatDate(factura.fecha_emision)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{formatDate(factura.fecha_vencimiento)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">€{factura.importe_total.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">€{(factura.importe_total || factura.importe || 0).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {(factura.nombre_archivo || factura.url_adjunto) ? (
+                      <button 
+                        onClick={() => getFileUrl(factura)}
+                        className="text-blue-500 hover:text-blue-700 flex items-center"
+                        title={factura.nombre_archivo || "Ver documento"}
+                      >
+                        {factura.url_adjunto ? (
+                          <><FiExternalLink className="mr-1" /> Enlace externo</>
+                        ) : (
+                          <><FiFile className="mr-1" /> {factura.nombre_archivo?.split('.').pop()?.toUpperCase()}</>
+                        )}
+                      </button>
+                    ) : (
+                      <span className="text-gray-400">Sin documento</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                       ${factura.estado === 'pagada' ? 'bg-green-100 text-green-800' : 
                         factura.estado === 'vencida' ? 'bg-red-100 text-red-800' : 
                         'bg-yellow-100 text-yellow-800'}`}
                     >
-                      {factura.estado.charAt(0).toUpperCase() + factura.estado.slice(1)}
+                      {factura.estado ? (factura.estado.charAt(0).toUpperCase() + factura.estado.slice(1)) : 'Pendiente'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-3">
-                      <Link href={`/facturas-proveedor/${factura.id}`} className="text-blue-500 hover:text-blue-700">
-                        <FiEye />
-                      </Link>
-                      <Link href={`/facturas-proveedor/${factura.id}/edit`} className="text-green-500 hover:text-green-700">
+                      <Link href={`/facturas-proveedor/edit/${factura.id}`} className="text-green-500 hover:text-green-700">
                         <FiEdit />
                       </Link>
-                      <button className="text-red-500 hover:text-red-700">
-                        <FiTrash2 />
-                      </button>
+                      <Link href={`/facturas-proveedor/edit/${factura.id}`} className="text-blue-500 hover:text-blue-700">
+                        <FiEye />
+                      </Link>
                     </div>
                   </td>
                 </tr>

@@ -133,6 +133,25 @@ function ProformasContent() {
     try {
       const supabase = getSupabaseClient();
       
+      // Verificar si hay facturas de cliente asociadas a esta proforma
+      const { data: facturasAsociadas, error: errorConsulta } = await supabase
+        .from('facturas_cliente')
+        .select('id, id_externo')
+        .eq('proforma_id', id);
+      
+      if (errorConsulta) {
+        throw errorConsulta;
+      }
+      
+      // Si hay facturas asociadas, no permitir la eliminación
+      if (facturasAsociadas && facturasAsociadas.length > 0) {
+        const facturaIds = facturasAsociadas.map(f => f.id_externo || f.id).join(', ');
+        alert(`No es posible eliminar esta proforma porque está asociada a ${facturasAsociadas.length} factura(s): ${facturaIds}. Por favor, elimine primero las facturas asociadas.`);
+        setDeleteLoading(null);
+        return;
+      }
+      
+      // Si no hay facturas asociadas, proceder con la eliminación
       const { error } = await supabase
         .from('proformas')
         .delete()
@@ -149,6 +168,7 @@ function ProformasContent() {
       
     } catch (err) {
       console.error('Error eliminando proforma:', err);
+      alert(`Error al eliminar la proforma: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       setError('Error al eliminar la proforma');
     } finally {
       setDeleteLoading(null);

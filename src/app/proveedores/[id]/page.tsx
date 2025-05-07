@@ -79,6 +79,8 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
           // Obtener URL del archivo si existe
           if (data.nombre_archivo && data.ruta_archivo) {
             try {
+              console.log('Obteniendo URL firmada para el archivo:', data.ruta_archivo);
+              
               // Crear una URL firmada (válida por 1 hora) para el archivo
               const { data: fileData, error: fileError } = await supabase
                 .storage
@@ -87,7 +89,22 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
                 
               if (fileError) {
                 console.error('Error al obtener URL firmada:', fileError);
+                // Intentar método alternativo
+                try {
+                  const { data: publicUrlData } = await supabase
+                    .storage
+                    .from('documentos')
+                    .getPublicUrl(data.ruta_archivo);
+                    
+                  if (publicUrlData) {
+                    console.log('URL pública obtenida con éxito:', publicUrlData.publicUrl);
+                    setFileUrl(publicUrlData.publicUrl);
+                  }
+                } catch (publicUrlError) {
+                  console.error('Error al obtener URL pública:', publicUrlError);
+                }
               } else if (fileData) {
+                console.log('URL firmada obtenida con éxito:', fileData.signedUrl);
                 setFileUrl(fileData.signedUrl);
               }
             } catch (error) {

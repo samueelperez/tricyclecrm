@@ -36,7 +36,13 @@ interface Proveedor {
 }
 
 // Componente interno MaterialSelector con autocompletado
-function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }) {
+interface MaterialSelectorProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }: MaterialSelectorProps) {
   const [query, setQuery] = useState(value);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);

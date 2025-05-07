@@ -17,6 +17,8 @@ import { Proforma } from '@/app/proformas/components/types';
 import { getSupabaseClient } from '@/lib/supabase';
 import { verifyFacturasClienteTable } from '@/lib/db-migrations';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, CUENTAS_BANCARIAS, EMPAQUE_OPCIONES } from '@/lib/constants';
+import InvoicePrintView from '@/components/invoice-print-view';
 
 // Definir interfaces para los tipos
 interface InvoiceItem {
@@ -28,25 +30,6 @@ interface InvoiceItem {
   totalValue: number;
   packaging?: string;
 }
-
-// Lista de puertos predefinidos
-const PUERTOS_SUGERIDOS = [
-  'TEMA PORT - GHANA',
-  'APAPA PORT - NIGERIA',
-  'MERSIN PORT - TURKEY',
-  'KLANG WEST PORT - MALAYSIA',
-  'LAEMCHABANG PORT - THAILAND'
-];
-
-// Lista de términos de pago predefinidos
-const TERMINOS_PAGO_SUGERIDOS = [
-  '30% CIA – 70% 14 days before ETA and after receiving copy of all documents required',
-  '20% CIA – 80% 14 days before ETA and after receiving copy of all documents required',
-  '50% CIA – 50% 14 days before ETA and after receiving copy of all documents required'
-];
-
-// Lista de opciones de empaque predefinidas
-const EMPAQUE_OPCIONES = ['Bales', 'Loose', 'Package', 'Roles'];
 
 // Definir una versión extendida de la interface Proforma que incluya la propiedad cliente
 interface ProformaWithClient extends Proforma {
@@ -79,6 +62,7 @@ export default function NewCustomerInvoicePage() {
     puerto_origen: '',
     puerto_destino: '',
     deliveryTerms: '',
+    bankAccount: CUENTAS_BANCARIAS[0].descripcion, // Establece la cuenta bancaria por defecto
     items: [
       {
         id: '1',
@@ -215,14 +199,16 @@ export default function NewCustomerInvoicePage() {
           items: invoice.items,
           descripcion: invoice.items[0]?.description || '',
           puerto_origen: invoice.puerto_origen,
-          puerto_destino: invoice.puerto_destino
+          puerto_destino: invoice.puerto_destino,
+          bankAccount: invoice.bankAccount // Agregar la cuenta bancaria al objeto material
         }),
         notas: prepareNotes(),
         estado: 'pendiente',
         puerto_origen: invoice.puerto_origen,
         puerto_destino: invoice.puerto_destino,
         proforma_id: selectedProforma?.id || null, // Incluir referencia a la proforma
-        ref_proforma: selectedProforma?.id_externo || null // Incluir referencia externa a la proforma
+        ref_proforma: selectedProforma?.id_externo || null, // Incluir referencia externa a la proforma
+        cuenta_bancaria: invoice.bankAccount || "" // Guardar la cuenta bancaria directamente en la columna de la tabla
       };
       
       console.log('Guardando factura:', facturaData);
@@ -800,6 +786,45 @@ export default function NewCustomerInvoicePage() {
               className="w-full p-2 border rounded-md h-24"
             ></textarea>
           </div>
+        </div>
+        
+        {/* Bank Details */}
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Datos Bancarios</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
+            <div className="relative">
+              <select 
+                className="w-full p-2 border rounded-md appearance-none"
+                value={invoice.bankAccount}
+                onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
+              >
+                {CUENTAS_BANCARIAS.map(cuenta => (
+                  <option key={cuenta.id} value={cuenta.descripcion}>
+                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <FiChevronDown className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+          
+          {/* Mostrar detalles bancarios */}
+          {invoice.bankAccount && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
+              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === invoice.bankAccount).map(cuenta => (
+                <div key={cuenta.id}>
+                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Pie con botones */}

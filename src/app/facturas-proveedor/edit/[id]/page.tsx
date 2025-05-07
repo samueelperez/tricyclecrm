@@ -52,6 +52,7 @@ interface FacturaProveedorFormData {
   importe: number;
   nombre_archivo?: string | null;
   archivo_adjunto?: File | null;
+  url_adjunto?: string | null;
 }
 
 // Interfaz para las props del MaterialSelector
@@ -247,7 +248,9 @@ function MaterialSelector({ value, onChange, placeholder = "Busca o añade un ma
 
 export default function EditFacturaProveedorPage() {
   const router = useRouter();
-  const { id } = useParams();
+  const { id } = useParams() as { id: string };
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<FacturaProveedorFormData>({
     fecha: new Date(),
     proveedor_id: null,
@@ -255,91 +258,112 @@ export default function EditFacturaProveedorPage() {
     descripcion: '',
     material: '',
     importe: 0,
-    nombre_archivo: null
+    nombre_archivo: null,
+    archivo_adjunto: null,
+    url_adjunto: null
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [proveedorNombre, setProveedorNombre] = useState('');
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Cargar listado de proveedores
+  const fetchProveedores = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('proveedores')
+        .select('id, nombre, id_fiscal, email, ciudad, telefono, sitio_web')
+        .order('nombre');
+      
+      if (error) throw error;
+      setProveedores(data || []);
+    } catch (err) {
+      console.error('Error al cargar proveedores:', err);
+      toast.error('Error al cargar la lista de proveedores');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
+      setSaving(true);
+      
       try {
         const supabase = getSupabaseClient();
         
-        // Cargar datos de la factura
-        const { data: facturaData, error: facturaError } = await supabase
+        // Obtener datos de la factura
+        const { data: factura, error: facturaError } = await supabase
           .from('facturas_proveedor')
           .select('*')
           .eq('id', id)
           .single();
           
-        if (facturaError) {
-          throw facturaError;
+        if (facturaError) throw facturaError;
+        
+        if (!factura) {
+          toast.error('Factura no encontrada');
+          router.push('/facturas-proveedor');
+          return;
         }
         
-        if (facturaData) {
-          setFormData({
-            fecha: new Date(facturaData.fecha),
-            proveedor_id: facturaData.proveedor_id,
-            numero_factura: facturaData.numero_factura,
-            descripcion: facturaData.descripcion || '',
-            material: facturaData.material || '',
-            importe: facturaData.importe,
-            nombre_archivo: facturaData.nombre_archivo,
-            archivo_adjunto: null
-          });
-          
-          // Si hay un archivo adjunto, obtener la URL firmada
-          if (facturaData.nombre_archivo) {
-            // Determinar la extensión del archivo
-            const fileExtension = facturaData.nombre_archivo.split('.').pop();
-            const filePath = `facturas-proveedor/${id}.${fileExtension}`;
-            
-            const { data: fileData, error: fileError } = await supabase
-              .storage
-              .from('documentos')
-              .createSignedUrl(filePath, 3600); // URL válida por 1 hora
-              
-            if (!fileError && fileData) {
-              setFileUrl(fileData.signedUrl);
-            }
-          }
-        }
-        
-        // Cargar proveedores
-        const { data: proveedoresData, error: proveedoresError } = await supabase
+        // Obtener proveedor
+        const { data: proveedor, error: proveedorError } = await supabase
           .from('proveedores')
-          .select('id, nombre, id_fiscal, email, ciudad, telefono, sitio_web')
-          .order('nombre', { ascending: true });
+          .select('nombre')
+          .eq('id', factura.proveedor_id)
+          .single();
           
-        if (proveedoresError) {
-          throw proveedoresError;
+        if (proveedor) {
+          setProveedorNombre(proveedor.nombre);
         }
         
-        setProveedores(proveedoresData || []);
+        // Formatear la fecha
+        const fecha = factura.fecha ? new Date(factura.fecha) : new Date();
         
-        // Si hay un proveedor seleccionado, buscar su nombre
-        if (facturaData?.proveedor_id) {
-          const proveedorSeleccionado = proveedoresData?.find(p => p.id === facturaData.proveedor_id);
-          if (proveedorSeleccionado) {
-            setProveedorNombre(proveedorSeleccionado.nombre);
+        // Actualizar estado con los datos
+        setFormData({
+          fecha,
+          proveedor_id: factura.proveedor_id,
+          numero_factura: factura.numero_factura || '',
+          descripcion: factura.descripcion || '',
+          material: factura.material || '',
+          importe: factura.importe || 0,
+          nombre_archivo: factura.nombre_archivo || null,
+          archivo_adjunto: null,
+          url_adjunto: factura.url_adjunto || null
+        });
+        
+        // Generar URL para el archivo si existe
+        if (factura.nombre_archivo) {
+          const fileExt = factura.nombre_archivo.split('.').pop();
+          const filePath = `facturas-proveedor/${id}.${fileExt}`;
+          
+          const { data: urlData } = await supabase
+            .storage
+            .from('documentos')
+            .createSignedUrl(filePath, 3600);
+          
+          if (urlData) {
+            setFileUrl(urlData.signedUrl);
           }
+        } else if (factura.url_adjunto) {
+          // Si ya tiene una URL almacenada, usarla directamente
+          setFileUrl(factura.url_adjunto);
         }
         
-        setLoading(false);
+        // Cargar listado de proveedores
+        fetchProveedores();
       } catch (err) {
         console.error('Error al cargar datos:', err);
         toast.error('Error al cargar los datos de la factura');
-        setLoading(false);
+      } finally {
+        setSaving(false);
       }
     };
     
     fetchData();
-  }, [id]);
+  }, [id, router]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -388,36 +412,43 @@ export default function EditFacturaProveedorPage() {
   };
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    
-    if (file) {
-      // Verificar que sea un archivo PDF, Word o Excel
-      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel'];
-      
-      if (!validTypes.includes(file.type)) {
-        toast.error('Por favor, selecciona un archivo PDF, Word o Excel');
-        return;
-      }
-      
-      // Verificar tamaño máximo (10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB en bytes
-      if (file.size > maxSize) {
-        toast.error('El archivo es demasiado grande. El tamaño máximo es 10MB');
-        return;
-      }
-      
-      setFormData({
-        ...formData,
-        archivo_adjunto: file,
-        nombre_archivo: file.name
-      });
-      
-      // Revocar la URL del archivo anterior
-      if (fileUrl) {
-        URL.revokeObjectURL(fileUrl);
-        setFileUrl(null);
-      }
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
     }
+    
+    const file = e.target.files[0];
+    
+    // Validar tamaño del archivo (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('El archivo es demasiado grande. El tamaño máximo es de 10MB.');
+      return;
+    }
+    
+    // Validar tipo de archivo (pdf, doc, docx, xls, xlsx)
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const validExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+    
+    if (!fileExt || !validExtensions.includes(fileExt)) {
+      toast.error('Tipo de archivo no permitido. Por favor, adjunta un archivo PDF, Word o Excel.');
+      return;
+    }
+    
+    // Revocar URL del archivo anterior si existe
+    if (fileUrl && !formData.url_adjunto) {
+      URL.revokeObjectURL(fileUrl);
+    }
+    
+    // Crear URL para vista previa del archivo
+    const url = URL.createObjectURL(file);
+    setFileUrl(url);
+    
+    // Actualizar el estado del formulario
+    setFormData({
+      ...formData,
+      archivo_adjunto: file,
+      nombre_archivo: file.name,
+      url_adjunto: null // Resetear la URL al subir un nuevo archivo
+    });
   };
   
   const handleClearFile = () => {
@@ -446,6 +477,22 @@ export default function EditFacturaProveedorPage() {
     });
   };
 
+  const handleUrlChange = (url: string) => {
+    setFormData({
+      ...formData,
+      url_adjunto: url,
+      archivo_adjunto: null, // Eliminar archivo local si hay una URL externa
+      nombre_archivo: url ? 'Archivo externo' : null
+    });
+    
+    // Si hay URL, usarla directamente como fileUrl
+    if (url) {
+      setFileUrl(url);
+    } else {
+      setFileUrl(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -469,7 +516,8 @@ export default function EditFacturaProveedorPage() {
           descripcion: formData.descripcion,
           material: formData.material,
           importe: formData.importe,
-          nombre_archivo: formData.nombre_archivo
+          nombre_archivo: formData.nombre_archivo,
+          url_adjunto: formData.url_adjunto // Guardar la URL del adjunto
         })
         .eq('id', id);
         
@@ -498,8 +546,8 @@ export default function EditFacturaProveedorPage() {
           console.error('Error al subir el archivo:', uploadError);
           toast.error('Se actualizó la factura, pero hubo un error al subir el archivo');
         }
-      } else if (!formData.nombre_archivo) {
-        // Si se eliminó el archivo, eliminarlo del storage
+      } else if (!formData.nombre_archivo && !formData.url_adjunto) {
+        // Si se eliminó el archivo local y no hay URL, eliminarlo del storage
         const { data: facturaData } = await supabase
           .from('facturas_proveedor')
           .select('nombre_archivo')
@@ -790,7 +838,8 @@ export default function EditFacturaProveedorPage() {
                     
                     {fileUrl && (
                       <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
-                        {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ? (
+                        {formData.nombre_archivo?.toLowerCase().endsWith('.pdf') ||
+                         fileUrl.toLowerCase().includes('.pdf') ? (
                           <div className="w-full h-full">
                             <iframe 
                               src={fileUrl} 
@@ -820,26 +869,65 @@ export default function EditFacturaProveedorPage() {
                     )}
                   </div>
                 ) : (
-                  <>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
-                    >
-                      <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
-                      Adjuntar archivo
-                    </button>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Formatos permitidos: PDF, Word, Excel. Tamaño máximo: 10MB
-                    </p>
-                  </>
+                  <div className="space-y-4">
+                    {/* Opción para subir archivo */}
+                    <div>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                      >
+                        <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                        Adjuntar archivo
+                      </button>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Formatos permitidos: PDF, Word, Excel. Tamaño máximo: 10MB
+                      </p>
+                    </div>
+                    
+                    {/* Separador */}
+                    <div className="flex items-center my-4">
+                      <div className="flex-grow border-t border-gray-300"></div>
+                      <span className="flex-shrink mx-4 text-gray-600 text-sm">o</span>
+                      <div className="flex-grow border-t border-gray-300"></div>
+                    </div>
+                    
+                    {/* Opción para introducir URL */}
+                    <div>
+                      <label htmlFor="url_adjunto" className="block text-sm font-medium text-gray-700 mb-1">
+                        Introducir URL del documento
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          id="url_adjunto"
+                          placeholder="https://example.com/mi-documento.pdf"
+                          value={formData.url_adjunto || ''}
+                          onChange={(e) => handleUrlChange(e.target.value)}
+                          className="flex-grow p-2 border rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => formData.url_adjunto && handleUrlChange(formData.url_adjunto)}
+                          className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                          disabled={!formData.url_adjunto}
+                        >
+                          <FiEye className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                          Vista previa
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Introduce la URL directa al documento PDF o archivo adjunto
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

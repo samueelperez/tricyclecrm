@@ -99,6 +99,20 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
     return '';
   };
 
+  // Extraer detalles bancarios a partir de la cuenta seleccionada
+  const getBankDetails = () => {
+    if (!proforma.cuenta_bancaria) return { banco: '', iban: '', moneda: '' };
+    
+    const bankDetails = proforma.cuenta_bancaria.split(' - ');
+    return {
+      banco: bankDetails[0] || '',
+      iban: bankDetails[1] || '',
+      moneda: bankDetails[2] || ''
+    };
+  };
+  
+  const bankDetails = getBankDetails();
+
   return (
     <div ref={ref} className="bg-white p-10" style={{ width: '210mm', minHeight: '297mm', margin: '0 auto', fontFamily: 'Arial, sans-serif', fontSize: '9pt', position: 'relative' }}>
       {/* Cabecera */}
@@ -294,16 +308,16 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
               <td style={{ fontWeight: 'bold' }}>TRICYCLE PRODUCTS S.L.</td>
             </tr>
             <tr>
-              <td style={{ paddingBottom: '5px' }}>BANK NUMBER.:</td>
-              <td style={{ fontWeight: 'bold' }}>ES60004953321426100088XX</td>
-            </tr>
-            <tr>
               <td style={{ paddingBottom: '5px' }}>BANK:</td>
-              <td style={{ fontWeight: 'bold' }}>Banco Santander S.A</td>
+              <td style={{ fontWeight: 'bold' }}>{bankDetails.banco}</td>
             </tr>
             <tr>
-              <td>SWIFT:</td>
-              <td style={{ fontWeight: 'bold' }}>BSCHESMM</td>
+              <td style={{ paddingBottom: '5px' }}>IBAN:</td>
+              <td style={{ fontWeight: 'bold' }}>{bankDetails.iban}</td>
+            </tr>
+            <tr>
+              <td style={{ paddingBottom: '5px' }}>CURRENCY:</td>
+              <td style={{ fontWeight: 'bold' }}>{bankDetails.moneda}</td>
             </tr>
           </tbody>
         </table>

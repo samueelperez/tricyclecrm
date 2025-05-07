@@ -7,6 +7,9 @@ import jsPDF from 'jspdf';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from 'next/image';
 import { FiDownload, FiLoader, FiArrowLeft, FiEye } from 'react-icons/fi';
+import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { CUENTAS_BANCARIAS } from '@/lib/constants';
 
 // Interfaz para la factura
 interface Factura {
@@ -116,6 +119,35 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
   const getInvoiceNumber = () => {
     return factura.numero_factura || factura.id_externo || `INV${String(factura.id).padStart(4, '0')}`;
   };
+
+  // Función para obtener detalles bancarios
+  function getBankDetails(cuenta_bancaria?: string) {
+    if (!cuenta_bancaria) return { banco: '', iban: '', moneda: '', swift: '' };
+    
+    // Buscar la cuenta bancaria en la lista de cuentas predefinidas
+    const cuentaBancaria = CUENTAS_BANCARIAS.find(cuenta => cuenta.descripcion === cuenta_bancaria);
+    
+    if (cuentaBancaria) {
+      return {
+        banco: cuentaBancaria.banco,
+        iban: cuentaBancaria.iban,
+        moneda: cuentaBancaria.moneda,
+        swift: cuentaBancaria.swift
+      };
+    }
+    
+    // Si no se encuentra en las predefinidas, intentar parsear el formato antiguo
+    const bankDetails = cuenta_bancaria.split(' - ');
+    return {
+      banco: bankDetails[0] || '',
+      iban: bankDetails[1] || '',
+      moneda: bankDetails[2] || '',
+      swift: ''
+    };
+  }
+  
+  // Obtener detalles bancarios para esta factura
+  const bankInfo = getBankDetails(factura.cuenta_bancaria);
 
   return (
     <div ref={ref} className="bg-white p-10" style={{ width: '210mm', minHeight: '297mm', margin: '0 auto', fontFamily: 'Arial, sans-serif', fontSize: '9pt', position: 'relative' }}>
@@ -283,29 +315,13 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
         </div>
       </div>
       
-      {/* Datos bancarios */}
-      <div style={{ marginTop: '30px', marginBottom: '20px' }}>
-        <div style={{ color: '#ff0000', fontWeight: 'bold', marginBottom: '5px' }}>BANK DETAILS:</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <td style={{ width: '150px', paddingBottom: '5px' }}>BENEFICIARY:</td>
-              <td style={{ fontWeight: 'bold' }}>TRICYCLE PRODUCTS S.L.</td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '5px' }}>BANK NUMBER.:</td>
-              <td style={{ fontWeight: 'bold' }}>ES60004953321426100088XX</td>
-            </tr>
-            <tr>
-              <td style={{ paddingBottom: '5px' }}>BANK:</td>
-              <td style={{ fontWeight: 'bold' }}>Banco Santander S.A</td>
-            </tr>
-            <tr>
-              <td>SWIFT:</td>
-              <td style={{ fontWeight: 'bold' }}>BSCHESMM</td>
-            </tr>
-          </tbody>
-        </table>
+      {/* BANK DETAILS */}
+      <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+        <div style={{ fontWeight: 'bold', borderBottom: '1px solid #000', marginBottom: '5px', fontSize: '10pt' }}>BANK DETAILS:</div>
+        <div><span style={{ fontWeight: 'bold' }}>Bank:</span> {bankInfo.banco}</div>
+        <div><span style={{ fontWeight: 'bold' }}>IBAN:</span> {bankInfo.iban}</div>
+        <div><span style={{ fontWeight: 'bold' }}>SWIFT:</span> {bankInfo.swift}</div>
+        <div><span style={{ fontWeight: 'bold' }}>Currency:</span> {bankInfo.moneda || factura.divisa || "EUR"}</div>
       </div>
       
       {/* Firma */}
@@ -906,6 +922,34 @@ export default function FacturaPDFPage() {
             multiClientes={multiClientes}
             ref={printRef} 
           />
+        </div>
+        
+        {/* Cuenta Bancaria */}
+        <div className="flex justify-end">
+          <div className="w-full max-w-lg mx-auto mt-6 mb-4 border border-gray-300 p-4 rounded-md bg-gray-50">
+            <h3 className="text-md font-bold text-gray-800 mb-2 border-b pb-1">Información Bancaria</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {factura.cuenta_bancaria && (
+                <>
+                  {(() => {
+                    const { banco, iban, moneda, swift } = bankInfo;
+                    return (
+                      <>
+                        <div>
+                          <p className="text-sm"><span className="font-semibold">Banco:</span> {banco}</p>
+                          <p className="text-sm"><span className="font-semibold">IBAN:</span> {iban}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm"><span className="font-semibold">SWIFT:</span> {swift}</p>
+                          <p className="text-sm"><span className="font-semibold">Moneda:</span> {moneda}</p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

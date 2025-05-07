@@ -54,6 +54,7 @@ interface FacturaProveedorFormData {
   pdf_path?: string;
   archivo_adjunto?: File | null;
   nombre_archivo?: string | null;
+  url_adjunto?: string | null;
 }
 
 // Interfaz para las props del MaterialSelector
@@ -252,13 +253,15 @@ export default function NewFacturaProveedorPage() {
     material: '',
     importe: 0,
     archivo_adjunto: null,
-    nombre_archivo: null
+    nombre_archivo: null,
+    url_adjunto: null
   });
   const [loading, setLoading] = useState(false);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [proveedorNombre, setProveedorNombre] = useState('');
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProveedores = async () => {
@@ -332,28 +335,39 @@ export default function NewFacturaProveedorPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     
-    if (file) {
-      // Verificar que sea un archivo PDF, Word o Excel
-      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel'];
-      
-      if (!validTypes.includes(file.type)) {
-        toast.error('Por favor, selecciona un archivo PDF, Word o Excel');
-        return;
-      }
-      
-      // Verificar tamaño máximo (10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB en bytes
-      if (file.size > maxSize) {
-        toast.error('El archivo es demasiado grande. El tamaño máximo es 10MB');
-        return;
-      }
-      
-      setFormData({
-        ...formData,
-        archivo_adjunto: file,
-        nombre_archivo: file.name
-      });
+    if (!file) {
+      return;
     }
+    
+    // Verificar tamaño máximo (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('El archivo es demasiado grande. El tamaño máximo es 10MB');
+      return;
+    }
+    
+    // Verificar tipo de archivo
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const validExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+    
+    if (!fileExt || !validExtensions.includes(fileExt)) {
+      toast.error('Tipo de archivo no válido. Por favor, adjunta un archivo PDF, Word o Excel.');
+      return;
+    }
+    
+    // Crear URL para vista previa
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
+    
+    const url = URL.createObjectURL(file);
+    setFileUrl(url);
+    
+    setFormData({
+      ...formData,
+      archivo_adjunto: file,
+      nombre_archivo: file.name,
+      url_adjunto: null // Resetear la URL al subir un archivo
+    });
   };
   
   const handleClearFile = () => {
@@ -363,9 +377,29 @@ export default function NewFacturaProveedorPage() {
       nombre_archivo: null
     });
     
-    // Resetear el input de archivo
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+      setFileUrl(null);
+    }
+  };
+
+  const handleUrlChange = (url: string) => {
+    setFormData({
+      ...formData,
+      url_adjunto: url,
+      archivo_adjunto: null, // Eliminar archivo local si hay una URL externa
+      nombre_archivo: url ? 'Archivo externo' : null
+    });
+    
+    // Si hay URL, usarla directamente como fileUrl
+    if (url) {
+      setFileUrl(url);
+    } else {
+      setFileUrl(null);
     }
   };
 
@@ -416,7 +450,9 @@ export default function NewFacturaProveedorPage() {
           numero_factura: formData.numero_factura,
           descripcion: formData.descripcion,
           material: formData.material,
-          importe: formData.importe
+          importe: formData.importe,
+          nombre_archivo: formData.nombre_archivo,
+          url_adjunto: formData.url_adjunto
         })
         .select('id')
         .single();
@@ -634,12 +670,14 @@ export default function NewFacturaProveedorPage() {
                 Adjuntar Documento
               </label>
               <div className="mt-1">
-                {formData.archivo_adjunto ? (
+                {formData.archivo_adjunto || formData.url_adjunto ? (
                   <div className="flex flex-col space-y-2 p-4 border border-gray-300 rounded-md w-full">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <FiPaperclip className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{formData.archivo_adjunto.name}</span>
+                        <span className="text-sm text-gray-900">
+                          {formData.archivo_adjunto ? formData.archivo_adjunto.name : 'Archivo externo'}
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -651,16 +689,15 @@ export default function NewFacturaProveedorPage() {
                       </button>
                     </div>
                     
-                    {formData.archivo_adjunto && (
+                    {fileUrl && (
                       <div className="border border-gray-200 rounded-md overflow-hidden w-full h-96 mt-2">
-                        {formData.archivo_adjunto.type === 'application/pdf' ? (
-                          <div className="w-full h-full bg-gray-50 flex items-center justify-center">
-                            <div className="text-center p-4">
-                              <FiFile className="mx-auto h-12 w-12 text-gray-400" />
-                              <p className="mt-2 text-sm text-gray-500">
-                                La vista previa estará disponible después de guardar
-                              </p>
-                            </div>
+                        {fileUrl.toLowerCase().includes('.pdf') ? (
+                          <div className="w-full h-full">
+                            <iframe 
+                              src={fileUrl} 
+                              className="w-full h-full"
+                              title="Vista previa del archivo adjunto"
+                            />
                           </div>
                         ) : (
                           <div className="flex items-center justify-center h-full bg-gray-50">
@@ -669,6 +706,17 @@ export default function NewFacturaProveedorPage() {
                               <p className="mt-2 text-sm text-gray-500">
                                 Vista previa no disponible para este tipo de archivo
                               </p>
+                              {formData.url_adjunto && (
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-2 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                                >
+                                  <FiEye className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                                  Ver en nueva pestaña
+                                </a>
+                              )}
                             </div>
                           </div>
                         )}
@@ -676,26 +724,65 @@ export default function NewFacturaProveedorPage() {
                     )}
                   </div>
                 ) : (
-                  <>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
-                    >
-                      <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
-                      Adjuntar archivo
-                    </button>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Formatos permitidos: PDF, Word, Excel. Tamaño máximo: 10MB
-                    </p>
-                  </>
+                  <div className="space-y-4">
+                    {/* Opción para subir archivo */}
+                    <div>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                      >
+                        <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                        Adjuntar archivo
+                      </button>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Formatos permitidos: PDF, Word, Excel. Tamaño máximo: 10MB
+                      </p>
+                    </div>
+                    
+                    {/* Separador */}
+                    <div className="flex items-center my-4">
+                      <div className="flex-grow border-t border-gray-300"></div>
+                      <span className="flex-shrink mx-4 text-gray-600 text-sm">o</span>
+                      <div className="flex-grow border-t border-gray-300"></div>
+                    </div>
+                    
+                    {/* Opción para introducir URL */}
+                    <div>
+                      <label htmlFor="url_adjunto" className="block text-sm font-medium text-gray-700 mb-1">
+                        Introducir URL del documento
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          id="url_adjunto"
+                          placeholder="https://example.com/mi-documento.pdf"
+                          value={formData.url_adjunto || ''}
+                          onChange={(e) => handleUrlChange(e.target.value)}
+                          className="flex-grow p-2 border rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => formData.url_adjunto && handleUrlChange(formData.url_adjunto)}
+                          className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                          disabled={!formData.url_adjunto}
+                        >
+                          <FiEye className="mr-2 -ml-1 h-5 w-5 text-gray-400" />
+                          Vista previa
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Introduce la URL directa al documento PDF o archivo adjunto
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

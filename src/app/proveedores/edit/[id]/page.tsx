@@ -217,16 +217,10 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
         URL.revokeObjectURL(formData.archivo_url);
       }
       
-      // Crear una copia del archivo para asegurarnos que es un objeto File válido
-      const fileBlob = new Blob([file], { type: file.type });
-      const fileObject = new File([fileBlob], file.name, { 
-        type: file.type,
-        lastModified: new Date().getTime()
-      });
-      
+      // NO recreamos el objeto File, usamos el original
       setFormData(prevData => ({
         ...prevData,
-        archivo_adjunto: fileObject,
+        archivo_adjunto: file,
         nombre_archivo: file.name,
         archivo_url: fileUrl
       }));
@@ -335,32 +329,43 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             ruta: filePath
           });
           
-          // Imprimir información detallada del archivo
-          console.log('Detalles del archivo:', {
-            isFile: formData.archivo_adjunto instanceof File,
-            constructor: formData.archivo_adjunto.constructor.name,
-            properties: Object.keys(formData.archivo_adjunto)
-          });
-          
+          // Subir archivo directamente usando el objeto File
           try {
-            const { data: uploadData, error: uploadError } = await supabase
+            // Primero intentamos con arrayBuffer
+            let result = await supabase
               .storage
               .from('documentos')
               .upload(filePath, fileData, {
                 upsert: true,
                 contentType: formData.archivo_adjunto.type
               });
+              
+            // Si hay error, intentamos subir directamente el archivo
+            if (result.error) {
+              console.warn('Error en el primer intento de carga. Intentando método alternativo...', result.error);
+              
+              result = await supabase
+                .storage
+                .from('documentos')
+                .upload(filePath, formData.archivo_adjunto, {
+                  upsert: true
+                });
+            }
             
             console.log('Resultado de la carga:', { 
-              uploadData, 
-              error: uploadError ? uploadError.message : null, 
-              status: uploadError ? 'Error' : 'OK' 
+              data: result.data, 
+              error: result.error ? result.error.message : null, 
+              status: result.error ? 'Error' : 'OK' 
             });
             
-            if (uploadError) {
-              console.error('Error al subir el archivo a Supabase:', uploadError);
-              throw new Error(`Error al subir el archivo: ${uploadError.message}`);
+            if (result.error) {
+              console.error('Error al subir el archivo a Supabase:', result.error);
+              throw new Error(`Error al subir el archivo: ${result.error.message}`);
             }
+            
+            // Actualizar referencias en la base de datos
+            updateData.nombre_archivo = formData.archivo_adjunto.name;
+            updateData.ruta_archivo = filePath;
           } catch (e) {
             console.error('Excepción durante la carga del archivo:', e);
             if (e instanceof Error) {
@@ -369,10 +374,6 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
             }
             throw e;
           }
-          
-          // Actualizar referencias en la base de datos
-          updateData.nombre_archivo = formData.archivo_adjunto.name;
-          updateData.ruta_archivo = filePath;
           
           // Obtener URL firmada para previsualización inmediata después de guardado
           try {
@@ -383,7 +384,8 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
               
             if (!fileError && fileData) {
               console.log('URL firmada generada correctamente:', fileData.signedUrl);
-              // No actualizamos formData.archivo_url aquí, ya que vamos a redirigir
+              // No guardamos la URL en la base de datos, solo la usamos para mostrar
+              // al usuario el archivo después de guardado
             } else {
               console.error('Error al obtener URL firmada después del upload:', fileError);
             }

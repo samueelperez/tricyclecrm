@@ -19,7 +19,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import ClienteSelector, { Cliente } from '@/components/cliente-selector';
-import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS } from '@/lib/constants';
+import { PUERTOS_SUGERIDOS, TERMINOS_PAGO_SUGERIDOS, CUENTAS_BANCARIAS } from '@/lib/constants';
+import InvoicePrintView from '@/components/invoice-print-view';
 
 // Interfaces para los datos
 interface InvoiceItem {
@@ -96,172 +97,6 @@ interface Invoice {
   pais?: string;
   codigo_postal?: string;
 }
-
-// Componente para la vista de impresión de factura
-const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
-  ({ invoice }, ref) => {
-    // Extraer fecha formateada
-    const formattedDate = new Date(invoice.date).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    
-    // Calcular totales
-    const subtotal = invoice.items.reduce((sum, item) => sum + item.totalValue, 0);
-    const taxAmount = invoice.items.reduce((sum, item) => sum + (item.totalValue * (item.taxRate / 100)), 0);
-    const totalAmount = subtotal + taxAmount;
-
-    return (
-      <div ref={ref} className="bg-white p-8 max-w-[21cm] mx-auto shadow-none" style={{ display: 'none' }}>
-        {/* Cabecera con logo */}
-        <div className="mb-8 flex justify-between items-start border-b pb-6">
-          <div className="flex items-center">
-            <img 
-              src="/images/logo.png" 
-              alt="Logo TriCycle CRM" 
-              className="h-20 mr-4" 
-              style={{ objectFit: 'contain' }}
-            />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">TRICYCLE CRM</h1>
-              <p className="text-gray-600">C/ Principal 123</p>
-              <p className="text-gray-600">28001 Madrid, España</p>
-              <p className="text-gray-600">CIF: B12345678</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xl font-bold text-gray-800 mb-2">FACTURA</div>
-            <table className="ml-auto text-right">
-              <tbody>
-                <tr>
-                  <td className="pr-2 text-gray-600 font-medium">Número:</td>
-                  <td className="font-bold">{invoice.number}</td>
-                </tr>
-                <tr>
-                  <td className="pr-2 text-gray-600 font-medium">Fecha:</td>
-                  <td>{formattedDate}</td>
-                </tr>
-                <tr>
-                  <td className="pr-2 text-gray-600 font-medium">Estado:</td>
-                  <td>
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      invoice.estado === 'pagada' ? 'bg-green-100 text-green-800' :
-                      invoice.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {invoice.estado.charAt(0).toUpperCase() + invoice.estado.slice(1)}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Información del cliente */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Cliente</h2>
-            <p className="font-medium text-lg">{invoice.customerName}</p>
-            {invoice.taxId && <p className="text-gray-600">CIF/NIF: {invoice.taxId}</p>}
-            {invoice.direccion && <p className="text-gray-600">{invoice.direccion}</p>}
-            {(invoice.ciudad || invoice.codigo_postal) && (
-              <p className="text-gray-600">
-                {invoice.ciudad}
-                {invoice.codigo_postal && invoice.ciudad ? `, ${invoice.codigo_postal}` : invoice.codigo_postal}
-              </p>
-            )}
-            {invoice.pais && <p className="text-gray-600">{invoice.pais}</p>}
-          </div>
-          
-          {/* Términos de pago */}
-          <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Términos de pago</h2>
-            <p>{invoice.paymentTerms || "No especificado"}</p>
-          </div>
-        </div>
-
-        {/* Términos de Entrega */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Términos de Entrega</h3>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Puerto de Descarga</label>
-            <div className="p-2 border rounded-md">
-              {invoice.puerto_destino || "No especificado"}
-            </div>
-          </div>
-        </div>
-
-        {/* Líneas de factura */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-3 text-gray-700 border-b pb-1">Detalle de factura</h2>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="py-2 px-4 text-left border border-gray-300">Descripción</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Cantidad</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Peso (MT)</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Precio unitario</th>
-                <th className="py-2 px-4 text-center border border-gray-300">Tipo Empaque</th>
-                <th className="py-2 px-4 text-right border border-gray-300">IVA %</th>
-                <th className="py-2 px-4 text-right border border-gray-300">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items.map((item, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="py-2 px-4 border border-gray-300">{item.description}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.quantity}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.weight || 0}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{(item.unitPrice || 0).toFixed(2)} €</td>
-                  <td className="py-2 px-4 text-center border border-gray-300">{item.packagingType || "N/A"}</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{item.taxRate}%</td>
-                  <td className="py-2 px-4 text-right border border-gray-300">{(item.totalValue || 0).toFixed(2)} €</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Resumen */}
-        <div className="mb-6 flex justify-end">
-          <div className="w-64 border border-gray-300 rounded-md overflow-hidden">
-            <div className="flex justify-between py-2 px-4 bg-gray-50 border-b">
-              <span className="font-medium">Subtotal:</span>
-              <span>{(subtotal || 0).toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between py-2 px-4 bg-white border-b">
-              <span className="font-medium">IVA:</span>
-              <span>{(taxAmount || 0).toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between py-3 px-4 bg-gray-100 font-bold">
-              <span>Total:</span>
-              <span>{(totalAmount || 0).toFixed(2)} €</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Notas */}
-        {invoice.invoiceNotes && (
-          <div className="mb-8 border border-gray-200 rounded-md p-4 bg-gray-50">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700 border-b pb-1">Notas</h2>
-            <p className="text-gray-700 whitespace-pre-line">{invoice.invoiceNotes}</p>
-          </div>
-        )}
-        
-        {/* Pie de página */}
-        <div className="mt-10 pt-4 border-t text-center text-gray-500 text-xs">
-          <p>Esta factura ha sido generada por TriCycle CRM</p>
-          <p>www.tricyclecrm.com | soporte@tricyclecrm.com | +34 912 345 678</p>
-        </div>
-      </div>
-    );
-  }
-);
-
-InvoicePrintView.displayName = 'InvoicePrintView';
 
 export default function EditCustomerInvoicePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -481,7 +316,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
           subtotal: data.monto || 0,
           taxAmount: (data.monto || 0) * 0.21,
           totalAmount: (data.monto || 0) * 1.21,
-          bankAccount: 'Santander S.A. - ES6000495332142610008899 - USD',
+          bankAccount: data.cuenta_bancaria || 'Santander S.A. - ES6000495332142610008899 - USD',
           puerto_origen: puerto_origen,
           puerto_destino: puerto_destino,
           deliveryTerms: deliveryTerms,
@@ -542,7 +377,7 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       
       // Guardar los items en otro campo o como información resumida
       const itemResumen = invoice.items.map(item => ({
-        d: item.description.substring(0, 15),
+        d: item.description ? item.description.substring(0, 15) : "",
         q: item.quantity,
         p: item.unitPrice,
         t: item.packagingType ? item.packagingType.substring(0, 1) : ""
@@ -555,27 +390,29 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
         cliente_id: cliente_id,
         monto: invoice.totalAmount,
         material: JSON.stringify({
-          cn: invoice.customerName.substring(0, 30),
-          tax: invoice.taxId,
-          pt: invoice.paymentTerms.substring(0, 30),
-          dt: invoice.deliveryTerms,
-          desc: invoice.items[0]?.description.substring(0, 20) || '',
-          pd: invoice.puerto_destino.substring(0, 30),
-          po: invoice.puerto_origen.substring(0, 30),
-          peso: invoice.pesoTotal,
-          cont: invoice.contenedores,
-          orig: invoice.origen,
-          dir: invoice.direccion,
-          ciu: invoice.ciudad,
-          pa: invoice.pais,
-          cp: invoice.codigo_postal,
+          cn: invoice.customerName ? invoice.customerName.substring(0, 30) : "",
+          tax: invoice.taxId || "",
+          pt: invoice.paymentTerms ? invoice.paymentTerms.substring(0, 30) : "",
+          dt: invoice.deliveryTerms || "",
+          desc: invoice.items[0]?.description ? invoice.items[0].description.substring(0, 20) : "",
+          pd: invoice.puerto_destino ? invoice.puerto_destino.substring(0, 30) : "",
+          po: invoice.puerto_origen ? invoice.puerto_origen.substring(0, 30) : "",
+          peso: invoice.pesoTotal || 0,
+          cont: invoice.contenedores || "",
+          orig: invoice.origen || "",
+          dir: invoice.direccion || "",
+          ciu: invoice.ciudad || "",
+          pa: invoice.pais || "",
+          cp: invoice.codigo_postal || "",
           items: itemResumen
         }),
-        notas: invoice.invoiceNotes.substring(0, 200),
+        notas: invoice.invoiceNotes ? invoice.invoiceNotes.substring(0, 200) : "",
         estado: invoice.estado,
         // Guardar los puertos en sus columnas específicas
-        puerto_origen: invoice.puerto_origen,
-        puerto_destino: invoice.puerto_destino
+        puerto_origen: invoice.puerto_origen || "",
+        puerto_destino: invoice.puerto_destino || "",
+        // Añadir la cuenta bancaria seleccionada
+        cuenta_bancaria: invoice.bankAccount || ""
       };
       
       console.log('Actualizando factura:', facturaData);
@@ -1188,15 +1025,31 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                 value={invoice.bankAccount}
                 onChange={(e) => setInvoice({...invoice, bankAccount: e.target.value})}
               >
-                <option>Santander S.A. - ES6000495332142610008899 - USD</option>
-                <option>BBVA - ES9101822370420201558843 - EUR</option>
-                <option>CaixaBank - ES7121000418401234567891 - USD</option>
+                {CUENTAS_BANCARIAS.map(cuenta => (
+                  <option key={cuenta.id} value={cuenta.descripcion}>
+                    {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                  </option>
+                ))}
               </select>
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                 <FiChevronDown className="w-5 h-5" />
               </div>
             </div>
           </div>
+          
+          {/* Mostrar detalles bancarios */}
+          {invoice.bankAccount && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
+              {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === invoice.bankAccount).map(cuenta => (
+                <div key={cuenta.id}>
+                  <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                  <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                  <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                  <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Shipping Details */}

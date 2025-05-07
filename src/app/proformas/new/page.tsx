@@ -3,8 +3,9 @@
 import { useState, Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiUpload, FiX, FiPackage, FiPlus, FiSearch } from 'react-icons/fi';
+import { FiArrowLeft, FiUpload, FiX, FiPackage, FiPlus, FiSearch, FiChevronDown } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { CUENTAS_BANCARIAS } from '@/lib/constants';
 
 interface Material {
   id: number;
@@ -21,10 +22,17 @@ interface SupplierProforma {
   materialName: string;
   currency: string;
   attachment?: File | null;
+  bankAccount: string;
 }
 
 // Componente interno MaterialSelector con autocompletado
-function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }) {
+interface MaterialSelectorProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function MaterialSelector({ value, onChange, placeholder = "Busca o añade un material" }: MaterialSelectorProps) {
   const [query, setQuery] = useState(value);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);
@@ -215,7 +223,8 @@ function NewProformaContent() {
     totalAmount: 0,
     materialName: '',
     currency: 'EUR',
-    attachment: null
+    attachment: null,
+    bankAccount: CUENTAS_BANCARIAS[0].descripcion
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -243,7 +252,8 @@ function NewProformaContent() {
       totalAmount: 0,
       materialName: '',
       currency: 'EUR',
-      attachment: null
+      attachment: null,
+      bankAccount: CUENTAS_BANCARIAS[0].descripcion
     });
   };
 
@@ -425,6 +435,44 @@ function NewProformaContent() {
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
               />
             </div>
+          </div>
+
+          {/* Bank Details - Añadido para igualar con facturas */}
+          <div className="mt-6">
+            <h3 className="text-md font-medium text-gray-700 mb-4">Datos Bancarios</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
+              <div className="relative">
+                <select 
+                  className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  value={proforma.bankAccount}
+                  onChange={(e) => setProforma(prev => ({...prev, bankAccount: e.target.value}))}
+                >
+                  {CUENTAS_BANCARIAS.map(cuenta => (
+                    <option key={cuenta.id} value={cuenta.descripcion}>
+                      {cuenta.nombre} - {cuenta.banco} ({cuenta.moneda})
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <FiChevronDown className="h-5 w-5 text-gray-400" />
+                </div>
+              </div>
+            </div>
+            
+            {/* Mostrar detalles bancarios */}
+            {proforma.bankAccount && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 text-sm">
+                {CUENTAS_BANCARIAS.filter(cuenta => cuenta.descripcion === proforma.bankAccount).map(cuenta => (
+                  <div key={cuenta.id}>
+                    <p><span className="font-medium">Banco:</span> {cuenta.banco}</p>
+                    <p><span className="font-medium">IBAN:</span> {cuenta.iban}</p>
+                    <p><span className="font-medium">SWIFT:</span> {cuenta.swift}</p>
+                    <p><span className="font-medium">Moneda:</span> {cuenta.moneda}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Attachment */}

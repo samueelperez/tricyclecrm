@@ -323,6 +323,9 @@ export default function CrearNegocioPage() {
               </label>
               <ClienteSelector
                 value={formData.cliente_nombre}
+                onChange={(nombreCliente) => {
+                  setFormData({...formData, cliente_nombre: nombreCliente});
+                }}
                 onSelect={handleClienteSelect}
                 placeholder="Buscar cliente por nombre, CIF, ciudad..."
                 className="w-full"
