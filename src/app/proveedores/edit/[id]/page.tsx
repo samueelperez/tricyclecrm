@@ -23,6 +23,7 @@ import {
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
 import MaterialesSelector from '@/components/proveedores/materiales-selector';
+import { toast } from 'react-hot-toast';
 
 interface ProveedorFormData {
   nombre: string;
@@ -110,12 +111,41 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
           telefono: data.telefono || '',
           sitio_web: data.sitio_web || '',
           comentarios: data.comentarios || '',
-          material_ids: data.material_ids || [],
+          material_ids: [], // Lo inicializamos vacío y lo cargamos por separado
           archivo_adjunto: null,
           nombre_archivo: data.nombre_archivo || null,
           ruta_archivo: data.ruta_archivo || null,
           archivo_url: null // Inicializamos en null y lo obtendremos después
         });
+        
+        // Cargar los materiales del proveedor desde la API
+        try {
+          console.log(`Cargando materiales para el proveedor ${proveedorId}...`);
+          const materialesResponse = await fetch(`/api/proveedores/materiales?proveedor_id=${proveedorId}`);
+          
+          if (!materialesResponse.ok) {
+            console.error(`Error al cargar materiales: ${materialesResponse.status}`);
+            throw new Error(`Error al cargar materiales: ${materialesResponse.status}`);
+          }
+          
+          const materialesData = await materialesResponse.json();
+          console.log('Materiales cargados:', materialesData);
+          
+          if (Array.isArray(materialesData)) {
+            const materialIds = materialesData.map(material => material.id);
+            console.log('IDs de materiales extraídos:', materialIds);
+            
+            setFormData(prevData => ({
+              ...prevData,
+              material_ids: materialIds
+            }));
+          } else {
+            console.warn('No se recibió un array de materiales válido:', materialesData);
+          }
+        } catch (materialesError) {
+          console.error('Error al cargar los materiales del proveedor:', materialesError);
+          // No bloqueamos el flujo por un error en la carga de materiales
+        }
         
         // Si hay un archivo adjunto, obtener la URL firmada
         if (data.ruta_archivo) {
@@ -180,12 +210,24 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
 
   // Manejar cambios en los materiales seleccionados
   const handleMaterialesChange = (materialIds: number[]) => {
-    if (JSON.stringify(materialIds) !== JSON.stringify(formData.material_ids)) {
-      setFormData({
-        ...formData,
+    console.log('handleMaterialesChange llamado con materialIds:', materialIds);
+    console.log('Estado actual de formData.material_ids:', formData.material_ids);
+    
+    // Comprobar si realmente hay un cambio
+    const currentIds = [...formData.material_ids].sort();
+    const newIds = [...materialIds].sort();
+    const idsString = JSON.stringify(currentIds);
+    const newIdsString = JSON.stringify(newIds);
+    
+    if (idsString !== newIdsString) {
+      console.log('Materiales han cambiado, actualizando estado');
+      setFormData(prevData => ({
+        ...prevData,
         material_ids: materialIds
-      });
-      console.log('Materiales actualizados:', materialIds);
+      }));
+      console.log('Nuevo estado de material_ids:', materialIds);
+    } else {
+      console.log('No hay cambios en los materiales seleccionados');
     }
   };
 
@@ -416,6 +458,8 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
       // Actualizar los materiales seleccionados
       try {
         console.log('Actualizando materiales del proveedor...');
+        console.log('Material IDs a guardar:', formData.material_ids);
+        
         const materialesResponse = await fetch('/api/proveedores/materiales', {
           method: 'POST',
           headers: {
@@ -428,14 +472,25 @@ export default function EditProveedorPage({ params }: { params: { id: string } }
         });
         
         if (!materialesResponse.ok) {
-          console.error('Error en la respuesta al actualizar materiales:', materialesResponse.status);
-          throw new Error(`Error: ${materialesResponse.status}`);
+          const errorText = await materialesResponse.text();
+          console.error('Error en la respuesta al actualizar materiales:', materialesResponse.status, errorText);
+          throw new Error(`Error: ${materialesResponse.status} - ${errorText}`);
         }
         
-        console.log('Materiales actualizados correctamente');
+        const materialesResult = await materialesResponse.json();
+        console.log('Respuesta al actualizar materiales:', materialesResult);
+        
+        if (!materialesResult.success) {
+          console.error('Error al actualizar materiales:', materialesResult.error || 'Error desconocido');
+          // No bloqueamos el flujo pero registramos el error
+        } else {
+          console.log('Materiales actualizados correctamente');
+        }
       } catch (materialesError) {
         console.error('Error al actualizar los materiales del proveedor:', materialesError);
-        // No bloqueamos el flujo por un error en la actualización de materiales
+        // No bloqueamos el flujo por un error en la actualización de materiales, 
+        // pero notificamos al usuario
+        toast.error('No se pudieron actualizar los materiales correctamente');
       }
       
       // Redirigir a la página del proveedor

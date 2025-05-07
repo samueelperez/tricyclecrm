@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FiPlus, FiSearch, FiEdit, FiTrash2, FiUser, FiPackage, FiPhone, FiMail, FiMapPin, FiEye } from 'react-icons/fi'
+import { FiPlus, FiSearch, FiEdit, FiTrash2, FiUser, FiPackage, FiPhone, FiMail, FiMapPin, FiEye, FiX } from 'react-icons/fi'
 import Link from 'next/link'
 import { getSupabaseClient } from '@/lib/supabase'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -134,15 +134,31 @@ export default function ProveedoresPage() {
     setFilePreview(null);
   };
 
+  // Filtrar proveedores según término de búsqueda
+  const filteredProveedores = proveedores.filter(proveedor => 
+    proveedor.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (proveedor.id_fiscal && proveedor.id_fiscal.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (proveedor.email && proveedor.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
     <div className="bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Cabecera */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-4 sm:mb-0">
-            Proveedores
-          </h1>
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-1">
+              Proveedores
+            </h1>
+            <p className="text-gray-600 text-sm">
+              {searchQuery ? (
+                <>Mostrando <span className="font-medium">{filteredProveedores.length}</span> de <span className="font-medium">{proveedores.length}</span> proveedores</>
+              ) : (
+                <>Total: <span className="font-medium">{proveedores.length}</span> proveedores</>
+              )}
+            </p>
+          </div>
           <Link 
             href="/proveedores/new"
             className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
@@ -165,6 +181,20 @@ export default function ProveedoresPage() {
               onChange={handleSearch}
             />
           </div>
+          {searchQuery && (
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                <span className="font-medium">{filteredProveedores.length}</span> {filteredProveedores.length === 1 ? 'resultado' : 'resultados'} para "<span className="text-indigo-600 font-medium">{searchQuery}</span>"
+              </p>
+              
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-sm text-indigo-500 hover:text-indigo-700 flex items-center"
+              >
+                <FiX className="mr-1" /> Limpiar filtros
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Estado de carga */}
@@ -191,8 +221,59 @@ export default function ProveedoresPage() {
               </p>
             )}
           </div>
+        ) : filteredProveedores.length === 0 ? (
+          <div className="bg-white shadow-md rounded-lg p-10 text-center">
+            <div className="flex justify-center mb-4">
+              <FiPackage className="h-12 w-12 text-gray-400" />
+            </div>
+            <p className="text-gray-600 text-lg mb-2">No se encontraron proveedores con "{searchQuery}"</p>
+            <p className="text-sm text-gray-500 mb-4">
+              La búsqueda no coincide con ningún proveedor en la base de datos.
+            </p>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none inline-flex items-center"
+            >
+              <FiPackage className="mr-1" /> Ver todos los proveedores ({proveedores.length})
+            </button>
+          </div>
         ) : (
           <div className="bg-white shadow-md rounded-lg overflow-hidden transition-all duration-300 ease-in-out">
+            {/* Resumen de información */}
+            {!searchQuery && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+                <div className="p-4 bg-white rounded-lg shadow-sm flex items-center space-x-4">
+                  <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                    <FiPackage className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Total de proveedores</p>
+                    <p className="text-2xl font-bold text-gray-900">{proveedores.length}</p>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-white rounded-lg shadow-sm flex items-center space-x-4">
+                  <div className="p-3 rounded-full bg-green-100 text-green-600">
+                    <FiMail className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Con email</p>
+                    <p className="text-2xl font-bold text-gray-900">{proveedores.filter(p => p.email && p.email.trim() !== '').length}</p>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-white rounded-lg shadow-sm flex items-center space-x-4">
+                  <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+                    <FiMapPin className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Con ubicación</p>
+                    <p className="text-2xl font-bold text-gray-900">{proveedores.filter(p => p.ciudad || p.pais).length}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Tabla de proveedores */}
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -222,7 +303,7 @@ export default function ProveedoresPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {proveedores.map((proveedor) => (
+                  {filteredProveedores.map((proveedor) => (
                     <tr key={proveedor.id} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">

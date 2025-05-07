@@ -41,9 +41,10 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
           throw error;
         }
         
+        console.log('MaterialesSelector: Materiales cargados de la base de datos:', data?.length || 0);
         setMaterials(data || []);
       } catch (err) {
-        console.error('Error al cargar materiales:', err);
+        console.error('MaterialesSelector: Error al cargar materiales:', err);
         toast.error('Error al cargar la lista de materiales');
       } finally {
         setLoading(false);
@@ -55,11 +56,17 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
 
   // Actualizar los materiales seleccionados cuando cambien los IDs seleccionados
   useEffect(() => {
-    if (materials.length > 0 && selectedMaterialIds.length > 0) {
-      const selected = materials.filter(m => selectedMaterialIds.includes(m.id));
-      setSelectedMaterials(selected);
-    } else {
-      setSelectedMaterials([]);
+    console.log('MaterialesSelector: selectedMaterialIds cambiado:', selectedMaterialIds);
+    
+    if (materials.length > 0) {
+      if (selectedMaterialIds.length > 0) {
+        const selected = materials.filter(m => selectedMaterialIds.includes(m.id));
+        console.log('MaterialesSelector: Materiales seleccionados encontrados:', selected.length);
+        setSelectedMaterials(selected);
+      } else {
+        console.log('MaterialesSelector: No hay materiales seleccionados');
+        setSelectedMaterials([]);
+      }
     }
   }, [materials, selectedMaterialIds]);
 
@@ -96,21 +103,28 @@ export default function MaterialesSelector({ selectedMaterialIds, onChange }: Ma
   }, []);
 
   const handleToggleMaterial = (material: Material) => {
-    let newSelectedIds;
+    console.log('MaterialesSelector: Toggle material', material.id, material.nombre);
+    
+    let newSelectedIds: number[];
     
     if (selectedMaterialIds.includes(material.id)) {
+      console.log('MaterialesSelector: Eliminando material de selección');
       // Si ya está seleccionado, lo quitamos
       newSelectedIds = selectedMaterialIds.filter(id => id !== material.id);
     } else {
+      console.log('MaterialesSelector: Añadiendo material a selección');
       // Si no está seleccionado, lo añadimos
       newSelectedIds = [...selectedMaterialIds, material.id];
     }
     
+    console.log('MaterialesSelector: Nuevos IDs seleccionados:', newSelectedIds);
     onChange(newSelectedIds);
   };
 
   const handleRemoveMaterial = (id: number) => {
+    console.log('MaterialesSelector: Removiendo material', id);
     const newSelectedIds = selectedMaterialIds.filter(materialId => materialId !== id);
+    console.log('MaterialesSelector: Nuevos IDs después de remover:', newSelectedIds);
     onChange(newSelectedIds);
   };
 
