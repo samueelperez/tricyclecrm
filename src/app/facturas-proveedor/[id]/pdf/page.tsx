@@ -38,7 +38,6 @@ interface FacturaProveedor {
     id_fiscal?: string;
   };
   cliente_direccion?: string;
-  cliente_id_fiscal?: string;
 }
 
 export default function FacturaProveedorPDFPage() {
