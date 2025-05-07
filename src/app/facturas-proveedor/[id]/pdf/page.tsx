@@ -43,7 +43,11 @@ export default function FacturaProveedorPDFPage() {
         setMultiClientes(false);
       } catch (err) {
         console.error('Error al cargar la factura:', err);
-        setError(err.message || 'Error al cargar la factura');
+        setError(
+          err instanceof Error 
+            ? err.message 
+            : 'Error al cargar la factura'
+        );
       } finally {
         setLoading(false);
       }
@@ -100,7 +104,11 @@ export default function FacturaProveedorPDFPage() {
       
     } catch (err) {
       console.error('Error al acceder al archivo adjunto:', err);
-      setError('No se encontró ningún archivo adjunto. Si desea visualizar un PDF, debe adjuntarlo primero en el formulario de la factura.');
+      setError(
+        err instanceof Error 
+          ? err.message 
+          : 'No se encontró ningún archivo adjunto. Si desea visualizar un PDF, debe adjuntarlo primero en el formulario de la factura.'
+      );
     } finally {
       setGenerating(false);
     }
@@ -176,7 +184,11 @@ export default function FacturaProveedorPDFPage() {
       
     } catch (e) {
       console.error("Error al descargar PDF:", e);
-      setError("Error al generar el PDF para descarga");
+      setError(
+        e instanceof Error 
+          ? e.message 
+          : "Error al generar el PDF para descarga"
+      );
     } finally {
       setGenerating(false);
     }
