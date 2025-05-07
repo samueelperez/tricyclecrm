@@ -129,8 +129,30 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
           if (materialesError) {
             console.error('Error al obtener materiales:', materialesError);
           } else if (materialesData) {
-            const materialesMapped = materialesData.map(item => item.materiales);
+            console.log('Datos de materiales recibidos:', JSON.stringify(materialesData, null, 2));
+            // Filtramos entradas nulas y mapeamos el objeto anidado correctamente
+            const materialesMapped = materialesData
+              .filter(item => item.materiales !== null)
+              .map(item => item.materiales);
+            console.log('Materiales mapeados:', materialesMapped);
             setMateriales(materialesMapped);
+            
+            // Si no hay materiales válidos después del filtrado, intentamos obtenerlos directamente de la API
+            if (materialesMapped.length === 0) {
+              console.log('No se encontraron materiales válidos, intentando obtener desde la API...');
+              try {
+                const response = await fetch(`/api/proveedores/materiales?proveedor_id=${params.id}`);
+                if (response.ok) {
+                  const apiMateriales = await response.json();
+                  console.log('Materiales obtenidos desde API:', apiMateriales);
+                  if (Array.isArray(apiMateriales) && apiMateriales.length > 0) {
+                    setMateriales(apiMateriales);
+                  }
+                }
+              } catch (apiError) {
+                console.error('Error al obtener materiales desde la API:', apiError);
+              }
+            }
           }
         }
       } catch (err) {
@@ -481,16 +503,18 @@ export default function ProveedorDetailPage({ params }: { params: { id: string }
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {materiales.map((material) => (
-                      <tr key={material.id} className="hover:bg-gray-50">
+                    {materiales.map((material, index) => (
+                      <tr key={material.id || index} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {material.nombre}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-normal text-sm text-gray-500 max-w-md break-words">
                           {material.descripcion || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {material.precio_unidad ? `${material.precio_unidad} ${material.unidad || ''}` : '-'}
+                          {material.precio_unidad ? 
+                            `${parseFloat(material.precio_unidad).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${material.unidad || '€'}` 
+                            : '-'}
                         </td>
                       </tr>
                     ))}
