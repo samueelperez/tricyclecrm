@@ -401,9 +401,24 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
       };
       
       // Aplicar valores por defecto donde sea necesario
-      (Object.keys(defaultValues) as Array<keyof Invoice>).forEach(field => {
+      Object.entries(defaultValues).forEach(([key, defaultValue]) => {
+        const field = key as keyof Invoice;
         if (validatedInvoice[field] === undefined) {
-          validatedInvoice[field] = defaultValues[field];
+          // Aplicamos el valor por defecto con el tipo apropiado
+          switch(field) {
+            case 'items':
+              validatedInvoice.items = defaultValue as InvoiceItem[];
+              break;
+            case 'subtotal':
+            case 'taxAmount':
+            case 'totalAmount':
+            case 'pesoTotal':
+              validatedInvoice[field] = defaultValue as number;
+              break;
+            default:
+              validatedInvoice[field] = defaultValue as string;
+              break;
+          }
         }
       });
       
