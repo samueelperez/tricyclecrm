@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { CUENTAS_BANCARIAS } from '@/lib/constants';
+import { getCuentasBancariasFallback } from '@/hooks/useCuentasBancarias';
 
 // Interfaz para los items de factura
 interface InvoiceItem {
@@ -52,7 +52,8 @@ const InvoicePrintView = forwardRef<HTMLDivElement, { invoice: Invoice }>(
     });
     
     // Obtener detalles bancarios a partir de la cuenta seleccionada
-    const selectedBank = CUENTAS_BANCARIAS.find(cuenta => cuenta.descripcion === invoice.bankAccount);
+    const cuentasBancarias = getCuentasBancariasFallback();
+    const selectedBank = cuentasBancarias.find(cuenta => cuenta.descripcion === invoice.bankAccount);
     const bankName = selectedBank?.banco || '';
     const iban = selectedBank?.iban || '';
     const swift = selectedBank?.swift || '';
