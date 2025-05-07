@@ -278,36 +278,53 @@ function NewProformaContent() {
     const { name, value } = e.target;
     setProforma(prev => ({
       ...prev,
-      [name]: name === 'totalAmount' ? parseFloat(value) || 0 : value
+      [name]: name === 'subtotal' || name === 'total' ? parseFloat(value) || 0 : value
     }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Este campo no se usa en el modelo actual de proforma
+    // pero mantenemos la función para futuras implementaciones
     if (e.target.files && e.target.files[0]) {
-      setProforma(prev => ({
-        ...prev,
-        attachment: e.target.files![0]
-      }));
+      console.log("Archivo seleccionado:", e.target.files[0].name);
     }
   };
 
   const handleClearAll = () => {
     setProforma({
-      dealNumber: '',
-      date: new Date().toISOString().split('T')[0],
-      supplierName: '',
-      totalAmount: 0,
-      materialName: '',
-      currency: 'EUR',
-      attachment: null,
-      bankAccount: CUENTAS_BANCARIAS[0].descripcion
+      id: '',
+      numero: generateProformaNumber(),
+      fecha: new Date().toISOString().split('T')[0],
+      clienteNombre: '',
+      idFiscal: '',
+      incoterm: '',
+      condicionesPago: '',
+      notas: '',
+      items: [{
+        id: '1',
+        descripcion: '',
+        cantidad: 0,
+        peso: 0,
+        precio_unitario: 0,
+        valor_total: 0,
+        empaque: ''
+      }],
+      puerto_origen: 'SPAIN',
+      puerto_destino: '',
+      bankAccount: cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : '',
+      subtotal: 0,
+      total: 0
     });
   };
 
   const handleMaterialChange = (value: string) => {
+    const updatedItems = [...proforma.items];
+    if (updatedItems[0]) {
+      updatedItems[0].descripcion = value;
+    }
     setProforma(prev => ({
       ...prev,
-      materialName: value
+      items: updatedItems
     }));
   };
 
@@ -357,41 +374,33 @@ function NewProformaContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Deal Number */}
             <div>
-              <label htmlFor="dealNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                Deal Number
+              <label htmlFor="numero" className="block text-sm font-medium text-gray-700 mb-1">
+                Número de Proforma
               </label>
               <div className="relative">
-                <select
-                  id="dealNumber"
-                  name="dealNumber"
-                  value={proforma.dealNumber}
+                <input
+                  type="text"
+                  id="numero"
+                  name="numero"
+                  value={proforma.numero}
                   onChange={handleInputChange}
                   className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="">Select a deal number</option>
-                  <option value="INV001">INV001</option>
-                  <option value="INV002">INV002</option>
-                  <option value="INV003">INV003</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                  placeholder="PRO-2023-001"
+                />
               </div>
             </div>
 
             {/* Proforma Date */}
             <div>
-              <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
-                {initialTab === 'supplier' ? 'Supplier' : 'Customer'} Proforma Date
+              <label htmlFor="fecha" className="block text-sm font-medium text-gray-700 mb-1">
+                {initialTab === 'supplier' ? 'Proveedor' : 'Cliente'} Fecha de Proforma
               </label>
               <div className="relative">
                 <input
                   type="date"
-                  id="date"
-                  name="date"
-                  value={proforma.date}
+                  id="fecha"
+                  name="fecha"
+                  value={proforma.fecha}
                   onChange={handleInputChange}
                   className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
                 />
@@ -405,18 +414,18 @@ function NewProformaContent() {
 
             {/* Supplier/Customer Name */}
             <div>
-              <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700 mb-1">
-                {initialTab === 'supplier' ? 'Supplier' : 'Customer'} Name
+              <label htmlFor="clienteNombre" className="block text-sm font-medium text-gray-700 mb-1">
+                {initialTab === 'supplier' ? 'Proveedor' : 'Cliente'} Nombre
               </label>
               <div className="relative">
                 <select
-                  id="supplierName"
-                  name="supplierName"
-                  value={proforma.supplierName}
+                  id="clienteNombre"
+                  name="clienteNombre"
+                  value={proforma.clienteNombre}
                   onChange={handleInputChange}
                   className="block w-full rounded-md border border-gray-300 py-2 pl-3 pr-10 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
                 >
-                  <option value="">Select a {initialTab === 'supplier' ? 'supplier' : 'customer'}</option>
+                  <option value="">Seleccionar {initialTab === 'supplier' ? 'proveedor' : 'cliente'}</option>
                   {initialTab === 'supplier' ? (
                     <>
                       <option value="Recisur">Recisur</option>
@@ -441,15 +450,15 @@ function NewProformaContent() {
 
             {/* Total Amount */}
             <div>
-              <label htmlFor="totalAmount" className="block text-sm font-medium text-gray-700 mb-1">
-                total amount <span className="text-red-500">*</span>
+              <label htmlFor="subtotal" className="block text-sm font-medium text-gray-700 mb-1">
+                Monto Total <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 step="0.01"
-                id="totalAmount"
-                name="totalAmount"
-                value={proforma.totalAmount}
+                id="subtotal"
+                name="subtotal"
+                value={proforma.subtotal}
                 onChange={handleInputChange}
                 required
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
@@ -458,28 +467,55 @@ function NewProformaContent() {
 
             {/* Type Material Name */}
             <div>
-              <label htmlFor="materialName" className="block text-sm font-medium text-gray-700 mb-1">
-                Type Material Name
-              </label>
-              <MaterialSelector
-                value={proforma.materialName}
-                onChange={handleMaterialChange}
-                placeholder="Busca o añade un material"
-              />
-            </div>
-
-            {/* Currency */}
-            <div>
-              <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
-                Currency
+              <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-1">
+                Descripción del Material
               </label>
               <input
                 type="text"
-                id="currency"
-                name="currency"
-                value={proforma.currency}
+                id="descripcion"
+                name="descripcion"
+                value={proforma.items[0]?.descripcion || ''}
+                onChange={(e) => {
+                  const updatedItems = [...proforma.items];
+                  if (updatedItems[0]) {
+                    updatedItems[0].descripcion = e.target.value;
+                  }
+                  setProforma({...proforma, items: updatedItems});
+                }}
+                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="Descripción del material"
+              />
+            </div>
+
+            {/* Condiciones de Pago */}
+            <div>
+              <label htmlFor="condicionesPago" className="block text-sm font-medium text-gray-700 mb-1">
+                Condiciones de Pago
+              </label>
+              <input
+                type="text"
+                id="condicionesPago"
+                name="condicionesPago"
+                value={proforma.condicionesPago}
                 onChange={handleInputChange}
                 className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="30% anticipado, 70% contra entrega"
+              />
+            </div>
+
+            {/* Incoterm */}
+            <div>
+              <label htmlFor="incoterm" className="block text-sm font-medium text-gray-700 mb-1">
+                Incoterm
+              </label>
+              <input
+                type="text"
+                id="incoterm"
+                name="incoterm"
+                value={proforma.incoterm}
+                onChange={handleInputChange}
+                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="EXW, FOB, CIF, etc."
               />
             </div>
           </div>
@@ -534,26 +570,11 @@ function NewProformaContent() {
           {/* Attachment */}
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Attachment
+              Adjunto
             </label>
             <div className="flex items-start">
               <div className="flex-shrink-0 h-24 w-24 border border-gray-200 rounded flex items-center justify-center mr-4">
-                {proforma.attachment ? (
-                  <div className="text-center p-1">
-                    <div className="text-xs text-gray-500 truncate w-full">
-                      {proforma.attachment.name}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setProforma(prev => ({ ...prev, attachment: null }))}
-                      className="mt-2 text-red-500 hover:text-red-700"
-                    >
-                      <FiX className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-gray-300 text-sm">File</span>
-                )}
+                <span className="text-gray-300 text-sm">Archivo</span>
               </div>
               <div>
                 <label
@@ -561,7 +582,7 @@ function NewProformaContent() {
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <FiUpload className="mr-2 -ml-1 h-5 w-5 text-gray-500" />
-                  Upload Attachment
+                  Subir Adjunto
                 </label>
                 <input
                   id="file-upload"
