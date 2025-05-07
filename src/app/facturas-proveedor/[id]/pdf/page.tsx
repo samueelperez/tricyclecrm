@@ -307,8 +307,16 @@ export default function FacturaProveedorPDFPage() {
     return idFiscal;
   };
 
+  // Definir interfaz para las props del componente FacturaPrintView
+  interface FacturaPrintViewProps {
+    factura: FacturaProveedor;
+    numeroFactura: string;
+    nombreDestinatario: string;
+    multiClientes: boolean;
+  }
+
   // Función para generar el componente de vista previa del PDF
-  const FacturaPrintView = forwardRef(({ factura, numeroFactura, nombreDestinatario, multiClientes }, ref) => {
+  const FacturaPrintView = forwardRef<HTMLDivElement, FacturaPrintViewProps>(({ factura, numeroFactura, nombreDestinatario, multiClientes }, ref) => {
     return (
       <div ref={ref} className="p-10 bg-white">
         {/* Cabecera - Logos */}
