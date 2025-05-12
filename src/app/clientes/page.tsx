@@ -145,9 +145,10 @@ export default function ClientesPage() {
       }
       
       setClientes(todosClientes);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error inesperado:', error)
-      toast.error('Error al cargar los clientes')
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al cargar los clientes'
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
