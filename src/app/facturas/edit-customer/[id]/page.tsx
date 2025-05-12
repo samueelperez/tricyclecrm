@@ -587,6 +587,12 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
 
   const handleItemChange = (index: number, field: string, value: any) => {
     const updatedItems = [...invoice.items];
+    
+    // Asegurar que los valores numéricos sean realmente números
+    if (field === 'quantity' || field === 'unitPrice' || field === 'weight') {
+      value = Number(value) || 0;
+    }
+    
     updatedItems[index] = {
       ...updatedItems[index],
       [field]: value
@@ -606,13 +612,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
     
+    // Calcular contenedores sumando directamente el campo "quantity" de cada fila
+    const contenedores = updatedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal, // El subtotal es el monto sin IVA
       taxAmount,
       totalAmount, // El totalAmount incluye el IVA pero solo se usa para mostrar
-      pesoTotal
+      pesoTotal,
+      contenedores: contenedores.toString() // Convertir a string porque la interfaz lo espera como string
     });
   };
 
@@ -639,13 +649,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
     
+    // Calcular contenedores sumando directamente el campo "quantity" de cada fila
+    const contenedores = updatedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal, // Guardamos el subtotal sin IVA
       taxAmount,
       totalAmount, // Solo para mostrar
-      pesoTotal
+      pesoTotal,
+      contenedores: contenedores.toString() // Convertir a string porque la interfaz lo espera como string
     });
   };
 
@@ -661,13 +675,17 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
     // Calcular peso total
     const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
     
+    // Calcular contenedores sumando directamente el campo "quantity" de cada fila
+    const contenedores = updatedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    
     setInvoice({
       ...invoice,
       items: updatedItems,
       subtotal, // Guardamos el subtotal sin IVA como monto principal
       taxAmount,
       totalAmount, // Solo para mostrar
-      pesoTotal
+      pesoTotal,
+      contenedores: contenedores.toString() // Convertir a string porque la interfaz lo espera como string
     });
   };
 
@@ -1165,6 +1183,9 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                   // Calcular peso total
                   const pesoTotal = updatedItems.reduce((sum, item) => sum + (item.weight || 0), 0);
                   
+                  // Calcular contenedores sumando directamente el campo "quantity" de cada fila
+                  const contenedores = updatedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                  
                   // Actualizar el estado
                   setInvoice({
                     ...invoice,
@@ -1172,7 +1193,8 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
                     subtotal,
                     taxAmount,
                     totalAmount,
-                    pesoTotal
+                    pesoTotal,
+                    contenedores: contenedores.toString() // Convertir a string porque la interfaz lo espera como string
                   });
                   
                   // Limpiar los campos

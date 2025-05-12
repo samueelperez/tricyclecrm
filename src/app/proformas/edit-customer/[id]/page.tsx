@@ -200,6 +200,30 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
     loadProforma();
   }, [params.id, cuentasBancarias]);
 
+  // Recalcular el peso total y el importe total cuando cambian los items
+  useEffect(() => {
+    if (proforma.items.length > 0) {
+      // Calcular peso total
+      const totalWeight = proforma.items.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+      
+      // Calcular valor total
+      const totalAmount = proforma.items.reduce((sum, item) => sum + (Number(item.weight || 0) * Number(item.unitPrice || 0)), 0);
+      
+      // Calcular contenedores sumando directamente el campo "Cantidad 40ft" (quantity) de cada fila
+      const containers = proforma.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      
+      // Usar patrón funcional para actualizar el estado sin causar un bucle
+      setProforma(prevState => ({
+        ...prevState,
+        totalWeight,
+        totalAmount,
+        containers,
+        // No modificar el array items aquí para evitar bucles infinitos
+        items: prevState.items
+      }));
+    }
+  }, [proforma.items]);
+
   const handleCancel = () => {
     router.push(`/proformas?tab=customer`);
   };
@@ -300,6 +324,12 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
 
   const handleItemChange = (index: number, field: string, value: any) => {
     const updatedItems = [...proforma.items];
+    
+    // Asegurar que los valores numéricos sean realmente números
+    if (field === 'weight' || field === 'unitPrice' || field === 'quantity') {
+      value = Number(value) || 0;
+    }
+    
     updatedItems[index] = {
       ...updatedItems[index],
       [field]: value
@@ -318,21 +348,21 @@ export default function EditCustomerProformaPage({ params }: { params: { id: str
   };
 
   const addNewItem = () => {
-    setProforma({
-      ...proforma,
-      items: [
-        ...proforma.items,
-        {
-          id: Date.now().toString(),
-          description: '',
-          quantity: 0,
-          weight: 0,
-          unitPrice: 0,
-          packaging: 'Type',
-          totalValue: 0
-        }
-      ]
-    });
+    const newItem = {
+      id: Date.now().toString(),
+      description: '',
+      quantity: 0,
+      weight: 0,
+      unitPrice: 0,
+      packaging: 'Type',
+      totalValue: 0
+    };
+    
+    // Usar actualización funcional para garantizar que se basa en el estado más reciente
+    setProforma(prevState => ({
+      ...prevState,
+      items: [...prevState.items, newItem]
+    }));
   };
 
   const removeItem = (index: number) => {

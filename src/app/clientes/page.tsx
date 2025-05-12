@@ -33,6 +33,17 @@ export default function ClientesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [reloadingData, setReloadingData] = useState(false)
+  const [verificandoDatos, setVerificandoDatos] = useState(false)
+  const [estatusVerificacion, setEstatusVerificacion] = useState<{
+    totalDB: number;
+    totalCargados: number;
+    ultimaVerificacion: Date | null;
+  }>({
+    totalDB: 0,
+    totalCargados: 0,
+    ultimaVerificacion: null
+  });
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -43,16 +54,74 @@ export default function ClientesPage() {
     setLoading(true)
     
     try {
-      const { data, error: fetchError } = await supabase
-        .from('clientes')
-        .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
-        .order('nombre')
+      // Forzar recarga completa sin caché
+      await supabase.auth.refreshSession(); // Refrescar token para forzar nueva conexión
       
-      if (fetchError) {
-        throw new Error(`Error al cargar clientes: ${fetchError.message}`)
+      // Contador para clientes totales en la base de datos
+      let totalClientesEnDB = 0;
+      
+      // Primero, hacer una consulta para contar todos los clientes
+      const { count, error: countError } = await supabase
+        .from('clientes')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) {
+        throw new Error(`Error al contar clientes: ${countError.message}`);
       }
       
-      setClientes(data || [])
+      totalClientesEnDB = count || 0;
+      console.log(`Total de clientes en la base de datos: ${totalClientesEnDB}`);
+      
+      // Si hay muchos clientes, implementamos carga por lotes
+      const tamanoLote = 1000; // Supabase tiene un límite por defecto de 1000
+      const totalLotes = Math.ceil(totalClientesEnDB / tamanoLote);
+      
+      // Arreglo para almacenar todos los clientes
+      let todosClientes: Cliente[] = [];
+      
+      // Cargar clientes por lotes
+      if (totalLotes > 1) {
+        for (let i = 0; i < totalLotes; i++) {
+          const desde = i * tamanoLote;
+          
+          const { data: loteDatos, error: loteError } = await supabase
+            .from('clientes')
+            .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
+            .order('nombre', { ascending: true })
+            .range(desde, desde + tamanoLote - 1);
+          
+          if (loteError) {
+            console.error(`Error al cargar lote ${i+1}:`, loteError);
+            continue; // Intentar con el siguiente lote en lugar de fallar completamente
+          }
+          
+          if (loteDatos && loteDatos.length > 0) {
+            todosClientes = [...todosClientes, ...loteDatos];
+            console.log(`Lote ${i+1}/${totalLotes} cargado: ${loteDatos.length} clientes (total acumulado: ${todosClientes.length})`);
+          }
+        }
+      } else {
+        // Si hay menos de 1000 clientes, cargar directamente
+        const { data, error: fetchError } = await supabase
+          .from('clientes')
+          .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
+          .order('nombre', { ascending: true });
+        
+        if (fetchError) {
+          throw new Error(`Error al cargar clientes: ${fetchError.message}`);
+        }
+        
+        todosClientes = data || [];
+      }
+      
+      console.log(`Carga inicial completada: ${todosClientes.length}/${totalClientesEnDB} clientes cargados`);
+      
+      // Verificar si hay discrepancia entre lo reportado y lo cargado
+      if (todosClientes.length < totalClientesEnDB) {
+        console.warn(`¡Atención! Sólo se cargaron ${todosClientes.length} de ${totalClientesEnDB} clientes.`);
+      }
+      
+      setClientes(todosClientes);
     } catch (error) {
       console.error('Error inesperado:', error)
       toast.error('Error al cargar los clientes')
@@ -122,6 +191,96 @@ export default function ClientesPage() {
     'Phone Number', 'Type', 'Business', 'Comment', 'Website'
   ];
   
+  // Función para forzar recarga de datos
+  const handleReloadData = async () => {
+    setReloadingData(true);
+    
+    try {
+      // Crear una nueva instancia de cliente para evitar la caché
+      const freshSupabase = createClientComponentClient();
+      
+      // Contador para clientes totales en la base de datos
+      let totalClientesEnDB = 0;
+      
+      // Primero, hacer una consulta para contar todos los clientes
+      const { count, error: countError } = await freshSupabase
+        .from('clientes')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) {
+        throw new Error(`Error al contar clientes: ${countError.message}`);
+      }
+      
+      totalClientesEnDB = count || 0;
+      console.log(`Total de clientes en la base de datos: ${totalClientesEnDB}`);
+      
+      // Si hay muchos clientes, implementamos carga por lotes
+      const tamanoLote = 1000; // Supabase tiene un límite por defecto de 1000
+      const totalLotes = Math.ceil(totalClientesEnDB / tamanoLote);
+      
+      // Arreglo para almacenar todos los clientes
+      let todosClientes: Cliente[] = [];
+      
+      // Cargar clientes por lotes
+      if (totalLotes > 1) {
+        toast.loading(`Cargando ${totalClientesEnDB} clientes en ${totalLotes} lotes...`, { duration: 3000 });
+        
+        for (let i = 0; i < totalLotes; i++) {
+          const desde = i * tamanoLote;
+          
+          const { data: loteDatos, error: loteError } = await freshSupabase
+            .from('clientes')
+            .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
+            .order('nombre', { ascending: true })
+            .range(desde, desde + tamanoLote - 1);
+          
+          if (loteError) {
+            console.error(`Error al cargar lote ${i+1}:`, loteError);
+            continue; // Intentar con el siguiente lote en lugar de fallar completamente
+          }
+          
+          if (loteDatos && loteDatos.length > 0) {
+            todosClientes = [...todosClientes, ...loteDatos];
+            console.log(`Lote ${i+1}/${totalLotes} cargado: ${loteDatos.length} clientes (total acumulado: ${todosClientes.length})`);
+            
+            // Actualizar la interfaz con los datos parciales para dar feedback al usuario
+            if (i < totalLotes - 1) {
+              toast.loading(`Cargando... ${Math.round((i+1) / totalLotes * 100)}% completado`, { duration: 1000 });
+            }
+          }
+        }
+      } else {
+        // Si hay menos de 1000 clientes, cargar directamente
+        const { data, error: fetchError } = await freshSupabase
+          .from('clientes')
+          .select('id, nombre, id_fiscal, email, telefono, ciudad, pais, direccion, codigo_postal, contacto_nombre, sitio_web, comentarios')
+          .order('nombre', { ascending: true });
+        
+        if (fetchError) {
+          throw new Error(`Error al cargar clientes: ${fetchError.message}`);
+        }
+        
+        todosClientes = data || [];
+      }
+      
+      console.log(`Recarga forzada completada: ${todosClientes.length}/${totalClientesEnDB} clientes cargados`);
+      
+      // Verificar si hay discrepancia entre lo reportado y lo cargado
+      if (todosClientes.length < totalClientesEnDB) {
+        console.warn(`¡Atención! Sólo se cargaron ${todosClientes.length} de ${totalClientesEnDB} clientes.`);
+        toast(`⚠️ Atención: Sólo se pudieron cargar ${todosClientes.length} de ${totalClientesEnDB} clientes.`);
+      }
+      
+      setClientes(todosClientes);
+      toast.success(`Datos actualizados: ${todosClientes.length} clientes cargados (Total en DB: ${totalClientesEnDB})`);
+    } catch (error) {
+      console.error('Error al recargar datos:', error);
+      toast.error('Error al recargar los datos. Por favor, inténtelo de nuevo.');
+    } finally {
+      setReloadingData(false);
+    }
+  };
+  
   // Función para importar clientes desde Excel
   const importarClientes = async (clientesData: any) => {
     try {
@@ -156,7 +315,7 @@ export default function ClientesPage() {
       }
       
       // Configuración de procesamiento por lotes
-      const tamanoLote = 500; // Procesar 500 registros a la vez
+      const tamanoLote = 200; // Reducir el tamaño del lote para evitar timeouts (era 500)
       const totalLotes = Math.ceil(dataArray.length / tamanoLote);
       let resultadoFinal = {
         success: true,
@@ -186,79 +345,107 @@ export default function ClientesPage() {
         console.log(`Enviando lote ${i+1}/${totalLotes} (${loteActual.length} registros) para importar:`, 
           JSON.stringify(dataToSend).substring(0, 200) + '...');
         
-        const response = await fetch('/api/clientes/import', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(dataToSend),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minuto de timeout
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Error al importar lote ${i+1}/${totalLotes}`);
-        }
-        
-        const resultadoLote = await response.json();
-        console.log(`Resultado de lote ${i+1}/${totalLotes}:`, resultadoLote);
-        
-        // Acumular resultados
-        if (resultadoLote.success) {
-          if (resultadoLote.resultados) {
-            // Acumular solo si hay estructura de resultados
-            resultadoFinal.resultados.nuevos += resultadoLote.resultados.nuevos || 0;
-            resultadoFinal.resultados.actualizados += resultadoLote.resultados.actualizados || 0;
-            resultadoFinal.resultados.omitidos += resultadoLote.resultados.omitidos || 0;
-            resultadoFinal.resultados.errores += resultadoLote.resultados.errores || 0;
+        try {
+          const response = await fetch('/api/clientes/import', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(dataToSend),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage;
             
-            // Calcular cuántos registros fueron procesados en este lote
-            const procesadosLote = 
-              (resultadoLote.resultados.nuevos || 0) + 
-              (resultadoLote.resultados.actualizados || 0) + 
-              (resultadoLote.resultados.omitidos || 0) + 
-              (resultadoLote.resultados.errores || 0);
-              
-            resultadoFinal.resultados.procesados += procesadosLote;
-            
-            // Si hay discrepancia entre registros enviados y procesados en este lote
-            if (procesadosLote < loteActual.length) {
-              console.warn(`Advertencia: ${loteActual.length - procesadosLote} registros no fueron procesados en el lote ${i+1}`);
+            try {
+              // Intentar procesar como JSON
+              const errorData = JSON.parse(errorText);
+              errorMessage = errorData.error || `Error al importar lote ${i+1}/${totalLotes}`;
+            } catch (e) {
+              // Si no es JSON, usar el texto directamente
+              errorMessage = errorText || `Error al importar lote ${i+1}/${totalLotes}`;
             }
-          } else if (resultadoLote.message) {
-            // Si no hay resultados estructurados pero sí mensaje de éxito,
-            // intentar extraer información del mensaje (formato: "X nuevos, Y actualizados, Z omitidos")
-            console.log(`Extrayendo información del mensaje: ${resultadoLote.message}`);
             
-            const nuevosMatch = resultadoLote.message.match(/(\d+)\s+clientes?\s+nuevos?/i);
-            const actualizadosMatch = resultadoLote.message.match(/(\d+)\s+actualizados?/i);
-            const omitidosMatch = resultadoLote.message.match(/(\d+)\s+omitidos?/i);
-            
-            if (nuevosMatch) resultadoFinal.resultados.nuevos += parseInt(nuevosMatch[1]);
-            if (actualizadosMatch) resultadoFinal.resultados.actualizados += parseInt(actualizadosMatch[1]);
-            if (omitidosMatch) resultadoFinal.resultados.omitidos += parseInt(omitidosMatch[1]);
-            
-            // Calcular procesados a partir del mensaje
-            const procesadosLote = 
-              (nuevosMatch ? parseInt(nuevosMatch[1]) : 0) + 
-              (actualizadosMatch ? parseInt(actualizadosMatch[1]) : 0) + 
-              (omitidosMatch ? parseInt(omitidosMatch[1]) : 0);
-            
-            resultadoFinal.resultados.procesados += procesadosLote;
-            
-            // Si hay discrepancia, los no procesados no se cuentan como errores
-            if (procesadosLote < loteActual.length) {
-              console.warn(`Advertencia: ${loteActual.length - procesadosLote} registros no reportados en el lote ${i+1}`);
-            }
-          } else {
-            // Si no hay resultados ni mensaje detallado, asumir que el lote fue procesado
-            // pero sin informe detallado. Incrementar 'procesados' sin marcar ninguno como error.
-            console.warn(`El lote ${i+1} no proporcionó detalles de procesamiento. Asumiendo que fueron procesados correctamente.`);
-            resultadoFinal.resultados.procesados += loteActual.length;
+            throw new Error(errorMessage);
           }
-        } else if (!resultadoLote.success) {
+          
+          const resultadoLote = await response.json();
+          console.log(`Resultado de lote ${i+1}/${totalLotes}:`, resultadoLote);
+          
+          // Acumular resultados
+          if (resultadoLote.success) {
+            if (resultadoLote.resultados) {
+              // Acumular solo si hay estructura de resultados
+              resultadoFinal.resultados.nuevos += resultadoLote.resultados.nuevos || 0;
+              resultadoFinal.resultados.actualizados += resultadoLote.resultados.actualizados || 0;
+              resultadoFinal.resultados.omitidos += resultadoLote.resultados.omitidos || 0;
+              resultadoFinal.resultados.errores += resultadoLote.resultados.errores || 0;
+              
+              // Calcular cuántos registros fueron procesados en este lote
+              const procesadosLote = 
+                (resultadoLote.resultados.nuevos || 0) + 
+                (resultadoLote.resultados.actualizados || 0) + 
+                (resultadoLote.resultados.omitidos || 0) + 
+                (resultadoLote.resultados.errores || 0);
+                
+              resultadoFinal.resultados.procesados += procesadosLote;
+              
+              // Si hay discrepancia entre registros enviados y procesados en este lote
+              if (procesadosLote < loteActual.length) {
+                console.warn(`Advertencia: ${loteActual.length - procesadosLote} registros no fueron procesados en el lote ${i+1}`);
+              }
+            } else if (resultadoLote.message) {
+              // Si no hay resultados estructurados pero sí mensaje de éxito,
+              // intentar extraer información del mensaje (formato: "X nuevos, Y actualizados, Z omitidos")
+              console.log(`Extrayendo información del mensaje: ${resultadoLote.message}`);
+              
+              const nuevosMatch = resultadoLote.message.match(/(\d+)\s+clientes?\s+nuevos?/i);
+              const actualizadosMatch = resultadoLote.message.match(/(\d+)\s+actualizados?/i);
+              const omitidosMatch = resultadoLote.message.match(/(\d+)\s+omitidos?/i);
+              
+              if (nuevosMatch) resultadoFinal.resultados.nuevos += parseInt(nuevosMatch[1]);
+              if (actualizadosMatch) resultadoFinal.resultados.actualizados += parseInt(actualizadosMatch[1]);
+              if (omitidosMatch) resultadoFinal.resultados.omitidos += parseInt(omitidosMatch[1]);
+              
+              // Calcular procesados a partir del mensaje
+              const procesadosLote = 
+                (nuevosMatch ? parseInt(nuevosMatch[1]) : 0) + 
+                (actualizadosMatch ? parseInt(actualizadosMatch[1]) : 0) + 
+                (omitidosMatch ? parseInt(omitidosMatch[1]) : 0);
+              
+              resultadoFinal.resultados.procesados += procesadosLote;
+              
+              // Si hay discrepancia, los no procesados no se cuentan como errores
+              if (procesadosLote < loteActual.length) {
+                console.warn(`Advertencia: ${loteActual.length - procesadosLote} registros no reportados en el lote ${i+1}`);
+              }
+            } else {
+              // Si no hay resultados ni mensaje detallado, asumir que el lote fue procesado
+              // pero sin informe detallado. Incrementar 'procesados' sin marcar ninguno como error.
+              console.warn(`El lote ${i+1} no proporcionó detalles de procesamiento. Asumiendo que fueron procesados correctamente.`);
+              resultadoFinal.resultados.procesados += loteActual.length;
+            }
+          } else if (!resultadoLote.success) {
+            resultadoFinal.success = false;
+            resultadoFinal.message = resultadoLote.message || `Error en lote ${i+1}`;
+            break; // Detener procesamiento si hay error
+          }
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          console.error('Error importando lote de clientes:', error);
+          toast.error(`Error al importar lote ${i+1}/${totalLotes}: ${error.message || 'Error desconocido'}`);
           resultadoFinal.success = false;
-          resultadoFinal.message = resultadoLote.message || `Error en lote ${i+1}`;
-          break; // Detener procesamiento si hay error
+          resultadoFinal.message = error.message || `Error procesando lote ${i+1}/${totalLotes}`;
+          resultadoFinal.resultados.errores += loteActual.length;
+          // Esperar 2 segundos antes de intentar el siguiente lote
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
       
@@ -336,8 +523,16 @@ export default function ClientesPage() {
           toast.success(mensaje || 'Importación completada');
         }
         
-        // Recargar la lista de clientes explícitamente
-        await fetchClientes();
+        // Recargar la lista de clientes de forma forzada
+        try {
+          // Esperar un pequeño tiempo para asegurar que la base de datos haya procesado todo
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          await handleReloadData();
+          console.log('Lista de clientes recargada después de importación'); 
+        } catch (err) {
+          console.error('Error al actualizar la lista después de importar:', err);
+          toast.error('Los clientes fueron importados pero hubo un error al recargar la lista. Por favor, actualice manualmente.');
+        }
         
         // Cerrar el modal de importación
         setShowImportModal(false);
@@ -351,6 +546,48 @@ export default function ClientesPage() {
       console.error('Error importando clientes:', error);
       toast.error(error.message || 'Error al importar clientes');
       throw error;
+    }
+  };
+
+  // Función para verificar la sincronización de datos entre DB y CRM
+  const verificarDatos = async () => {
+    setVerificandoDatos(true);
+    
+    try {
+      // Consultar el total real en la base de datos
+      const { count, error: countError } = await supabase
+        .from('clientes')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) {
+        throw new Error(`Error al contar clientes: ${countError.message}`);
+      }
+      
+      const totalEnDB = count || 0;
+      const totalCargados = clientes.length;
+      
+      // Actualizar estado
+      setEstatusVerificacion({
+        totalDB: totalEnDB,
+        totalCargados: totalCargados,
+        ultimaVerificacion: new Date()
+      });
+      
+      console.log(`Verificación completada: ${totalCargados} de ${totalEnDB} clientes están cargados en el CRM`);
+      
+      // Informar al usuario
+      if (totalCargados < totalEnDB) {
+        toast(`⚠️ Atención: Solo ${totalCargados} de ${totalEnDB} clientes están cargados. Se recomienda actualizar.`);
+      } else if (totalCargados === totalEnDB) {
+        toast.success(`✅ Todo correcto: Los ${totalCargados} clientes de la base de datos están cargados.`);
+      } else {
+        toast.error(`❌ Error de sincronización: Hay ${totalCargados} clientes cargados pero solo ${totalEnDB} en la base de datos.`);
+      }
+    } catch (error) {
+      console.error('Error al verificar datos:', error);
+      toast.error('No se pudo completar la verificación de datos');
+    } finally {
+      setVerificandoDatos(false);
     }
   };
 
@@ -374,11 +611,53 @@ export default function ClientesPage() {
           </div>
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-4 sm:mt-0">
             <button
+              onClick={handleReloadData}
+              disabled={reloadingData || verificandoDatos}
+              className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:-translate-y-0.5"
+            >
+              {reloadingData ? (
+                <>
+                  <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  Actualizando...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 -ml-1 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Actualizar
+                </>
+              )}
+            </button>
+            
+            <button
+              onClick={verificarDatos}
+              disabled={verificandoDatos || reloadingData}
+              className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 transform hover:-translate-y-0.5"
+              title="Verificar si todos los datos de la base de datos están cargados en el CRM"
+            >
+              {verificandoDatos ? (
+                <>
+                  <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  Verificando...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 -ml-1 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Verificar datos
+                </>
+              )}
+            </button>
+            
+            <button
               onClick={() => setShowImportModal(!showImportModal)}
               className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:-translate-y-0.5"
             >
               <FiUpload className="mr-2 -ml-1 h-5 w-5" /> Importar Excel
             </button>
+            
             <Link 
               href="/clientes/new"
               className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
@@ -387,6 +666,23 @@ export default function ClientesPage() {
             </Link>
           </div>
         </div>
+        
+        {/* Mostrar estado de verificación si existe */}
+        {estatusVerificacion.ultimaVerificacion && (
+          <div className={`mt-2 text-xs ${estatusVerificacion.totalCargados < estatusVerificacion.totalDB ? 'text-amber-600' : 'text-green-600'}`}>
+            Última verificación: {estatusVerificacion.ultimaVerificacion.toLocaleTimeString()} - 
+            {estatusVerificacion.totalCargados} de {estatusVerificacion.totalDB} clientes cargados
+            {estatusVerificacion.totalCargados < estatusVerificacion.totalDB && (
+              <button 
+                onClick={handleReloadData}
+                className="ml-2 text-blue-600 hover:text-blue-800 hover:underline"
+                disabled={reloadingData}
+              >
+                (Actualizar ahora)
+              </button>
+            )}
+          </div>
+        )}
         
         {/* Componente de importación de Excel */}
         {showImportModal && (
