@@ -603,7 +603,7 @@ export default function FacturaPDFPage() {
           }
           
           // Asegurarse de que los items tengan todos los campos necesarios
-          const itemsFinales = (itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial).map(item => ({
+          const itemsFinales = (itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial).map((item: FacturaItem) => ({
             id: item.id,
             descripcion: item.descripcion || 'Sin descripción',
             cantidad: item.cantidad || 1,
