@@ -248,175 +248,112 @@ export default function InstruccionesBLPage() {
         </div>
 
         {/* Tabla de instrucciones BL */}
-        {loading ? (
-          <div className="bg-white shadow-md rounded-lg p-10 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-            <p className="text-gray-500 text-lg">Cargando instrucciones BL...</p>
-          </div>
-        ) : instruccionesFiltradas.length === 0 ? (
-          <div className="bg-white shadow-md rounded-lg p-10 text-center">
-            <div className="flex justify-center mb-4">
-              <FiFileText className="h-12 w-12 text-gray-400" />
-            </div>
-            <p className="text-gray-600 text-lg mb-4">
-              {filtro || estadoFiltro !== 'todos' ? (
-                'No se encontraron instrucciones BL con los filtros seleccionados'
-              ) : (
-                'No hay instrucciones BL registradas'
-              )}
-            </p>
-            {(filtro || estadoFiltro !== 'todos') && (
-              <button 
-                onClick={() => {
-                  setFiltro('');
-                  setEstadoFiltro('todos');
-                }}
-                className="text-indigo-500 hover:text-indigo-700 hover:underline focus:outline-none"
-              >
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="bg-white shadow-md rounded-lg transition-all duration-300 ease-in-out">
-            <table className="w-full divide-y divide-gray-200">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiFileText className="mr-1 text-indigo-500" />
-                      Nº Instrucción
-                    </div>
+        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Número
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiCalendar className="mr-1 text-indigo-500" />
-                      Fecha Creación
-                    </div>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cliente
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiUser className="mr-1 text-indigo-500" />
-                      Cliente
-                    </div>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fecha Creación
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiAnchor className="mr-1 text-indigo-500" />
-                      Puerto Carga
-                    </div>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiMapPin className="mr-1 text-indigo-500" />
-                      Puerto Descarga
-                    </div>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Envío
                   </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiPackage className="mr-1 text-indigo-500" />
-                      Tipo Carga
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FiTag className="mr-1 text-indigo-500" />
-                      Estado
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {instruccionesFiltradas.map((instruccion) => {
-                  const { bgColor, textColor } = getEstadoStyles(instruccion.estado);
-                  
-                  return (
-                    <tr key={instruccion.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{instruccion.numero_instruccion}</div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center">
+                      <div className="flex justify-center items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                        <span className="ml-2 text-gray-600">Cargando instrucciones...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : instruccionesFiltradas.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                      No se encontraron instrucciones BL
+                    </td>
+                  </tr>
+                ) : (
+                  instruccionesFiltradas.map((instruccion) => (
+                    <tr key={instruccion.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {instruccion.numero_instruccion}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiCalendar className="mr-1 text-indigo-500 h-4 w-4" />
-                          {formatDate(instruccion.fecha_creacion)}
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {instruccion.cliente}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 flex items-center">
-                          <FiUser className="mr-1 text-indigo-500 h-4 w-4" />
-                          {instruccion.cliente}
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(instruccion.fecha_creacion)}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiAnchor className="mr-1 text-indigo-500 h-4 w-4" />
-                          {instruccion.puerto_carga}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiMapPin className="mr-1 text-indigo-500 h-4 w-4" />
-                          {instruccion.puerto_descarga}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <FiPackage className="mr-1 text-indigo-500 h-4 w-4" />
-                          {instruccion.tipo_carga}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}`}>
-                          {instruccion.estado.charAt(0).toUpperCase() + instruccion.estado.slice(1)}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoStyles(instruccion.estado).bgColor} ${getEstadoStyles(instruccion.estado).textColor}`}>
+                          {getEstadoStyles(instruccion.estado).icon}
+                          {estadosInstruccion.find(e => e.value === instruccion.estado)?.label || instruccion.estado}
                         </span>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {instruccion.numero_envio || 'Sin asignar'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
-                          <Link 
-                            href={`/instrucciones-bl/${instruccion.id}`} 
-                            className="text-indigo-600 hover:text-indigo-900 transition-colors duration-150 p-1"
+                          <Link
+                            href={`/instrucciones-bl/${instruccion.id}`}
+                            className="text-indigo-600 hover:text-indigo-900"
                             title="Ver detalles"
                           >
-                            <FiEye className="h-4 w-4" />
+                            <FiEye className="h-5 w-5" />
                           </Link>
-                          <Link 
-                            href={`/instrucciones-bl/edit/${instruccion.id}`} 
-                            className="text-blue-600 hover:text-blue-900 transition-colors duration-150 p-1"
+                          <Link
+                            href={`/instrucciones-bl/edit/${instruccion.id}`}
+                            className="text-blue-600 hover:text-blue-900"
                             title="Editar instrucción"
                           >
-                            <FiEdit className="h-4 w-4" />
+                            <FiEdit className="h-5 w-5" />
+                          </Link>
+                          <Link
+                            href={`/instrucciones-bl/${instruccion.id}/pdf`}
+                            className="text-green-600 hover:text-green-900"
+                            title="Descargar PDF"
+                          >
+                            <FiDownload className="h-5 w-5" />
                           </Link>
                           <button
                             onClick={() => handleDelete(instruccion.id)}
                             disabled={deleteLoading === instruccion.id}
-                            className="text-red-600 hover:text-red-900 transition-colors duration-150 p-1 disabled:opacity-50"
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
                             title="Eliminar instrucción"
                           >
                             {deleteLoading === instruccion.id ? (
-                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
+                              <div className="h-5 w-5 animate-spin rounded-full border-2 border-r-transparent border-red-600"></div>
                             ) : (
-                              <FiTrash2 className="h-4 w-4" />
+                              <FiTrash2 className="h-5 w-5" />
                             )}
                           </button>
-                          <Link
-                            href={`/instrucciones-bl/${instruccion.id}/pdf`}
-                            className="text-green-600 hover:text-green-900 transition-colors duration-150 p-1"
-                            title="Ver BL Info"
-                          >
-                            <FiFileText className="h-4 w-4" />
-                          </Link>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

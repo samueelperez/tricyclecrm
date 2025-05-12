@@ -94,58 +94,42 @@ export default function ArchivosPage() {
       
       if (!resultadoMigracion.success) {
         console.error("Error en migración:", resultadoMigracion);
-        
-        // Mensaje con instrucciones para crear tablas manualmente
-        const mensajeSql = `
-Error inicializando el sistema de archivos: ${resultadoMigracion.message}
-
-Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supabase:
-
-1. Accede al Panel de Supabase y ve a la sección SQL Editor
-2. Crea la tabla carpetas:
-   CREATE TABLE IF NOT EXISTS carpetas (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     nombre TEXT NOT NULL,
-     carpeta_padre UUID REFERENCES carpetas(id),
-     creado_por UUID NOT NULL,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-   );
-
-3. Crea la tabla archivos:
-   CREATE TABLE IF NOT EXISTS archivos (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     nombre TEXT NOT NULL,
-     path TEXT NOT NULL,
-     mimetype TEXT,
-     tamaño BIGINT,
-     carpeta_id UUID REFERENCES carpetas(id),
-     creado_por UUID NOT NULL,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-   );
-
-4. Crea la tabla permisos:
-   CREATE TABLE IF NOT EXISTS permisos_archivos (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     archivo_id UUID REFERENCES archivos(id) ON DELETE CASCADE,
-     carpeta_id UUID REFERENCES carpetas(id) ON DELETE CASCADE,
-     usuario_id UUID NOT NULL,
-     nivel_permiso TEXT NOT NULL CHECK (nivel_permiso IN ('lectura', 'escritura', 'administrador')),
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     CONSTRAINT check_target_type CHECK (
-       (archivo_id IS NULL AND carpeta_id IS NOT NULL) OR
-       (archivo_id IS NOT NULL AND carpeta_id IS NULL)
-     )
-   );
-
-5. Crea un bucket llamado 'archivos' en la sección Storage
-`;
-        
-        setError(mensajeSql);
+        setError(`Error inicializando el sistema de archivos: ${resultadoMigracion.message}`);
         setLoading(false);
         return;
       }
       
-      console.log('Migración completada, cargando carpeta raíz...');
+      console.log('Migración completada, verificando carpeta raíz...');
+      
+      // Verificar si existe la carpeta raíz
+      const { data: carpetaRaiz, error: errorCarpetaRaiz } = await supabase
+        .from('carpetas')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000000')
+        .single();
+        
+      if (errorCarpetaRaiz || !carpetaRaiz) {
+        console.log('Creando carpeta raíz...');
+        // Crear la carpeta raíz si no existe usando upsert
+        const { error: errorCrearRaiz } = await supabase
+          .from('carpetas')
+          .upsert({
+            id: '00000000-0000-0000-0000-000000000000',
+            nombre: 'Raíz',
+            carpeta_padre: null,
+            creado_por: session?.user?.id || '00000000-0000-0000-0000-000000000000'
+          }, {
+            onConflict: 'id',
+            ignoreDuplicates: true
+          });
+          
+        if (errorCrearRaiz) {
+          console.error('Error al crear carpeta raíz:', errorCrearRaiz);
+          setError(`Error al crear carpeta raíz: ${errorCrearRaiz.message}`);
+          setLoading(false);
+          return;
+        }
+      }
       
       // Cargar contenido de la carpeta raíz
       await cargarContenidoCarpeta('00000000-0000-0000-0000-000000000000');
@@ -271,6 +255,7 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
     try {
       const supabase = getSupabaseClient();
       
+      // Crear la carpeta en la base de datos
       const { data: nuevaCarpeta, error } = await supabase
         .from('carpetas')
         .insert({
@@ -284,6 +269,26 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
       if (error) {
         setError(`Error al crear carpeta: ${error.message}`);
         return;
+      }
+
+      // Crear la carpeta en Supabase Storage
+      const rutaCarpeta = carpetaActual ? `${carpetaActual}/${nuevaCarpeta.nombre}` : nuevaCarpeta.nombre;
+      console.log('Creando carpeta en Storage:', {
+        bucket: 'documentos',
+        path: rutaCarpeta
+      });
+
+      // Crear un archivo vacío para mantener la carpeta en Storage
+      const { error: errorStorage } = await supabase.storage
+        .from('documentos')
+        .upload(`${rutaCarpeta}/.placeholder`, new Blob(['']), {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (errorStorage) {
+        console.error('Error al crear carpeta en Storage:', errorStorage);
+        // No lanzamos error aquí para no interrumpir la creación en la base de datos
       }
       
       // Actualizar lista de carpetas
@@ -313,14 +318,61 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
       const nombreArchivo = `${Date.now()}_${file.name}`;
       const rutaArchivo = carpetaActual ? `${carpetaActual}/${nombreArchivo}` : nombreArchivo;
       
-      // Subir archivo a Storage
+      console.log('Iniciando carga del archivo a Supabase Storage...', {
+        bucket: 'documentos',
+        filePath: rutaArchivo,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        fileType: file.type,
+        carpetaId: carpetaActual
+      });
+      
+      // Verificar que la carpeta existe
+      if (carpetaActual) {
+        const { data: carpeta, error: errorCarpeta } = await supabase
+          .from('carpetas')
+          .select('id')
+          .eq('id', carpetaActual)
+          .single();
+          
+        if (errorCarpeta || !carpeta) {
+          throw new Error(`La carpeta seleccionada no existe: ${errorCarpeta?.message}`);
+        }
+      }
+      
+      // Intentar subir el archivo
       const { data: archivoSubido, error: errorStorage } = await supabase.storage
-        .from('archivos')
-        .upload(rutaArchivo, file);
+        .from('documentos')
+        .upload(rutaArchivo, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
         
       if (errorStorage) {
-        setError(`Error al subir archivo: ${errorStorage.message}`);
-        return;
+        console.error('Error al subir archivo:', errorStorage);
+        
+        // Si el error es porque el bucket no existe, lo creamos
+        if (errorStorage.message?.includes('bucket') && errorStorage.message?.includes('not found')) {
+          console.log('Intentando crear el bucket "documentos"...');
+          await supabase.storage.createBucket('documentos', {
+            public: false,
+          });
+          
+          // Intentar subir de nuevo después de crear el bucket
+          const { data: retryUpload, error: retryError } = await supabase.storage
+            .from('documentos')
+            .upload(rutaArchivo, file, {
+              cacheControl: '3600',
+              upsert: true
+            });
+            
+          if (retryError) {
+            throw new Error(`Error en el segundo intento: ${retryError.message}`);
+          }
+          
+          console.log('Archivo subido correctamente después de crear el bucket');
+        } else {
+          throw new Error(`Error al subir archivo: ${errorStorage.message}`);
+        }
       }
       
       // Crear registro en la tabla de archivos
@@ -328,7 +380,7 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
         .from('archivos')
         .insert({
           nombre: file.name,
-          path: archivoSubido.path,
+          path: rutaArchivo,
           mimetype: file.type,
           tamaño: file.size,
           carpeta_id: carpetaActual,
@@ -338,8 +390,12 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
         .single();
         
       if (errorDB) {
-        setError(`Error al registrar archivo: ${errorDB.message}`);
-        return;
+        // Si hay error al crear el registro, intentar eliminar el archivo subido
+        await supabase.storage
+          .from('documentos')
+          .remove([rutaArchivo]);
+          
+        throw new Error(`Error al registrar archivo: ${errorDB.message}`);
       }
       
       // Actualizar lista de archivos
@@ -371,18 +427,20 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
           .single();
           
         if (errorConsulta) {
-          setError(`Error al buscar archivo: ${errorConsulta.message}`);
-          return;
+          console.error('Error al buscar archivo:', errorConsulta);
+          throw new Error(`Error al buscar archivo: ${errorConsulta.message}`);
         }
+        
+        console.log('Eliminando archivo de Storage:', archivo.path);
         
         // Eliminar archivo de Storage
         const { error: errorStorage } = await supabase.storage
-          .from('archivos')
+          .from('documentos')
           .remove([archivo.path]);
           
         if (errorStorage) {
-          setError(`Error al eliminar archivo de almacenamiento: ${errorStorage.message}`);
-          return;
+          console.error('Error al eliminar archivo de Storage:', errorStorage);
+          throw new Error(`Error al eliminar archivo de almacenamiento: ${errorStorage.message}`);
         }
         
         // Eliminar registro de la base de datos
@@ -392,14 +450,14 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
           .eq('id', id);
           
         if (errorDB) {
-          setError(`Error al eliminar registro: ${errorDB.message}`);
-          return;
+          console.error('Error al eliminar registro de la base de datos:', errorDB);
+          throw new Error(`Error al eliminar registro: ${errorDB.message}`);
         }
         
         // Actualizar lista de archivos
         setArchivos(archivos.filter(a => a.id !== id));
         
-      } else { // Carpeta
+      } else {
         // Comprobar si la carpeta contiene elementos
         const { count: countArchivos } = await supabase
           .from('archivos')
@@ -416,10 +474,7 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
             return;
           }
           
-          // Implementar eliminación recursiva (simplificada para la demo)
-          // En una implementación real, se haría de forma recursiva
-          
-          // Eliminar archivos de la carpeta
+          // Obtener todos los archivos en la carpeta y subcarpetas
           const { data: archivosEnCarpeta } = await supabase
             .from('archivos')
             .select('path')
@@ -427,24 +482,40 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
             
           if (archivosEnCarpeta && archivosEnCarpeta.length > 0) {
             const rutasArchivos = archivosEnCarpeta.map(a => a.path);
+            console.log('Eliminando archivos de Storage:', rutasArchivos);
             
             // Eliminar archivos de Storage
-            await supabase.storage
-              .from('archivos')
+            const { error: errorStorage } = await supabase.storage
+              .from('documentos')
               .remove(rutasArchivos);
               
-            // Eliminar registros de archivos
-            await supabase
-              .from('archivos')
-              .delete()
-              .eq('carpeta_id', id);
+            if (errorStorage) {
+              console.error('Error al eliminar archivos de Storage:', errorStorage);
+              throw new Error(`Error al eliminar archivos de almacenamiento: ${errorStorage.message}`);
+            }
           }
           
-          // Eliminar subcarpetas (solo nivel 1 por simplicidad)
-          await supabase
+          // Eliminar registros de archivos
+          const { error: errorArchivos } = await supabase
+            .from('archivos')
+            .delete()
+            .eq('carpeta_id', id);
+            
+          if (errorArchivos) {
+            console.error('Error al eliminar registros de archivos:', errorArchivos);
+            throw new Error(`Error al eliminar registros de archivos: ${errorArchivos.message}`);
+          }
+          
+          // Eliminar subcarpetas
+          const { error: errorCarpetas } = await supabase
             .from('carpetas')
             .delete()
             .eq('carpeta_padre', id);
+            
+          if (errorCarpetas) {
+            console.error('Error al eliminar subcarpetas:', errorCarpetas);
+            throw new Error(`Error al eliminar subcarpetas: ${errorCarpetas.message}`);
+          }
         }
         
         // Eliminar la carpeta
@@ -454,8 +525,8 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
           .eq('id', id);
           
         if (errorDB) {
-          setError(`Error al eliminar carpeta: ${errorDB.message}`);
-          return;
+          console.error('Error al eliminar carpeta:', errorDB);
+          throw new Error(`Error al eliminar carpeta: ${errorDB.message}`);
         }
         
         // Actualizar lista de carpetas
@@ -568,23 +639,27 @@ Es posible que necesites crear las tablas manualmente desde el Panel SQL de Supa
     try {
       const supabase = getSupabaseClient();
       
+      console.log('Iniciando descarga del archivo:', {
+        path: archivo.path,
+        nombre: archivo.nombre
+      });
+      
+      // Obtener URL firmada para la descarga
       const { data, error } = await supabase.storage
-        .from('archivos')
-        .download(archivo.path);
+        .from('documentos')
+        .createSignedUrl(archivo.path, 3600); // URL válida por 1 hora
         
       if (error) {
-        setError(`Error al descargar archivo: ${error.message}`);
-        return;
+        console.error('Error al generar URL firmada:', error);
+        throw new Error(`Error al generar URL de descarga: ${error.message}`);
       }
       
       // Crear enlace de descarga
-      const url = URL.createObjectURL(data);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = data.signedUrl;
       a.download = archivo.nombre;
       document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
     } catch (error: any) {
