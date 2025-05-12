@@ -827,9 +827,10 @@ export default function ClientesPage() {
       
       // 5. Cerrar el modal de fusión
       setMostrandoFusion(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error al fusionar clientes:', error);
-      toast.error(`Error al fusionar los clientes: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al fusionar los clientes';
+      toast.error(`Error al fusionar los clientes: ${errorMessage}`);
     } finally {
       setFusionando(false);
     }
