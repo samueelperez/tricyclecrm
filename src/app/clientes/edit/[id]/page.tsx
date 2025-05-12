@@ -428,7 +428,7 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
                 <div className="relative group">
                   {renderLabel('Email', false, <FiMail />)}
                   {renderInput({
-                    type: "email",
+                    type: "text",
                     name: "email",
                     id: "email",
                     value: formData.email,
