@@ -552,9 +552,11 @@ export default function EditCustomerInvoicePage({ params }: { params: { id: stri
             peso: item.weight || null,
             peso_unidad: 'MT',
             precio_unitario: item.unitPrice || 0,
-            total: item.totalValue || 0,
+            total: item.totalValue || (item.unitPrice * (item.weight || item.quantity || 1)),
             codigo: item.packaging || null
           }));
+          
+          console.log('Insertando items en facturas_items:', itemsToInsert);
           
           const { error: insertError } = await supabase
             .from('facturas_items')

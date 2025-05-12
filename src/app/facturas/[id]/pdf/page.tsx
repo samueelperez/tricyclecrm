@@ -602,16 +602,27 @@ export default function FacturaPDFPage() {
             }
           }
           
+          // Asegurarse de que los items tengan todos los campos necesarios
+          const itemsFinales = (itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial).map(item => ({
+            id: item.id,
+            descripcion: item.descripcion || 'Sin descripción',
+            cantidad: item.cantidad || 1,
+            peso: item.peso || null,
+            peso_unidad: item.peso_unidad || 'MT',
+            precio_unitario: item.precio_unitario || 0,
+            total: item.total || (item.precio_unitario * (item.peso || item.cantidad || 1)),
+            codigo: item.codigo || ''
+          }));
+          
           const facturaData = {
             ...clienteData,
             tipo: 'cliente',
-            items: itemsFormateados.length > 0 ? itemsFormateados : itemsFromMaterial,
+            items: itemsFinales,
             cliente_nombre: nombreCliente,
             cliente_direccion: cliente_direccion,
             cliente_id_fiscal: cliente_id_fiscal,
             cliente_ciudad: cliente_ciudad,
             cliente_pais: cliente_pais,
-            // Añadir objeto cliente para compatibilidad
             cliente: {
               nombre: nombreCliente,
               direccion: cliente_direccion,
