@@ -26,6 +26,11 @@ interface Cliente {
   updated_at?: string | null
 }
 
+interface ClienteSeleccionado {
+  cliente: Cliente;
+  seleccionado: boolean;
+}
+
 export default function ClientesPage() {
   const router = useRouter()
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -35,6 +40,16 @@ export default function ClientesPage() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [reloadingData, setReloadingData] = useState(false)
   const [verificandoDatos, setVerificandoDatos] = useState(false)
+  const [buscandoDuplicados, setBuscandoDuplicados] = useState(false)
+  const [duplicados, setDuplicados] = useState<{
+    porNombre: { [key: string]: Cliente[] },
+    porEmail: { [key: string]: Cliente[] },
+    porTelefono: { [key: string]: Cliente[] }
+  }>({
+    porNombre: {},
+    porEmail: {},
+    porTelefono: {}
+  });
   const [estatusVerificacion, setEstatusVerificacion] = useState<{
     totalDB: number;
     totalCargados: number;
@@ -45,6 +60,14 @@ export default function ClientesPage() {
     ultimaVerificacion: null
   });
   const supabase = createClientComponentClient()
+  const [mostrandoFusion, setMostrandoFusion] = useState(false);
+  const [clientesSeleccionados, setClientesSeleccionados] = useState<ClienteSeleccionado[]>([]);
+  const [clientePrincipal, setClientePrincipal] = useState<Cliente | null>(null);
+  const [fusionando, setFusionando] = useState(false);
+  const [tipoDuplicadoActual, setTipoDuplicadoActual] = useState<'nombre' | 'email' | 'telefono'>('nombre');
+  const [valorDuplicadoActual, setValorDuplicadoActual] = useState<string>('');
+  const [mostrarDuplicados, setMostrarDuplicados] = useState(false);
+  const [fusionandoTodos, setFusionandoTodos] = useState(false);
 
   useEffect(() => {
     fetchClientes()
@@ -591,6 +614,456 @@ export default function ClientesPage() {
     }
   };
 
+  // Función para detectar duplicados
+  const detectarDuplicados = async () => {
+    console.log('Iniciando detección de duplicados...');
+    setBuscandoDuplicados(true);
+    setMostrarDuplicados(false);
+    
+    try {
+      // Inicializar objetos para almacenar duplicados
+      const duplicadosPorNombre: { [key: string]: Cliente[] } = {};
+      const duplicadosPorEmail: { [key: string]: Cliente[] } = {};
+      const duplicadosPorTelefono: { [key: string]: Cliente[] } = {};
+      
+      console.log('Total de clientes a analizar:', clientes.length);
+      
+      // Procesar cada cliente
+      for (const cliente of clientes) {
+        // Normalizar datos para comparación
+        const nombreNormalizado = cliente.nombre?.toLowerCase().trim() || '';
+        const emailNormalizado = cliente.email?.toLowerCase().trim() || '';
+        const telefonoNormalizado = cliente.telefono?.replace(/\D/g, '') || '';
+        
+        // Verificar duplicados por nombre
+        if (nombreNormalizado) {
+          if (!duplicadosPorNombre[nombreNormalizado]) {
+            duplicadosPorNombre[nombreNormalizado] = [];
+          }
+          duplicadosPorNombre[nombreNormalizado].push(cliente);
+        }
+        
+        // Verificar duplicados por email
+        if (emailNormalizado) {
+          if (!duplicadosPorEmail[emailNormalizado]) {
+            duplicadosPorEmail[emailNormalizado] = [];
+          }
+          duplicadosPorEmail[emailNormalizado].push(cliente);
+        }
+        
+        // Verificar duplicados por teléfono
+        if (telefonoNormalizado) {
+          if (!duplicadosPorTelefono[telefonoNormalizado]) {
+            duplicadosPorTelefono[telefonoNormalizado] = [];
+          }
+          duplicadosPorTelefono[telefonoNormalizado].push(cliente);
+        }
+      }
+      
+      // Filtrar solo los que tienen más de un registro
+      const duplicadosFiltrados = {
+        porNombre: Object.fromEntries(
+          Object.entries(duplicadosPorNombre)
+            .filter(([_, clientes]) => clientes.length > 1)
+        ),
+        porEmail: Object.fromEntries(
+          Object.entries(duplicadosPorEmail)
+            .filter(([_, clientes]) => clientes.length > 1)
+        ),
+        porTelefono: Object.fromEntries(
+          Object.entries(duplicadosPorTelefono)
+            .filter(([_, clientes]) => clientes.length > 1)
+        )
+      };
+      
+      console.log('Duplicados filtrados:', duplicadosFiltrados);
+      
+      // Verificar si hay duplicados antes de actualizar el estado
+      const hayDuplicados = 
+        Object.keys(duplicadosFiltrados.porNombre).length > 0 ||
+        Object.keys(duplicadosFiltrados.porEmail).length > 0 ||
+        Object.keys(duplicadosFiltrados.porTelefono).length > 0;
+      
+      console.log('¿Hay duplicados?', hayDuplicados);
+      console.log('Duplicados por nombre:', Object.keys(duplicadosFiltrados.porNombre).length);
+      console.log('Duplicados por email:', Object.keys(duplicadosFiltrados.porEmail).length);
+      console.log('Duplicados por teléfono:', Object.keys(duplicadosFiltrados.porTelefono).length);
+      
+      // Actualizar el estado de duplicados
+      await new Promise<void>(resolve => {
+        setDuplicados(duplicadosFiltrados);
+        resolve();
+      });
+      
+      // Contar total de duplicados
+      const totalPorNombre = Object.values(duplicadosFiltrados.porNombre)
+        .reduce((acc, curr) => acc + curr.length, 0);
+      const totalPorEmail = Object.values(duplicadosFiltrados.porEmail)
+        .reduce((acc, curr) => acc + curr.length, 0);
+      const totalPorTelefono = Object.values(duplicadosFiltrados.porTelefono)
+        .reduce((acc, curr) => acc + curr.length, 0);
+      
+      const totalDuplicados = totalPorNombre + totalPorEmail + totalPorTelefono;
+      
+      console.log('Total de duplicados encontrados:', totalDuplicados);
+      
+      // Mostrar resumen
+      if (totalDuplicados > 0) {
+        const mensaje = `Se encontraron ${totalDuplicados} posibles duplicados: ` +
+          `${Object.keys(duplicadosFiltrados.porNombre).length} por nombre, ` +
+          `${Object.keys(duplicadosFiltrados.porEmail).length} por email, ` +
+          `${Object.keys(duplicadosFiltrados.porTelefono).length} por teléfono.`;
+        
+        toast.success(mensaje);
+        
+        // Forzar la visualización después de actualizar el estado
+        await new Promise<void>(resolve => {
+          setMostrarDuplicados(true);
+          resolve();
+        });
+      } else {
+        toast.success('No se encontraron duplicados en la base de datos.');
+      }
+      
+      return duplicadosFiltrados;
+    } catch (error) {
+      console.error('Error al detectar duplicados:', error);
+      toast.error('Error al detectar duplicados');
+      return null;
+    } finally {
+      setBuscandoDuplicados(false);
+      console.log('Detección de duplicados finalizada');
+    }
+  };
+
+  // Función para iniciar el proceso de fusión
+  const iniciarFusion = (tipo: 'nombre' | 'email' | 'telefono', valor: string, clientes: Cliente[]) => {
+    setTipoDuplicadoActual(tipo);
+    setValorDuplicadoActual(valor);
+    setClientesSeleccionados(clientes.map(cliente => ({ cliente, seleccionado: false })));
+    setClientePrincipal(null);
+    setMostrandoFusion(true);
+  };
+
+  // Función para fusionar los clientes seleccionados
+  const fusionarClientes = async () => {
+    if (!clientePrincipal) {
+      toast.error('Debe seleccionar un cliente principal');
+      return;
+    }
+
+    const clientesAFusionar = clientesSeleccionados
+      .filter(cs => cs.seleccionado && cs.cliente.id !== clientePrincipal.id)
+      .map(cs => cs.cliente);
+
+    if (clientesAFusionar.length === 0) {
+      toast.error('Debe seleccionar al menos un cliente para fusionar');
+      return;
+    }
+
+    setFusionando(true);
+
+    try {
+      // 1. Combinar la información de todos los clientes
+      const clienteFusionado = {
+        ...clientePrincipal,
+        // Mantener el nombre del cliente principal
+        nombre: clientePrincipal.nombre,
+        // Combinar emails únicos
+        email: [
+          clientePrincipal.email,
+          ...clientesAFusionar.map(c => c.email).filter(Boolean)
+        ].filter((email, index, self) => email && self.indexOf(email) === index).join('; '),
+        // Combinar teléfonos únicos
+        telefono: [
+          clientePrincipal.telefono,
+          ...clientesAFusionar.map(c => c.telefono).filter(Boolean)
+        ].filter((tel, index, self) => tel && self.indexOf(tel) === index).join('; '),
+        // Combinar direcciones si el principal no tiene
+        direccion: clientePrincipal.direccion || clientesAFusionar.find(c => c.direccion)?.direccion || null,
+        // Combinar ciudades si el principal no tiene
+        ciudad: clientePrincipal.ciudad || clientesAFusionar.find(c => c.ciudad)?.ciudad || null,
+        // Combinar países si el principal no tiene
+        pais: clientePrincipal.pais || clientesAFusionar.find(c => c.pais)?.pais || null,
+        // Combinar códigos postales si el principal no tiene
+        codigo_postal: clientePrincipal.codigo_postal || clientesAFusionar.find(c => c.codigo_postal)?.codigo_postal || null,
+        // Combinar IDs fiscales si el principal no tiene
+        id_fiscal: clientePrincipal.id_fiscal || clientesAFusionar.find(c => c.id_fiscal)?.id_fiscal || null,
+        // Combinar sitios web si el principal no tiene
+        sitio_web: clientePrincipal.sitio_web || clientesAFusionar.find(c => c.sitio_web)?.sitio_web || null,
+        // Combinar comentarios
+        comentarios: [
+          clientePrincipal.comentarios,
+          ...clientesAFusionar.map(c => c.comentarios).filter(Boolean)
+        ].filter((com, index, self) => com && self.indexOf(com) === index).join('\n\n')
+      };
+
+      // 2. Actualizar el cliente principal con la información combinada
+      const { error: updateError } = await supabase
+        .from('clientes')
+        .update(clienteFusionado)
+        .eq('id', clientePrincipal.id);
+
+      if (updateError) {
+        throw new Error(`Error al actualizar el cliente principal: ${updateError.message}`);
+      }
+
+      // 3. Eliminar los clientes fusionados
+      const idsAEliminar = clientesAFusionar.map(c => c.id);
+      const { error: deleteError } = await supabase
+        .from('clientes')
+        .delete()
+        .in('id', idsAEliminar);
+
+      if (deleteError) {
+        throw new Error(`Error al eliminar los clientes fusionados: ${deleteError.message}`);
+      }
+
+      toast.success(`Fusión completada: ${clientesAFusionar.length} clientes fusionados con el cliente principal`);
+      
+      // 4. Actualizar la lista de clientes
+      await handleReloadData();
+      
+      // 5. Cerrar el modal de fusión
+      setMostrandoFusion(false);
+    } catch (error) {
+      console.error('Error al fusionar clientes:', error);
+      toast.error(`Error al fusionar los clientes: ${error.message}`);
+    } finally {
+      setFusionando(false);
+    }
+  };
+
+  // Función para determinar el registro más completo
+  const encontrarRegistroMasCompleto = (clientes: Cliente[]): Cliente => {
+    return clientes.reduce((mejor, actual) => {
+      const puntuacionMejor = calcularPuntuacionCompletitud(mejor);
+      const puntuacionActual = calcularPuntuacionCompletitud(actual);
+      return puntuacionActual > puntuacionMejor ? actual : mejor;
+    });
+  };
+
+  // Función para calcular qué tan completo está un registro
+  const calcularPuntuacionCompletitud = (cliente: Cliente): number => {
+    let puntuacion = 0;
+    if (cliente.nombre) puntuacion += 2;
+    if (cliente.email) puntuacion += 1;
+    if (cliente.telefono) puntuacion += 1;
+    if (cliente.direccion) puntuacion += 1;
+    if (cliente.ciudad) puntuacion += 1;
+    if (cliente.pais) puntuacion += 1;
+    if (cliente.codigo_postal) puntuacion += 1;
+    if (cliente.id_fiscal) puntuacion += 1;
+    if (cliente.sitio_web) puntuacion += 1;
+    if (cliente.comentarios) puntuacion += 1;
+    return puntuacion;
+  };
+
+  // Función para truncar valores a 50 caracteres
+  const truncarValor = (valor: string | null): string | null => {
+    if (!valor) return null;
+    return valor.length > 50 ? valor.substring(0, 47) + '...' : valor;
+  };
+
+  // Función para fusionar todos los duplicados
+  const fusionarTodosLosDuplicados = async () => {
+    if (!confirm('¿Está seguro de que desea fusionar todos los registros duplicados? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    setFusionandoTodos(true);
+    let totalFusionados = 0;
+    let errores = 0;
+
+    try {
+      // Procesar duplicados por nombre
+      for (const [nombre, clientes] of Object.entries(duplicados.porNombre)) {
+        try {
+          const clientePrincipal = encontrarRegistroMasCompleto(clientes);
+          const clientesAFusionar = clientes.filter(c => c.id !== clientePrincipal.id);
+
+          // Combinar información
+          const clienteFusionado = {
+            ...clientePrincipal,
+            nombre: truncarValor(clientePrincipal.nombre),
+            email: truncarValor([
+              clientePrincipal.email,
+              ...clientesAFusionar.map(c => c.email).filter(Boolean)
+            ].filter((email, index, self) => email && self.indexOf(email) === index).join('; ')),
+            telefono: truncarValor([
+              clientePrincipal.telefono,
+              ...clientesAFusionar.map(c => c.telefono).filter(Boolean)
+            ].filter((tel, index, self) => tel && self.indexOf(tel) === index).join('; ')),
+            direccion: truncarValor(clientePrincipal.direccion || clientesAFusionar.find(c => c.direccion)?.direccion || null),
+            ciudad: truncarValor(clientePrincipal.ciudad || clientesAFusionar.find(c => c.ciudad)?.ciudad || null),
+            pais: truncarValor(clientePrincipal.pais || clientesAFusionar.find(c => c.pais)?.pais || null),
+            codigo_postal: truncarValor(clientePrincipal.codigo_postal || clientesAFusionar.find(c => c.codigo_postal)?.codigo_postal || null),
+            id_fiscal: truncarValor(clientePrincipal.id_fiscal || clientesAFusionar.find(c => c.id_fiscal)?.id_fiscal || null),
+            sitio_web: truncarValor(clientePrincipal.sitio_web || clientesAFusionar.find(c => c.sitio_web)?.sitio_web || null),
+            comentarios: truncarValor([
+              clientePrincipal.comentarios,
+              ...clientesAFusionar.map(c => c.comentarios).filter(Boolean)
+            ].filter((com, index, self) => com && self.indexOf(com) === index).join('\n\n'))
+          };
+
+          // Actualizar cliente principal
+          const { error: updateError } = await supabase
+            .from('clientes')
+            .update(clienteFusionado)
+            .eq('id', clientePrincipal.id);
+
+          if (updateError) throw updateError;
+
+          // Eliminar clientes fusionados
+          const idsAEliminar = clientesAFusionar.map(c => c.id);
+          const { error: deleteError } = await supabase
+            .from('clientes')
+            .delete()
+            .in('id', idsAEliminar);
+
+          if (deleteError) throw deleteError;
+
+          totalFusionados += clientesAFusionar.length;
+        } catch (error) {
+          console.error(`Error fusionando grupo de nombre ${nombre}:`, error);
+          errores++;
+        }
+      }
+
+      // Procesar duplicados por email
+      for (const [email, clientes] of Object.entries(duplicados.porEmail)) {
+        try {
+          const clientePrincipal = encontrarRegistroMasCompleto(clientes);
+          const clientesAFusionar = clientes.filter(c => c.id !== clientePrincipal.id);
+
+          // Combinar información
+          const clienteFusionado = {
+            ...clientePrincipal,
+            nombre: truncarValor(clientePrincipal.nombre),
+            email: truncarValor([
+              clientePrincipal.email,
+              ...clientesAFusionar.map(c => c.email).filter(Boolean)
+            ].filter((email, index, self) => email && self.indexOf(email) === index).join('; ')),
+            telefono: truncarValor([
+              clientePrincipal.telefono,
+              ...clientesAFusionar.map(c => c.telefono).filter(Boolean)
+            ].filter((tel, index, self) => tel && self.indexOf(tel) === index).join('; ')),
+            direccion: truncarValor(clientePrincipal.direccion || clientesAFusionar.find(c => c.direccion)?.direccion || null),
+            ciudad: truncarValor(clientePrincipal.ciudad || clientesAFusionar.find(c => c.ciudad)?.ciudad || null),
+            pais: truncarValor(clientePrincipal.pais || clientesAFusionar.find(c => c.pais)?.pais || null),
+            codigo_postal: truncarValor(clientePrincipal.codigo_postal || clientesAFusionar.find(c => c.codigo_postal)?.codigo_postal || null),
+            id_fiscal: truncarValor(clientePrincipal.id_fiscal || clientesAFusionar.find(c => c.id_fiscal)?.id_fiscal || null),
+            sitio_web: truncarValor(clientePrincipal.sitio_web || clientesAFusionar.find(c => c.sitio_web)?.sitio_web || null),
+            comentarios: truncarValor([
+              clientePrincipal.comentarios,
+              ...clientesAFusionar.map(c => c.comentarios).filter(Boolean)
+            ].filter((com, index, self) => com && self.indexOf(com) === index).join('\n\n'))
+          };
+
+          // Actualizar cliente principal
+          const { error: updateError } = await supabase
+            .from('clientes')
+            .update(clienteFusionado)
+            .eq('id', clientePrincipal.id);
+
+          if (updateError) throw updateError;
+
+          // Eliminar clientes fusionados
+          const idsAEliminar = clientesAFusionar.map(c => c.id);
+          const { error: deleteError } = await supabase
+            .from('clientes')
+            .delete()
+            .in('id', idsAEliminar);
+
+          if (deleteError) throw deleteError;
+
+          totalFusionados += clientesAFusionar.length;
+        } catch (error) {
+          console.error(`Error fusionando grupo de email ${email}:`, error);
+          errores++;
+        }
+      }
+
+      // Procesar duplicados por teléfono
+      for (const [telefono, clientes] of Object.entries(duplicados.porTelefono)) {
+        try {
+          const clientePrincipal = encontrarRegistroMasCompleto(clientes);
+          const clientesAFusionar = clientes.filter(c => c.id !== clientePrincipal.id);
+
+          // Combinar información
+          const clienteFusionado = {
+            ...clientePrincipal,
+            nombre: truncarValor(clientePrincipal.nombre),
+            email: truncarValor([
+              clientePrincipal.email,
+              ...clientesAFusionar.map(c => c.email).filter(Boolean)
+            ].filter((email, index, self) => email && self.indexOf(email) === index).join('; ')),
+            telefono: truncarValor([
+              clientePrincipal.telefono,
+              ...clientesAFusionar.map(c => c.telefono).filter(Boolean)
+            ].filter((tel, index, self) => tel && self.indexOf(tel) === index).join('; ')),
+            direccion: truncarValor(clientePrincipal.direccion || clientesAFusionar.find(c => c.direccion)?.direccion || null),
+            ciudad: truncarValor(clientePrincipal.ciudad || clientesAFusionar.find(c => c.ciudad)?.ciudad || null),
+            pais: truncarValor(clientePrincipal.pais || clientesAFusionar.find(c => c.pais)?.pais || null),
+            codigo_postal: truncarValor(clientePrincipal.codigo_postal || clientesAFusionar.find(c => c.codigo_postal)?.codigo_postal || null),
+            id_fiscal: truncarValor(clientePrincipal.id_fiscal || clientesAFusionar.find(c => c.id_fiscal)?.id_fiscal || null),
+            sitio_web: truncarValor(clientePrincipal.sitio_web || clientesAFusionar.find(c => c.sitio_web)?.sitio_web || null),
+            comentarios: truncarValor([
+              clientePrincipal.comentarios,
+              ...clientesAFusionar.map(c => c.comentarios).filter(Boolean)
+            ].filter((com, index, self) => com && self.indexOf(com) === index).join('\n\n'))
+          };
+
+          // Actualizar cliente principal
+          const { error: updateError } = await supabase
+            .from('clientes')
+            .update(clienteFusionado)
+            .eq('id', clientePrincipal.id);
+
+          if (updateError) throw updateError;
+
+          // Eliminar clientes fusionados
+          const idsAEliminar = clientesAFusionar.map(c => c.id);
+          const { error: deleteError } = await supabase
+            .from('clientes')
+            .delete()
+            .in('id', idsAEliminar);
+
+          if (deleteError) throw deleteError;
+
+          totalFusionados += clientesAFusionar.length;
+        } catch (error) {
+          console.error(`Error fusionando grupo de teléfono ${telefono}:`, error);
+          errores++;
+        }
+      }
+
+      // Mostrar resumen
+      if (errores > 0) {
+        toast.error(`Se fusionaron ${totalFusionados} registros con ${errores} errores.`);
+      } else {
+        toast.success(`Se fusionaron exitosamente ${totalFusionados} registros.`);
+      }
+
+      // Recargar datos
+      await handleReloadData();
+      
+      // Limpiar estado de duplicados
+      setDuplicados({
+        porNombre: {},
+        porEmail: {},
+        porTelefono: {}
+      });
+      setMostrarDuplicados(false);
+
+    } catch (error) {
+      console.error('Error en la fusión masiva:', error);
+      toast.error('Error al fusionar los registros');
+    } finally {
+      setFusionandoTodos(false);
+    }
+  };
+
   return (
     <div className="bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -647,6 +1120,33 @@ export default function ClientesPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Verificar datos
+                </>
+              )}
+            </button>
+            
+            <button
+              onClick={() => {
+                console.log('Botón de detectar duplicados clickeado');
+                detectarDuplicados().catch(error => {
+                  console.error('Error al ejecutar detectarDuplicados:', error);
+                  toast.error('Error al detectar duplicados');
+                });
+              }}
+              disabled={buscandoDuplicados || reloadingData}
+              className="inline-flex justify-center items-center py-2.5 px-6 rounded-md shadow-md text-sm font-medium text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all duration-200 transform hover:-translate-y-0.5"
+              title="Detectar clientes duplicados por nombre, email o teléfono"
+            >
+              {buscandoDuplicados ? (
+                <>
+                  <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  Buscando...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 -ml-1 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Detectar duplicados
                 </>
               )}
             </button>
@@ -828,8 +1328,8 @@ export default function ClientesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredClientes.map((cliente) => (
-                    <tr key={cliente.id} className="hover:bg-gray-50 transition-colors duration-150">
+                  {filteredClientes.map((cliente, index) => (
+                    <tr key={`${cliente.id}-${index}`} className="hover:bg-gray-50 transition-colors duration-150">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-indigo-100 rounded-full">
@@ -908,6 +1408,301 @@ export default function ClientesPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+        
+        {/* Modal de fusión de clientes */}
+        {mostrandoFusion && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Fusionar Clientes Duplicados
+                </h2>
+                <button
+                  onClick={() => setMostrandoFusion(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FiX className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">
+                  {tipoDuplicadoActual === 'nombre' ? 'Nombre' : 
+                   tipoDuplicadoActual === 'email' ? 'Email' : 'Teléfono'}: {valorDuplicadoActual}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {clientesSeleccionados.map((cs, index) => (
+                  <div
+                    key={cs.cliente.id}
+                    className={`p-4 rounded-lg border ${
+                      clientePrincipal?.id === cs.cliente.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <input
+                        type="radio"
+                        name="clientePrincipal"
+                        checked={clientePrincipal?.id === cs.cliente.id}
+                        onChange={() => setClientePrincipal(cs.cliente)}
+                        className="h-4 w-4 text-blue-600"
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900">{cs.cliente.nombre}</h3>
+                        <div className="mt-1 text-sm text-gray-500">
+                          {cs.cliente.email && <p>📧 {cs.cliente.email}</p>}
+                          {cs.cliente.telefono && <p>📞 {cs.cliente.telefono}</p>}
+                          {cs.cliente.ciudad && <p>📍 {cs.cliente.ciudad}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={cs.seleccionado}
+                          onChange={(e) => {
+                            const nuevosSeleccionados = [...clientesSeleccionados];
+                            nuevosSeleccionados[index].seleccionado = e.target.checked;
+                            setClientesSeleccionados(nuevosSeleccionados);
+                          }}
+                          className="h-4 w-4 text-blue-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setMostrandoFusion(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={fusionarClientes}
+                  disabled={fusionando || !clientePrincipal}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {fusionando ? (
+                    <>
+                      <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                      Fusionando...
+                    </>
+                  ) : (
+                    'Fusionar Clientes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Sección de duplicados */}
+        {mostrarDuplicados && (
+          <div className="mt-8 bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-semibold text-amber-800">Clientes Duplicados Detectados</h2>
+                  <p className="text-sm text-amber-600 mt-1">
+                    Se encontraron posibles duplicados. Revise cuidadosamente antes de tomar acciones.
+                  </p>
+                </div>
+                <button
+                  onClick={fusionarTodosLosDuplicados}
+                  disabled={fusionandoTodos}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center"
+                >
+                  {fusionandoTodos ? (
+                    <>
+                      <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                      Fusionando...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                      </svg>
+                      Fusionar Todos
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {/* Duplicados por nombre */}
+            {Object.keys(duplicados.porNombre).length > 0 && (
+              <div className="p-6 border-b">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Duplicados por Nombre ({Object.keys(duplicados.porNombre).length} grupos)
+                </h3>
+                <div className="space-y-6">
+                  {Object.entries(duplicados.porNombre).slice(0, 10).map(([nombre, clientes]) => (
+                    <div key={nombre} className="bg-amber-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-medium text-amber-800">{nombre}</h4>
+                        <button
+                          onClick={() => iniciarFusion('nombre', nombre, clientes)}
+                          className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                        >
+                          Fusionar ({clientes.length} registros)
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {clientes.map(cliente => (
+                          <div key={cliente.id} className="bg-white p-3 rounded-md shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{cliente.nombre}</p>
+                              <p className="text-sm text-gray-500">
+                                {cliente.email && <span className="mr-3">📧 {cliente.email}</span>}
+                                {cliente.telefono && <span>📞 {cliente.telefono}</span>}
+                              </p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Link
+                                href={`/clientes/${cliente.id}`}
+                                className="text-indigo-600 hover:text-indigo-900"
+                              >
+                                Ver
+                              </Link>
+                              <Link
+                                href={`/clientes/edit/${cliente.id}`}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Editar
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(duplicados.porNombre).length > 10 && (
+                    <div className="text-center text-gray-500">
+                      Mostrando 10 de {Object.keys(duplicados.porNombre).length} grupos de duplicados por nombre
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Duplicados por email */}
+            {Object.keys(duplicados.porEmail).length > 0 && (
+              <div className="p-6 border-b">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Duplicados por Email ({Object.keys(duplicados.porEmail).length} grupos)
+                </h3>
+                <div className="space-y-6">
+                  {Object.entries(duplicados.porEmail).slice(0, 10).map(([email, clientes]) => (
+                    <div key={email} className="bg-amber-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-medium text-amber-800">{email}</h4>
+                        <button
+                          onClick={() => iniciarFusion('email', email, clientes)}
+                          className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                        >
+                          Fusionar ({clientes.length} registros)
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {clientes.map(cliente => (
+                          <div key={cliente.id} className="bg-white p-3 rounded-md shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{cliente.nombre}</p>
+                              <p className="text-sm text-gray-500">
+                                {cliente.email && <span className="mr-3">📧 {cliente.email}</span>}
+                                {cliente.telefono && <span>📞 {cliente.telefono}</span>}
+                              </p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Link
+                                href={`/clientes/${cliente.id}`}
+                                className="text-indigo-600 hover:text-indigo-900"
+                              >
+                                Ver
+                              </Link>
+                              <Link
+                                href={`/clientes/edit/${cliente.id}`}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Editar
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(duplicados.porEmail).length > 10 && (
+                    <div className="text-center text-gray-500">
+                      Mostrando 10 de {Object.keys(duplicados.porEmail).length} grupos de duplicados por email
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Duplicados por teléfono */}
+            {Object.keys(duplicados.porTelefono).length > 0 && (
+              <div className="p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Duplicados por Teléfono ({Object.keys(duplicados.porTelefono).length} grupos)
+                </h3>
+                <div className="space-y-6">
+                  {Object.entries(duplicados.porTelefono).slice(0, 10).map(([telefono, clientes]) => (
+                    <div key={telefono} className="bg-amber-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-medium text-amber-800">{telefono}</h4>
+                        <button
+                          onClick={() => iniciarFusion('telefono', telefono, clientes)}
+                          className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                        >
+                          Fusionar ({clientes.length} registros)
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {clientes.map(cliente => (
+                          <div key={cliente.id} className="bg-white p-3 rounded-md shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{cliente.nombre}</p>
+                              <p className="text-sm text-gray-500">
+                                {cliente.email && <span className="mr-3">📧 {cliente.email}</span>}
+                                {cliente.telefono && <span>📞 {cliente.telefono}</span>}
+                              </p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Link
+                                href={`/clientes/${cliente.id}`}
+                                className="text-indigo-600 hover:text-indigo-900"
+                              >
+                                Ver
+                              </Link>
+                              <Link
+                                href={`/clientes/edit/${cliente.id}`}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Editar
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(duplicados.porTelefono).length > 10 && (
+                    <div className="text-center text-gray-500">
+                      Mostrando 10 de {Object.keys(duplicados.porTelefono).length} grupos de duplicados por teléfono
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
