@@ -108,8 +108,8 @@ export default function NegociosPage() {
           
         // Extraer nombres y formatear
         const proveedores = proveedoresData?.map(p => ({
-          id: p.id,
-          nombre: p.nombre
+          id: p.proveedores.id,
+          nombre: p.proveedores.nombre
         })) || [];
         
         const materiales = materialesData?.map(m => ({
