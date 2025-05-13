@@ -54,9 +54,10 @@ export default function NegociosPage() {
   }, []);
 
   const cargarNegocios = async () => {
-    setLoading(true);
-    setError(null);
     try {
+      setLoading(true);
+      setError(null);
+      
       const supabase = getSupabaseClient();
       
       // Primero ejecutamos la migración para asegurarnos de que la tabla existe
@@ -66,7 +67,7 @@ export default function NegociosPage() {
       if (!resultadoMigracion.success) {
         console.error('Error en la migración de negocios:', resultadoMigracion.error);
         setError('Error inicializando la tabla de negocios: ' + resultadoMigracion.message);
-        setNegocios(datosEjemplo);
+        setNegocios([]);
         setLoading(false);
         return;
       }
@@ -79,117 +80,63 @@ export default function NegociosPage() {
         .select(`
           *,
           clientes:cliente_id(nombre)
-        `);
+        `)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error("Error cargando negocios:", error);
-        setError("Error al cargar datos: " + error.message);
-        setNegocios(datosEjemplo);
-      } else if (data && data.length > 0) {
-        // Obtener datos adicionales de proveedores y materiales para cada negocio
-        const negociosConDetalles = await Promise.all(data.map(async (negocio) => {
-          // Buscar proveedores relacionados
-          const { data: proveedoresData } = await supabase
-            .from("negocios_proveedores")
-            .select(`
-              proveedores:proveedor_id(id, nombre)
-            `)
-            .eq("negocio_id", negocio.id);
-            
-          // Buscar materiales relacionados
-          const { data: materialesData } = await supabase
-            .from("negocios_materiales")
-            .select(`
-              materiales:material_id(id, nombre)
-            `)
-            .eq("negocio_id", negocio.id);
-            
-          // Extraer nombres y formatear - manejar diferentes estructuras de datos
-          const proveedores: Array<IProveedor> = [];
-          
-          if (proveedoresData && Array.isArray(proveedoresData)) {
-            for (const p of proveedoresData) {
-              // Convertir de manera segura usando type guards y aserciones
-              const proveedorData = p as unknown as ProveedorResult;
-              
-              if (!proveedorData.proveedores) continue;
-              
-              // Manejar caso de array
-              if (Array.isArray(proveedorData.proveedores)) {
-                if (proveedorData.proveedores.length > 0) {
-                  const item = proveedorData.proveedores[0];
-                  if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
-                    proveedores.push({
-                      id: Number(item.id),
-                      nombre: String(item.nombre)
-                    });
-                  }
-                }
-              } 
-              // Manejar caso de objeto
-              else if (typeof proveedorData.proveedores === 'object' && 'id' in proveedorData.proveedores && 'nombre' in proveedorData.proveedores) {
-                proveedores.push({
-                  id: Number(proveedorData.proveedores.id),
-                  nombre: String(proveedorData.proveedores.nombre)
-                });
-              }
-            }
-          }
-          
-          const materiales: Array<IMaterial> = [];
-          
-          if (materialesData && Array.isArray(materialesData)) {
-            for (const m of materialesData) {
-              // Convertir de manera segura usando type guards y aserciones
-              const materialData = m as unknown as MaterialResult;
-              
-              if (!materialData.materiales) continue;
-              
-              // Manejar caso de array
-              if (Array.isArray(materialData.materiales)) {
-                if (materialData.materiales.length > 0) {
-                  const item = materialData.materiales[0];
-                  if (item && typeof item === 'object' && 'id' in item && 'nombre' in item) {
-                    materiales.push({
-                      id: Number(item.id),
-                      nombre: String(item.nombre)
-                    });
-                  }
-                }
-              } 
-              // Manejar caso de objeto
-              else if (typeof materialData.materiales === 'object' && 'id' in materialData.materiales && 'nombre' in materialData.materiales) {
-                materiales.push({
-                  id: Number(materialData.materiales.id),
-                  nombre: String(materialData.materiales.nombre)
-                });
-              }
-            }
-          }
-          
-          // Determinar proveedor y material principal (el primero de la lista)
-          const proveedor_principal = proveedores.length > 0 ? proveedores[0].nombre : 'Sin proveedor';
-          const material_principal = materiales.length > 0 ? materiales[0].nombre : 'Sin material definido';
-          
-          return {
-            ...negocio,
-            cliente_nombre: negocio.clientes?.nombre || 'Cliente sin asignar',
-            proveedor_principal,
-            material_principal,
-            proveedores,
-            materiales
-          };
-        }));
-        
-        setNegocios(negociosConDetalles as Negocio[]);
-      } else {
-        // Si no hay datos, usar los de ejemplo
-        setNegocios(datosEjemplo);
+        throw error;
       }
+      
+      // Obtener datos adicionales de proveedores y materiales para cada negocio
+      const negociosConDetalles = await Promise.all((data || []).map(async (negocio) => {
+        // Buscar proveedores relacionados
+        const { data: proveedoresData } = await supabase
+          .from("negocios_proveedores")
+          .select(`
+            proveedores:proveedor_id(id, nombre)
+          `)
+          .eq("negocio_id", negocio.id);
+          
+        // Buscar materiales relacionados
+        const { data: materialesData } = await supabase
+          .from("negocios_materiales")
+          .select(`
+            materiales:material_id(id, nombre)
+          `)
+          .eq("negocio_id", negocio.id);
+          
+        // Extraer nombres y formatear
+        const proveedores = proveedoresData?.map(p => ({
+          id: p.proveedores.id,
+          nombre: p.proveedores.nombre
+        })) || [];
+        
+        const materiales = materialesData?.map(m => ({
+          id: m.materiales.id,
+          nombre: m.materiales.nombre
+        })) || [];
+        
+        // Determinar proveedor y material principal
+        const proveedor_principal = proveedores.length > 0 ? proveedores[0].nombre : 'Sin proveedor';
+        const material_principal = materiales.length > 0 ? materiales[0].nombre : 'Sin material definido';
+        
+        return {
+          ...negocio,
+          cliente_nombre: negocio.clientes?.nombre || 'Cliente sin asignar',
+          proveedor_principal,
+          material_principal,
+          proveedores,
+          materiales
+        };
+      }));
+      
+      setNegocios(negociosConDetalles);
+      
     } catch (error: any) {
       console.error("Error:", error);
-      setError("Error desconocido al cargar los datos");
-      setNegocios(datosEjemplo);
+      setError("Error al cargar los datos");
+      setNegocios([]);
     } finally {
       setLoading(false);
     }

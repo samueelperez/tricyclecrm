@@ -78,7 +78,7 @@ export default function GastosPage() {
       if (!resultadoMigracion.success) {
         console.error('Error en la migración de gastos:', resultadoMigracion.error);
         setError('Error inicializando la tabla de gastos: ' + resultadoMigracion.message);
-        setGastos(datosEjemploGastos);
+        setGastos([]);
         setLoading(false);
         return;
       }
@@ -88,34 +88,30 @@ export default function GastosPage() {
       // Si la migración fue exitosa, cargar los datos
       const { data, error } = await supabase
         .from("recibos")
-        .select(`
-          *,
-          proveedores(nombre)
-        `)
-        .order("fecha_emision", { ascending: false });
+        .select("*")
+        .order("fecha_factura", { ascending: false });
 
       if (error) {
         console.error("Error cargando gastos:", error);
-        setError("Error al cargar datos: " + error.message);
-        setGastos(datosEjemploGastos);
-      } else if (data && data.length > 0) {
-        // Formatear los datos recibidos como gastos
-        const gastosFormateados = data.map(item => ({
-          ...item,
-          proveedor: item.proveedores?.nombre || item.proveedor || 'Proveedor sin especificar',
-          categoria: item.categoria || 'otros',
-          deducible: item.deducible || false,
-          impuesto: item.impuesto || 21
-        }));
-        setGastos(gastosFormateados as Gasto[]);
-      } else {
-        // Si no hay datos, usar los de ejemplo
-        setGastos(datosEjemploGastos);
+        throw error;
       }
+      
+      // Formatear los datos recibidos como gastos
+      const gastosFormateados = (data || []).map(item => ({
+        ...item,
+        fecha_emision: item.fecha_factura,
+        proveedor: item.proveedor || 'Proveedor sin especificar',
+        categoria: item.categoria || 'otros',
+        deducible: item.deducible || false,
+        impuesto: item.impuesto || 21
+      }));
+      
+      setGastos(gastosFormateados);
+      
     } catch (error: any) {
       console.error("Error:", error);
-      setError("Error desconocido al cargar los datos");
-      setGastos(datosEjemploGastos);
+      setError("Error al cargar los datos");
+      setGastos([]);
     } finally {
       setLoading(false);
     }

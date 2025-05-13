@@ -28,6 +28,7 @@ export default function FacturasLogisticaPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>('todos')
   const supabase = createClientComponentClient()
   const [filePreview, setFilePreview] = useState<{url: string, nombre: string} | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
 
   useEffect(() => {
     async function loadFacturas() {
@@ -121,6 +122,52 @@ export default function FacturasLogisticaPage() {
       toast.error('No se pudo abrir el archivo adjunto');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta factura?')) {
+      return;
+    }
+    
+    setDeleteLoading(id);
+    
+    try {
+      // Eliminar archivo si existe
+      const { data: facturaData } = await supabase
+        .from('facturas_logistica')
+        .select('nombre_archivo')
+        .eq('id', id)
+        .single();
+        
+      if (facturaData?.nombre_archivo) {
+        const fileExt = facturaData.nombre_archivo.split('.').pop();
+        const filePath = `facturas-logistica/${id}.${fileExt}`;
+        
+        await supabase
+          .storage
+          .from('documentos')
+          .remove([filePath]);
+      }
+      
+      // Eliminar factura
+      const { error } = await supabase
+        .from('facturas_logistica')
+        .delete()
+        .eq('id', id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Actualizar la lista de facturas
+      setFacturas(prev => prev.filter(f => f.id !== id));
+      toast.success('Factura eliminada con éxito');
+    } catch (err) {
+      console.error('Error al eliminar la factura:', err);
+      toast.error('Error al eliminar la factura');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -227,8 +274,16 @@ export default function FacturasLogisticaPage() {
                       <Link href={`/facturas-logistica/edit/${factura.id}`} className="text-green-500 hover:text-green-700">
                         <FiEdit />
                       </Link>
-                      <button className="text-red-500 hover:text-red-700">
-                        <FiTrash2 />
+                      <button 
+                        onClick={() => handleDelete(factura.id)}
+                        disabled={deleteLoading === factura.id}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        {deleteLoading === factura.id ? (
+                          <div className="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full" />
+                        ) : (
+                          <FiTrash2 />
+                        )}
                       </button>
                     </div>
                   </td>
