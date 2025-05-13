@@ -133,7 +133,15 @@ function ProformasContent() {
     try {
       const supabase = getSupabaseClient();
       
-      // Eliminar la proforma directamente
+      // Primero, eliminar las referencias en facturas_cliente
+      const { error: facturasError } = await supabase
+        .from('facturas_cliente')
+        .update({ proforma_id: null })
+        .eq('proforma_id', id);
+      
+      if (facturasError) throw facturasError;
+      
+      // Luego, eliminar la proforma
       const { error } = await supabase
         .from('proformas')
         .delete()
