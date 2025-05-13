@@ -72,7 +72,7 @@ export default function NewCustomerInvoicePage() {
     puerto_origen: '',
     puerto_destino: '',
     deliveryTerms: '',
-    bankAccount: cuentasBancariasDisponibles.length > 0 ? cuentasBancariasDisponibles[0].descripcion : '',
+    bankAccount: '',
     items: [
       {
         id: '1',
@@ -86,12 +86,12 @@ export default function NewCustomerInvoicePage() {
     ] as InvoiceItem[],
     subtotal: 0,
     totalAmount: 0,
-    proforma_id: null as number | null, // Añadir esta propiedad para evitar errores de tipo
+    proforma_id: null as number | null,
   });
 
   // Actualizar la cuenta bancaria cuando se carguen las cuentas
   useEffect(() => {
-    if (cuentasBancarias.length > 0 && !invoice.bankAccount) {
+    if (cuentasBancarias.length > 0) {
       setInvoice(prev => ({
         ...prev,
         bankAccount: cuentasBancarias[0].descripcion

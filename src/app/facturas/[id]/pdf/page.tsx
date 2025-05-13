@@ -179,16 +179,17 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
     
     if (cuentaBancaria) {
       return {
-        banco: cuentaBancaria.banco,
-        iban: cuentaBancaria.iban,
-        moneda: cuentaBancaria.moneda,
-        swift: cuentaBancaria.swift,
-        beneficiario: cuentaBancaria.beneficiario
+        banco: cuentaBancaria.banco || '',
+        iban: cuentaBancaria.iban || '',
+        moneda: cuentaBancaria.moneda || '',
+        swift: cuentaBancaria.swift || '',
+        beneficiario: cuentaBancaria.beneficiario || 'Tricycle Import Export SL'
       };
     }
     
     // Si no se encuentra en las predefinidas, intentar parsear el formato antiguo
     const bankDetails = cuenta_bancaria.split(' - ');
+    
     // Asignar SWIFT según el banco
     let swift = '';
     const bancoNombre = bankDetails[0]?.toLowerCase() || '';
@@ -203,9 +204,9 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
     }
     
     return {
-      banco: bankDetails[0] || '',
-      iban: bankDetails[1] || '',
-      moneda: bankDetails[2] || '',
+      banco: bankDetails[0]?.trim() || '',
+      iban: bankDetails[1]?.trim() || '',
+      moneda: bankDetails[2]?.trim() || '',
       swift: swift,
       beneficiario: 'Tricycle Import Export SL'
     };
@@ -1155,11 +1156,11 @@ export default function FacturaPDFPage() {
     
     if (cuentaBancaria) {
       return {
-        banco: cuentaBancaria.banco,
-        iban: cuentaBancaria.iban,
-        moneda: cuentaBancaria.moneda,
-        swift: cuentaBancaria.swift,
-        beneficiario: cuentaBancaria.beneficiario
+        banco: cuentaBancaria.banco || '',
+        iban: cuentaBancaria.iban || '',
+        moneda: cuentaBancaria.moneda || '',
+        swift: cuentaBancaria.swift || '',
+        beneficiario: cuentaBancaria.beneficiario || 'Tricycle Import Export SL'
       };
     }
     
@@ -1180,9 +1181,9 @@ export default function FacturaPDFPage() {
     }
     
     return {
-      banco: bankDetails[0] || '',
-      iban: bankDetails[1] || '',
-      moneda: bankDetails[2] || '',
+      banco: bankDetails[0]?.trim() || '',
+      iban: bankDetails[1]?.trim() || '',
+      moneda: bankDetails[2]?.trim() || '',
       swift: swift,
       beneficiario: 'Tricycle Import Export SL'
     };

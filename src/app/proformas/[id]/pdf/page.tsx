@@ -84,7 +84,7 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
         return match[1]; // Devuelve solo el valor, sin la etiqueta "Material:"
       }
     }
-    return proforma.productos && proforma.productos.length > 0 ? proforma.productos[0].descripcion : '';
+    return 'Sin descripción';
   };
   
   // Extraer información de consignatario
@@ -196,7 +196,7 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
             proforma.productos.map((item, index) => (
               <tr key={index}>
                 <td style={{ border: '1px solid #000', padding: '8px' }}>
-                  {item.descripcion}
+                  {item.descripcion || 'Sin descripción'}
                 </td>
                 <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
                   {item.peso ? `${item.peso.toFixed(2)} MT` : `${item.cantidad} MT`}
@@ -210,16 +210,15 @@ const ProformaPrintView = forwardRef<HTMLDivElement, { proforma: Proforma; numer
               </tr>
             ))
           ) : (
-            // Si no hay items, mostrar una fila de ejemplo con el material de las notas
             <tr>
               <td style={{ border: '1px solid #000', padding: '8px' }}>
-                {getMaterial() || 'PP PLASTIC SCRAP - SAMPLE CODE'}
+                {getMaterial()}
               </td>
               <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
                 {totalPeso.toFixed(2)} MT
               </td>
               <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
-                {formatCurrency(200, 'EUR')}
+                {formatCurrency(0, 'EUR')}
               </td>
               <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>
                 {formatCurrency(proforma.monto, 'EUR')}
@@ -388,10 +387,17 @@ export default function ProformaPDFPage() {
           const esProveedor = data.notas?.includes('Proveedor:') || false;
           
           // Obtener los productos de la proforma
-          const { data: productosData } = await supabase
+          const { data: productosData, error: productosError } = await supabase
             .from('proformas_productos')
             .select('*')
             .eq('proforma_id', id);
+            
+          if (productosError) {
+            console.error('Error al cargar productos:', productosError);
+            throw productosError;
+          }
+          
+          console.log('Productos cargados:', productosData);
           
           const proformaData: Proforma = {
             ...data,
