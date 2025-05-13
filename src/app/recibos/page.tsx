@@ -149,7 +149,6 @@ export default function GastosPage() {
   const gastosFiltrados = gastos.filter(gasto => {
     const cumpleFiltroTexto = 
       gasto.numero_recibo.toLowerCase().includes(filtro.toLowerCase()) ||
-      gasto.proveedor.toLowerCase().includes(filtro.toLowerCase()) ||
       gasto.descripcion.toLowerCase().includes(filtro.toLowerCase());
     
     return cumpleFiltroTexto;
@@ -230,7 +229,7 @@ export default function GastosPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Buscar por número, proveedor o descripción..."
+                  placeholder="Buscar por número o descripción..."
                   value={filtro}
                   onChange={(e) => setFiltro(e.target.value)}
                   className="pl-10 pr-4 py-3 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
@@ -288,12 +287,6 @@ export default function GastosPage() {
                   </th>
                   <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex items-center">
-                      <FiUser className="mr-1 text-indigo-500" />
-                      Proveedor
-                    </div>
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center">
                       <FiFileText className="mr-1 text-indigo-500" />
                       Descripción
                     </div>
@@ -320,12 +313,6 @@ export default function GastosPage() {
                         <div className="text-sm text-gray-900 flex items-center">
                           <FiCalendar className="mr-1 text-indigo-500 h-4 w-4" />
                           {formatDate(gasto.fecha_emision)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 flex items-center">
-                          <FiUser className="mr-1 text-indigo-500 h-4 w-4" />
-                          {gasto.proveedor}
                         </div>
                       </td>
                       <td className="px-3 py-3">

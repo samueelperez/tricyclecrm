@@ -63,7 +63,6 @@ export default function NuevoGastoPage() {
   const [formData, setFormData] = useState({
     numero_recibo: '',
     fecha_emision: new Date().toISOString().split('T')[0],
-    categoria: 'otros',
     descripcion: '',
     monto: '',
     metodo_pago: 'Transferencia',
@@ -210,7 +209,6 @@ export default function NuevoGastoPage() {
       const gastoData = {
         numero_recibo: formData.numero_recibo,
         fecha_emision: formData.fecha_emision,
-        categoria: formData.categoria,
         descripcion: formData.descripcion,
         monto: montoNumerico,
         metodo_pago: formData.metodo_pago,
@@ -309,7 +307,7 @@ export default function NuevoGastoPage() {
           <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
             <h3 className="text-lg font-medium text-gray-700 mb-4">Información Básica</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nº Recibo / Factura <span className="text-gray-400">(generado automáticamente)</span>
@@ -342,29 +340,6 @@ export default function NuevoGastoPage() {
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                     <FiCalendar className="h-5 w-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoría
-                </label>
-                <div className="relative">
-                  <select
-                    name="categoria"
-                    value={formData.categoria}
-                    onChange={handleChange}
-                    className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                  >
-                    {CATEGORIAS_GASTO.map(categoria => (
-                      <option key={categoria.value} value={categoria.value}>
-                        {categoria.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FiTag className="h-5 w-5 text-gray-400" />
                   </div>
                 </div>
               </div>
