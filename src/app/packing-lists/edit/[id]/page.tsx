@@ -9,9 +9,11 @@ import {
   FiTrash2, 
   FiSave, 
   FiPackage,
-  FiCalendar
+  FiCalendar,
+  FiUser
 } from 'react-icons/fi';
 import { getSupabaseClient } from '@/lib/supabase';
+import ClienteSelector from '@/components/cliente-selector';
 
 // Interfaz para item de lista de empaque
 interface PackingListItem {
@@ -409,18 +411,21 @@ export default function EditPackingListPage() {
               <label htmlFor="cliente_id" className="block text-sm font-medium text-gray-700 mb-1">
                 Cliente <span className="text-red-500">*</span>
               </label>
-              <select
-                id="cliente_id"
-                name="cliente_id"
-                value={packingList.cliente_id}
-                onChange={handleInputChange}
-                className="block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-              >
-                <option value="">Seleccionar cliente</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id}>{client.nombre}</option>
-                ))}
-              </select>
+              <ClienteSelector
+                value={packingList.cliente_nombre || ''}
+                onChange={(nombre) => {
+                  const cliente = clients.find(c => c.nombre === nombre);
+                  if (cliente) {
+                    setPackingList(prev => ({
+                      ...prev,
+                      cliente_id: cliente.id,
+                      cliente_nombre: cliente.nombre
+                    }));
+                  }
+                }}
+                clientesList={clients}
+                placeholder="Buscar cliente..."
+              />
             </div>
             
             <div>

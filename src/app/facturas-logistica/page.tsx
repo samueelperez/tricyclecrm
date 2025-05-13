@@ -258,19 +258,9 @@ export default function FacturasLogisticaPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-3">
-                      {factura.nombre_archivo ? (
-                        <button 
-                          onClick={() => handlePreviewFile(factura)}
-                          className="text-blue-500 hover:text-blue-700"
-                          title="Ver documento adjunto"
-                        >
-                          <FiEye />
-                        </button>
-                      ) : (
-                        <Link href={`/facturas-logistica/${factura.id}`} className="text-blue-500 hover:text-blue-700">
-                          <FiEye />
-                        </Link>
-                      )}
+                      <Link href={`/facturas-logistica/${factura.id}`} className="text-blue-500 hover:text-blue-700">
+                        <FiEye />
+                      </Link>
                       <Link href={`/facturas-logistica/edit/${factura.id}`} className="text-green-500 hover:text-green-700">
                         <FiEdit />
                       </Link>

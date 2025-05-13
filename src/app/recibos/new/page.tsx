@@ -64,13 +64,9 @@ export default function NuevoGastoPage() {
     numero_recibo: '',
     fecha_emision: new Date().toISOString().split('T')[0],
     categoria: 'otros',
-    proveedor_id: '',
-    nuevo_proveedor: '',
     descripcion: '',
     monto: '',
-    estado: 'pendiente',
     metodo_pago: 'Transferencia',
-    notas: '',
     deducible: true,
     impuesto: 21
   });
@@ -203,25 +199,9 @@ export default function NuevoGastoPage() {
     setError(null);
     
     try {
-      // Validar campos obligatorios
-      if (!formData.fecha_emision || !formData.descripcion || !formData.monto) {
-        throw new Error('Por favor, complete los campos obligatorios: fecha, descripción e importe.');
-      }
-      
       const montoNumerico = parseFloat(formData.monto);
       if (isNaN(montoNumerico) || montoNumerico <= 0) {
         throw new Error('El importe debe ser un número mayor que cero.');
-      }
-      
-      // Crear nuevo proveedor si es necesario
-      let proveedorId = parseInt(formData.proveedor_id);
-      if (showNuevoProveedor && formData.nuevo_proveedor) {
-        const nuevoId = await crearNuevoProveedor(formData.nuevo_proveedor);
-        if (nuevoId) {
-          proveedorId = nuevoId;
-        } else {
-          throw new Error('No se pudo crear el nuevo proveedor.');
-        }
       }
       
       const supabase = getSupabaseClient();
@@ -231,13 +211,9 @@ export default function NuevoGastoPage() {
         numero_recibo: formData.numero_recibo,
         fecha_emision: formData.fecha_emision,
         categoria: formData.categoria,
-        proveedor_id: !isNaN(proveedorId) ? proveedorId : null,
-        proveedor: showNuevoProveedor ? formData.nuevo_proveedor : proveedores.find(p => p.id === proveedorId)?.nombre || null,
         descripcion: formData.descripcion,
         monto: montoNumerico,
-        estado: formData.estado,
         metodo_pago: formData.metodo_pago,
-        notas: formData.notas || null,
         deducible: formData.deducible,
         impuesto: formData.impuesto || 0
       };
@@ -252,7 +228,7 @@ export default function NuevoGastoPage() {
       // Redirigir a la página principal de gastos
       router.push('/recibos');
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al guardar el gasto:', error);
       setError(error.message || 'Ha ocurrido un error al guardar el gasto.');
     } finally {
@@ -354,7 +330,7 @@ export default function NuevoGastoPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha <span className="text-red-500">*</span>
+                  Fecha
                 </label>
                 <div className="relative">
                   <input
@@ -362,7 +338,6 @@ export default function NuevoGastoPage() {
                     name="fecha_emision"
                     value={formData.fecha_emision}
                     onChange={handleChange}
-                    required
                     className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -373,14 +348,13 @@ export default function NuevoGastoPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoría <span className="text-red-500">*</span>
+                  Categoría
                 </label>
                 <div className="relative">
                   <select
                     name="categoria"
                     value={formData.categoria}
                     onChange={handleChange}
-                    required
                     className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
                   >
                     {CATEGORIAS_GASTO.map(categoria => (
@@ -397,78 +371,18 @@ export default function NuevoGastoPage() {
             </div>
           </div>
           
-          {/* Sección del proveedor */}
-          <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-700">Información del Proveedor</h3>
-              <button
-                type="button"
-                onClick={handleToggleNuevoProveedor}
-                className="text-sm text-indigo-600 hover:text-indigo-800"
-              >
-                {showNuevoProveedor ? 'Seleccionar proveedor existente' : 'Añadir nuevo proveedor'}
-              </button>
-            </div>
-            
-            {showNuevoProveedor ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre del Nuevo Proveedor <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    name="nuevo_proveedor"
-                    value={formData.nuevo_proveedor}
-                    onChange={handleChange}
-                    placeholder="Introduce el nombre del proveedor"
-                    className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FiUser className="h-5 w-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Seleccionar Proveedor
-                </label>
-                <div className="relative">
-                  <select
-                    name="proveedor_id"
-                    value={formData.proveedor_id}
-                    onChange={handleChange}
-                    className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                  >
-                    <option value="">Seleccionar un proveedor</option>
-                    {proveedores.map(proveedor => (
-                      <option key={proveedor.id} value={proveedor.id}>
-                        {proveedor.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FiUser className="h-5 w-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
           {/* Sección de detalles del gasto */}
           <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
             <h3 className="text-lg font-medium text-gray-700 mb-4">Detalles del Gasto</h3>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Descripción <span className="text-red-500">*</span>
+                Descripción
               </label>
               <textarea
                 name="descripcion"
                 value={formData.descripcion}
                 onChange={handleChange}
-                required
                 rows={3}
                 placeholder="Descripción detallada del gasto"
                 className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -478,7 +392,7 @@ export default function NuevoGastoPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Importe <span className="text-red-500">*</span>
+                  Importe
                 </label>
                 <div className="relative">
                   <input
@@ -487,7 +401,6 @@ export default function NuevoGastoPage() {
                     value={formData.monto}
                     onChange={handleChange}
                     placeholder="0.00"
-                    required
                     className="w-full p-2 pl-8 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -534,74 +447,30 @@ export default function NuevoGastoPage() {
             </div>
           </div>
           
-          {/* Sección de estado y pago */}
+          {/* Sección de pago */}
           <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-            <h3 className="text-lg font-medium text-gray-700 mb-4">Estado y Pago</h3>
+            <h3 className="text-lg font-medium text-gray-700 mb-4">Método de Pago</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
-                </label>
-                <div className="relative">
-                  <select
-                    name="estado"
-                    value={formData.estado}
-                    onChange={handleChange}
-                    className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                  >
-                    {ESTADOS_GASTO.map(estado => (
-                      <option key={estado.value} value={estado.value}>
-                        {estado.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FiCheckCircle className="h-5 w-5 text-gray-400" />
-                  </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Método de Pago
+              </label>
+              <div className="relative">
+                <select
+                  name="metodo_pago"
+                  value={formData.metodo_pago}
+                  onChange={handleChange}
+                  className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                >
+                  {METODOS_PAGO.map(metodo => (
+                    <option key={metodo} value={metodo}>
+                      {metodo}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <FiCreditCard className="h-5 w-5 text-gray-400" />
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Método de Pago
-                </label>
-                <div className="relative">
-                  <select
-                    name="metodo_pago"
-                    value={formData.metodo_pago}
-                    onChange={handleChange}
-                    className="w-full p-2 pr-10 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                  >
-                    {METODOS_PAGO.map(metodo => (
-                      <option key={metodo} value={metodo}>
-                        {metodo}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FiCreditCard className="h-5 w-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Sección de notas */}
-          <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-            <h3 className="text-lg font-medium text-gray-700 mb-4">Notas Adicionales</h3>
-            
-            <div className="relative">
-              <textarea
-                name="notas"
-                value={formData.notas}
-                onChange={handleChange}
-                rows={4}
-                placeholder="Información adicional o notas sobre el gasto"
-                className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <div className="absolute top-2 right-2 text-gray-400">
-                <FiMessageSquare className="h-5 w-5" />
               </div>
             </div>
           </div>
