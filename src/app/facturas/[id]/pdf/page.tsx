@@ -239,6 +239,7 @@ const FacturaPrintView = forwardRef<HTMLDivElement, { factura: Factura; numeroFa
           <div>VAT: B56194830</div>
           <div>Tel. +34 964 041 556</div>
           <div>E-mail: info@tricycle.es</div>
+          <div>Web: www.tricycle.es</div>
         </div>
       </div>
       
