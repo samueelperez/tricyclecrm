@@ -442,7 +442,7 @@ export default function EditClientePage({ params }: { params: { id: string } }) 
                 <div className="relative group">
                   {renderLabel('Teléfono', false, <FiPhone />)}
                   {renderInput({
-                    type: "tel",
+                    type: "text",
                     name: "telefono",
                     id: "telefono",
                     value: formData.telefono,
